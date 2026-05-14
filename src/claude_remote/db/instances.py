@@ -18,6 +18,7 @@ Notable choices:
     'running' rows are returned (ACTIVE_STATUSES).
 """
 
+import secrets
 import sqlite3
 import uuid
 from collections.abc import Callable
@@ -49,6 +50,7 @@ class Instance(BaseModel):
     status: str  # CHECK constraint at DB layer; validated on write
     created_at: str  # ISO 8601 UTC
     stopped_at: str | None  # ISO 8601 UTC; None when status ∈ {starting, running}
+    hook_token: str  # URL-safe bearer token for /hooks/* endpoint; generated on create
 
 
 # ---------------------------------------------------------------------------
@@ -109,15 +111,16 @@ class InstancesRepository:
         """
         instance_id = str(uuid.uuid4())
         created_at = datetime.now(UTC).isoformat()
+        hook_token = secrets.token_urlsafe(32)
 
         with self._factory() as conn:
             conn.execute(
                 """
                 INSERT INTO instances
-                    (id, project_id, tmux_session_name, pane_pid, status, created_at, stopped_at)
-                VALUES (?, ?, ?, NULL, ?, ?, NULL)
+                    (id, project_id, tmux_session_name, pane_pid, status, created_at, stopped_at, hook_token)
+                VALUES (?, ?, ?, NULL, ?, ?, NULL, ?)
                 """,
-                (instance_id, project_id, tmux_session_name, status, created_at),
+                (instance_id, project_id, tmux_session_name, status, created_at, hook_token),
             )
 
         return Instance(
@@ -128,6 +131,7 @@ class InstancesRepository:
             status=status,
             created_at=created_at,
             stopped_at=None,
+            hook_token=hook_token,
         )
 
     def update_status(
@@ -199,11 +203,31 @@ class InstancesRepository:
             row = conn.execute(
                 """
                 SELECT id, project_id, tmux_session_name, pane_pid,
-                       status, created_at, stopped_at
+                       status, created_at, stopped_at, hook_token
                 FROM instances
                 WHERE id = ?
                 """,
                 (instance_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_instance(row)
+
+    def get_by_hook_token(self, token: str) -> Instance | None:
+        """Return a single instance by hook_token, or None if not found.
+
+        Used by the hook receiver endpoint to look up the instance that owns
+        a given bearer token.
+        """
+        with self._factory() as conn:
+            row = conn.execute(
+                """
+                SELECT id, project_id, tmux_session_name, pane_pid,
+                       status, created_at, stopped_at, hook_token
+                FROM instances
+                WHERE hook_token = ?
+                """,
+                (token,),
             ).fetchone()
         if row is None:
             return None
@@ -215,7 +239,7 @@ class InstancesRepository:
             rows = conn.execute(
                 """
                 SELECT id, project_id, tmux_session_name, pane_pid,
-                       status, created_at, stopped_at
+                       status, created_at, stopped_at, hook_token
                 FROM instances
                 ORDER BY created_at DESC
                 """
@@ -232,7 +256,7 @@ class InstancesRepository:
             rows = conn.execute(
                 """
                 SELECT id, project_id, tmux_session_name, pane_pid,
-                       status, created_at, stopped_at
+                       status, created_at, stopped_at, hook_token
                 FROM instances
                 WHERE project_id = ? AND status IN ('starting', 'running')
                 ORDER BY created_at DESC
@@ -251,7 +275,7 @@ class InstancesRepository:
             rows = conn.execute(
                 """
                 SELECT id, project_id, tmux_session_name, pane_pid,
-                       status, created_at, stopped_at
+                       status, created_at, stopped_at, hook_token
                 FROM instances
                 WHERE project_id = ?
                 ORDER BY created_at DESC
@@ -274,4 +298,5 @@ class InstancesRepository:
             status=row[4],
             created_at=row[5],
             stopped_at=row[6],
+            hook_token=row[7],
         )
