@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from claude_remote.api.errors import error_response
 from claude_remote.config import get_settings
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
-from claude_remote.routes import health, instances, projects
+from claude_remote.routes import health, hooks, instances, projects
 
 PACKAGE_ROOT = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=PACKAGE_ROOT / "templates")
@@ -52,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(projects.router)
     app.include_router(instances.router)
+    app.include_router(hooks.router)
     app.add_api_route("/", _index, methods=["GET"], response_class=HTMLResponse)
     return app
 
