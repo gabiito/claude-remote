@@ -10,8 +10,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
+from httpx import ASGITransport, AsyncClient  # noqa: F401 — used in type context
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -20,7 +19,6 @@ from httpx import ASGITransport, AsyncClient
 
 def _project_payload(tmp_projects_root, name: str = "My Project") -> dict:
     """Build a valid CreateProject payload using the tmp_projects_root."""
-    import os
 
     domain = "gh"
     project_dir = tmp_projects_root / domain / name.lower().replace(" ", "-")
@@ -71,7 +69,9 @@ async def test_launch_happy_no_body(app_with_fake_tmux, tmp_projects_root, fake_
 
 
 @pytest.mark.asyncio
-async def test_launch_happy_command_override(app_with_fake_tmux, tmp_projects_root, fake_tmux_adapter):
+async def test_launch_happy_command_override(
+    app_with_fake_tmux, tmp_projects_root, fake_tmux_adapter
+):
     """POST with explicit command passes it through to the adapter."""
     async with AsyncClient(
         transport=ASGITransport(app=app_with_fake_tmux),
@@ -184,7 +184,7 @@ async def test_launch_blank_command_400(app_with_fake_tmux, tmp_projects_root):
 async def test_launch_reconcile_unblocks_409(
     app_with_fake_tmux, tmp_projects_root, fake_tmux_adapter
 ):
-    """Mark session dead externally, then launch again — reconciliation flips to crashed, 201 returned."""
+    """Mark session dead externally; second launch reconciles stale row and returns 201."""
     async with AsyncClient(
         transport=ASGITransport(app=app_with_fake_tmux),
         base_url="http://test",

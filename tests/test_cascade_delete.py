@@ -16,14 +16,11 @@ Design: §4.2
 
 from __future__ import annotations
 
-import sqlite3
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -85,7 +82,9 @@ async def test_cascade_delete_multiple_instances(
         transport=ASGITransport(app=app_with_fake_tmux),
         base_url="http://test",
     ) as client:
-        r = await client.post("/projects", json=_project_payload(tmp_projects_root, "Multi Instance"))
+        r = await client.post(
+            "/projects", json=_project_payload(tmp_projects_root, "Multi Instance")
+        )
         assert r.status_code == 201
         project_id = r.json()["id"]
 
@@ -93,14 +92,12 @@ async def test_cascade_delete_multiple_instances(
         r1 = await client.post(f"/projects/{project_id}/launch")
         assert r1.status_code == 201
         instance_id_1 = r1.json()["id"]
-        session_name_1 = r1.json()["tmux_session_name"]
 
         await client.post(f"/instances/{instance_id_1}/stop")
 
         # Launch second instance (new row, different session)
         r2 = await client.post(f"/projects/{project_id}/launch")
         assert r2.status_code == 201
-        instance_id_2 = r2.json()["id"]
 
         # Delete project
         r_del = await client.delete(f"/projects/{project_id}")
@@ -128,12 +125,16 @@ async def test_no_cascade_on_other_project(
         base_url="http://test",
     ) as client:
         # Project A
-        ra = await client.post("/projects", json=_project_payload(tmp_projects_root, "Project Alpha"))
+        ra = await client.post(
+            "/projects", json=_project_payload(tmp_projects_root, "Project Alpha")
+        )
         assert ra.status_code == 201
         project_id_a = ra.json()["id"]
 
         # Project B
-        rb = await client.post("/projects", json=_project_payload(tmp_projects_root, "Project Beta"))
+        rb = await client.post(
+            "/projects", json=_project_payload(tmp_projects_root, "Project Beta")
+        )
         assert rb.status_code == 201
         project_id_b = rb.json()["id"]
 

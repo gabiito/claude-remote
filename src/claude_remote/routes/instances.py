@@ -89,9 +89,9 @@ def get_tmux_launcher(
 # ---------------------------------------------------------------------------
 
 
-def _instance_response(instance: Instance) -> dict:
+def _instance_response(instance: Instance) -> dict[str, object]:
     """Serialise an Instance to a plain dict for JSONResponse."""
-    return instance.model_dump()
+    return instance.model_dump()  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------

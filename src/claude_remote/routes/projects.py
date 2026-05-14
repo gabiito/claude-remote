@@ -28,6 +28,7 @@ from claude_remote.db.projects import (
     ProjectCreate,
     ProjectsRepository,
 )
+from claude_remote.routes.instances import get_tmux_launcher
 from claude_remote.services.exceptions import (
     EmptyCommandError,
     InstanceAlreadyRunningError,
@@ -37,11 +38,6 @@ from claude_remote.services.exceptions import (
 from claude_remote.services.path_validation import PathValidationError, validate_project_path
 from claude_remote.services.slug import slugify
 from claude_remote.services.tmux_launcher import TmuxLauncher
-
-# routes/instances.py does NOT import from routes/projects.py, so this import
-# is NOT circular.  We use TYPE_CHECKING for type hints but import the factory
-# at module level for Depends() to work correctly.
-from claude_remote.routes.instances import get_tmux_launcher  # noqa: E402
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -96,9 +92,9 @@ def get_projects_repo(
 # ---------------------------------------------------------------------------
 
 
-def _instance_response(instance: Instance) -> dict:
+def _instance_response(instance: Instance) -> dict[str, object]:
     """Serialise an Instance to a plain dict for JSONResponse."""
-    return instance.model_dump()
+    return instance.model_dump()  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------

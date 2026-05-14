@@ -17,7 +17,6 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Shared test helpers
 # ---------------------------------------------------------------------------
@@ -30,7 +29,9 @@ def _project_payload(tmp_projects_root, name: str = "Test Project") -> dict:
     return {"name": name, "path": str(project_dir)}
 
 
-async def _create_project_and_launch(client, tmp_projects_root, name: str = "Test Project") -> tuple[str, str]:
+async def _create_project_and_launch(  # noqa: ANN001
+    client, tmp_projects_root, name: str = "Test Project"
+) -> tuple[str, str]:
     """Create a project and launch an instance; return (project_id, instance_id)."""
     r = await client.post("/projects", json=_project_payload(tmp_projects_root, name))
     assert r.status_code == 201
@@ -86,7 +87,9 @@ async def test_stop_already_stopped_idempotent(app_with_fake_tmux, tmp_projects_
 
 
 @pytest.mark.asyncio
-async def test_stop_already_crashed_idempotent(app_with_fake_tmux, tmp_projects_root, fake_tmux_adapter):
+async def test_stop_already_crashed_idempotent(
+    app_with_fake_tmux, tmp_projects_root, fake_tmux_adapter
+):
     """Crashed instance → POST /stop → 200, same record (S9.3)."""
     async with AsyncClient(
         transport=ASGITransport(app=app_with_fake_tmux),
@@ -202,14 +205,20 @@ async def test_list_mixed_statuses(app_with_fake_tmux, tmp_projects_root, fake_t
         base_url="http://test",
     ) as client:
         # running: project A
-        _, id_running = await _create_project_and_launch(client, tmp_projects_root, "Project Running")
+        _, id_running = await _create_project_and_launch(
+            client, tmp_projects_root, "Project Running"
+        )
 
         # stopped: project B — launch then stop
-        _, id_stopped = await _create_project_and_launch(client, tmp_projects_root, "Project Stopped")
+        _, id_stopped = await _create_project_and_launch(
+            client, tmp_projects_root, "Project Stopped"
+        )
         await client.post(f"/instances/{id_stopped}/stop")
 
         # crashed: project C — launch then kill externally, reconcile via GET
-        _, id_crashed = await _create_project_and_launch(client, tmp_projects_root, "Project Crashed")
+        _, id_crashed = await _create_project_and_launch(
+            client, tmp_projects_root, "Project Crashed"
+        )
         r = await client.get(f"/instances/{id_crashed}")
         session_name = r.json()["tmux_session_name"]
         fake_tmux_adapter.kill_session_externally(session_name)
