@@ -24,7 +24,6 @@ from claude_remote.db.projects import (
     ProjectsRepository,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -90,7 +89,9 @@ def repo(tmp_db_path: Path) -> ProjectsRepository:
 # ---------------------------------------------------------------------------
 
 
-def test_create_returns_project_with_all_fields(repo: ProjectsRepository, project_path: Path) -> None:
+def test_create_returns_project_with_all_fields(
+    repo: ProjectsRepository, project_path: Path
+) -> None:
     pc = make_project_create(path=project_path)
     result = repo.create(project_create=pc)
 
@@ -184,9 +185,13 @@ def test_list_all_order_created_at_desc(repo: ProjectsRepository, tmp_path: Path
     path_b = tmp_path / "domain" / "proj-b"
     path_b.mkdir(parents=True)
 
-    first = repo.create(project_create=ProjectCreate(name="A", slug="a", path=path_a, domain="domain"))
+    first = repo.create(
+        project_create=ProjectCreate(name="A", slug="a", path=path_a, domain="domain")
+    )
     time.sleep(0.01)  # ensure distinct timestamps
-    second = repo.create(project_create=ProjectCreate(name="B", slug="b", path=path_b, domain="domain"))
+    second = repo.create(
+        project_create=ProjectCreate(name="B", slug="b", path=path_b, domain="domain")
+    )
 
     results = repo.list_all()
     assert len(results) == 2
