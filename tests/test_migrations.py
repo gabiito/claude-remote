@@ -49,12 +49,14 @@ class TestApplyOnce:
         apply_migrations(db, MIGRATIONS_DIR)
         assert "projects" in _table_names(db)
 
-    def test_schema_migrations_has_one_row(self, tmp_path: Path) -> None:
-        """After one real migration, schema_migrations has exactly one row."""
+    def test_schema_migrations_has_expected_rows(self, tmp_path: Path) -> None:
+        """After applying MIGRATIONS_DIR, schema_migrations has one row per SQL file."""
         db = tmp_path / "test.db"
         apply_migrations(db, MIGRATIONS_DIR)
         rows = _migration_rows(db)
-        assert len(rows) == 1
+        # Number of rows must equal number of .sql files in MIGRATIONS_DIR
+        sql_file_count = len(list(MIGRATIONS_DIR.glob("*.sql")))
+        assert len(rows) == sql_file_count
         assert rows[0] == "0001_create_projects.sql"
 
 
@@ -67,12 +69,13 @@ class TestIdempotency:
         assert result == []
 
     def test_second_run_does_not_duplicate_schema_migrations(self, tmp_path: Path) -> None:
-        """schema_migrations still has exactly one row after two runs."""
+        """schema_migrations row count is stable after two runs (no duplicates)."""
         db = tmp_path / "test.db"
         apply_migrations(db, MIGRATIONS_DIR)
+        first_count = len(_migration_rows(db))
         apply_migrations(db, MIGRATIONS_DIR)
         rows = _migration_rows(db)
-        assert len(rows) == 1
+        assert len(rows) == first_count  # idempotent — same count
 
 
 class TestLexOrder:
