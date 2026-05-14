@@ -1,4 +1,4 @@
-.PHONY: setup test lint format typecheck run check
+.PHONY: setup test test-unit test-integration lint format typecheck run check
 
 PYTHON := .venv/bin/python
 UV := uv
@@ -7,9 +7,17 @@ UV := uv
 setup:
 	$(UV) sync --extra dev
 
-# Run tests with coverage
+# Run all tests with coverage (integration tests auto-skip if tmux not on PATH)
 test:
 	$(PYTHON) -m pytest
+
+# Run only unit/endpoint tests (no tmux binary required)
+test-unit:
+	$(PYTHON) -m pytest -m "not requires_tmux"
+
+# Run only real-tmux integration tests (requires tmux on PATH)
+test-integration:
+	$(PYTHON) -m pytest -m requires_tmux tests/integration/ -v
 
 # Lint source tree
 lint:
