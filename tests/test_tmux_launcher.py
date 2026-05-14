@@ -211,11 +211,11 @@ def test_launch_adapter_failure_marks_starting_row(
 ) -> None:
     """When adapter.create_session raises, the 'starting' row stays (for audit trail)."""
     # Patch the adapter to always fail
-    original_create = fake_adapter.create_session
-
     def _always_fail(name: str, cwd: Path, command: str) -> int | None:
         # Record the call then raise
-        fake_adapter.calls.append(("create_session", {"name": name, "cwd": cwd, "command": command}))
+        fake_adapter.calls.append(
+            ("create_session", {"name": name, "cwd": cwd, "command": command})
+        )
         raise TmuxOperationError("create_session", RuntimeError("tmux unavailable"))
 
     fake_adapter.create_session = _always_fail  # type: ignore[method-assign]

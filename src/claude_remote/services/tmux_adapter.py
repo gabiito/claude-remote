@@ -11,7 +11,7 @@ Importing this module in a test environment without libtmux installed is safe.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -186,7 +186,7 @@ class LibTmuxAdapter:
             )
         except libtmux.exc.LibTmuxException as exc:
             raise TmuxOperationError("create_session", exc) from exc
-        return self._read_pane_pid(session)
+        return self._read_pane_pid(session)  # pyright: ignore[reportUnknownArgumentType]
 
     def kill_session(self, name: str) -> bool:
         """Kill the named tmux session.
@@ -222,7 +222,7 @@ class LibTmuxAdapter:
             session = server.sessions.get(session_name=name)  # type: ignore[union-attr]
             if session is None:
                 return None
-            return self._read_pane_pid(session)
+            return self._read_pane_pid(session)  # pyright: ignore[reportUnknownArgumentType]
         except (libtmux.exc.LibTmuxException, KeyError, AttributeError):
             return None
 
@@ -239,12 +239,12 @@ class LibTmuxAdapter:
             pane = session.active_pane  # type: ignore[union-attr]
             if pane is None:
                 return None
-            pid_str = getattr(pane, "pane_pid", None)
+            pid_str = getattr(pane, "pane_pid", None)  # pyright: ignore[reportUnknownArgumentType]
             if not pid_str:
-                result = pane.cmd("display-message", "-p", "#{pane_pid}")
-                pid_str = result.stdout[0] if result.stdout else None
+                result = pane.cmd("display-message", "-p", "#{pane_pid}")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+                pid_str = result.stdout[0] if result.stdout else None  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
             if pid_str is None:
                 return None
-            return int(pid_str)
+            return int(pid_str)  # pyright: ignore[reportUnknownArgumentType]
         except (AttributeError, ValueError, IndexError):
             return None

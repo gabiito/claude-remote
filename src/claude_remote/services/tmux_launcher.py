@@ -31,7 +31,6 @@ from claude_remote.services.exceptions import (
     InstanceAlreadyRunningError,
     InstanceNotFoundError,
     ProjectNotFoundError,
-    TmuxOperationError,
 )
 from claude_remote.services.tmux_adapter import TmuxAdapter
 

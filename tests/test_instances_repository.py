@@ -245,7 +245,11 @@ def test_status_check_constraint_rejects_invalid_status(
     repo: InstancesRepository, proj_id: str
 ) -> None:
     with pytest.raises(sqlite3.IntegrityError):
-        repo.create(project_id=proj_id, tmux_session_name="claude-remote-proj-bad00001", status="unknown")
+        repo.create(
+            project_id=proj_id,
+            tmux_session_name="claude-remote-proj-bad00001",
+            status="unknown",
+        )
 
 
 def test_migration_idempotent(db_path: Path) -> None:

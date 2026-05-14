@@ -10,8 +10,6 @@ All error responses use the structured envelope from api/errors.py:
   {"error": {"code": str, "message": str, "details"?: dict}}
 """
 
-from pathlib import Path
-
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field

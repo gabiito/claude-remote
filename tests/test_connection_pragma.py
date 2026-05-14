@@ -76,10 +76,9 @@ def test_get_connection_for_rollback_on_exception(tmp_path: Path) -> None:
         conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT)")
 
     # Second: write then raise — should rollback
-    with pytest.raises(ValueError):
-        with get_connection_for(db_path) as conn:
-            conn.execute("INSERT INTO t (id, val) VALUES (1, 'hello')")
-            raise ValueError("boom")
+    with pytest.raises(ValueError), get_connection_for(db_path) as conn:
+        conn.execute("INSERT INTO t (id, val) VALUES (1, 'hello')")
+        raise ValueError("boom")
 
     # Confirm no row was persisted
     with get_connection_for(db_path) as conn:
