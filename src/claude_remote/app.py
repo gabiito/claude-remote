@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from claude_remote.routes import health
+from claude_remote.routes import health, projects
 
 PACKAGE_ROOT = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=PACKAGE_ROOT / "templates")
@@ -23,6 +23,7 @@ def create_app() -> FastAPI:
         name="static",
     )
     app.include_router(health.router)
+    app.include_router(projects.router)
     app.add_api_route("/", _index, methods=["GET"], response_class=HTMLResponse)
     return app
 

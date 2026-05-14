@@ -12,7 +12,6 @@ for the path validation to succeed.
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # POST /projects — happy paths
 # ---------------------------------------------------------------------------
@@ -64,7 +63,9 @@ async def test_post_custom_slug(async_client_with_db: AsyncClient, make_fake_pro
 
 
 @pytest.mark.anyio()
-async def test_post_path_not_exist_400(async_client_with_db: AsyncClient, tmp_projects_root) -> None:
+async def test_post_path_not_exist_400(
+    async_client_with_db: AsyncClient, tmp_projects_root
+) -> None:
     """Non-existent path → 400 path_does_not_exist."""
     bad_path = tmp_projects_root / "sandbox" / "no-such-dir"
     resp = await async_client_with_db.post(
