@@ -1,7 +1,5 @@
 """Red tests for the error_response helper — WU-5."""
 
-import pytest
-
 from claude_remote.api.errors import error_response
 
 
