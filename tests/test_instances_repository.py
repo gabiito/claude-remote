@@ -263,6 +263,78 @@ def test_migration_idempotent(db_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# list_by_project — all statuses, scoped to project
+# ---------------------------------------------------------------------------
+
+
+def test_list_by_project_returns_all_statuses_for_project(
+    repo: InstancesRepository,
+    projects_repo: ProjectsRepository,
+    tmp_path: Path,
+) -> None:
+    """list_by_project returns ALL instances for the given project regardless of status."""
+    proj_a_id = _make_project(projects_repo, tmp_path, slug="proj-a")
+    proj_b_id = _make_project(projects_repo, tmp_path, slug="proj-b")
+
+    # Three instances for project A — one of each terminal/active status
+    inst_running = repo.create(
+        project_id=proj_a_id,
+        tmux_session_name="claude-remote-proj-a-ru000001",
+        status="running",
+    )
+    time.sleep(0.01)
+    inst_stopped = repo.create(
+        project_id=proj_a_id,
+        tmux_session_name="claude-remote-proj-a-st000001",
+        status="stopped",
+    )
+    time.sleep(0.01)
+    inst_crashed = repo.create(
+        project_id=proj_a_id,
+        tmux_session_name="claude-remote-proj-a-cr000001",
+        status="crashed",
+    )
+
+    # One instance for project B — must NOT appear in results for A
+    repo.create(
+        project_id=proj_b_id,
+        tmux_session_name="claude-remote-proj-b-ru000001",
+        status="running",
+    )
+
+    results = repo.list_by_project(proj_a_id)
+
+    assert len(results) == 3
+    result_ids = {i.id for i in results}
+    assert inst_running.id in result_ids
+    assert inst_stopped.id in result_ids
+    assert inst_crashed.id in result_ids
+
+    # All results belong to project A
+    for inst in results:
+        assert inst.project_id == proj_a_id
+
+    # Statuses present: running, stopped, crashed (all three)
+    result_statuses = {i.status for i in results}
+    assert result_statuses == {"running", "stopped", "crashed"}
+
+    # Ordered newest first (created_at DESC)
+    assert results[0].id == inst_crashed.id
+    assert results[1].id == inst_stopped.id
+    assert results[2].id == inst_running.id
+
+
+def test_list_by_project_empty_when_project_has_no_instances(
+    repo: InstancesRepository,
+    projects_repo: ProjectsRepository,
+    tmp_path: Path,
+) -> None:
+    """list_by_project returns [] when the project exists but has no instances."""
+    proj_id = _make_project(projects_repo, tmp_path, slug="empty-proj")
+    assert repo.list_by_project(proj_id) == []
+
+
+# ---------------------------------------------------------------------------
 # FK cascade — WU-1 pragma fix is alive (S1.3)
 # ---------------------------------------------------------------------------
 
