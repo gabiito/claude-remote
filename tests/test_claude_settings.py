@@ -180,13 +180,17 @@ def test_malformed_json_does_not_overwrite_file(tmp_path: Path) -> None:
 
 
 def test_trailing_slash_stripped_from_base_url(tmp_path: Path) -> None:
-    """Trailing slash on base_url must not produce double-slash URLs."""
+    """Trailing slash on base_url must not produce double-slash after host."""
     settings_path = tmp_path / ".claude" / "settings.json"
     apply_hooks_to_settings(settings_path, TOKEN, "http://localhost:8000/")
     data = json.loads(settings_path.read_text())
     for ev in EVENT_TYPES:
         cmd = data["hooks"][ev][0]["hooks"][0]["command"]
-        assert "//" not in cmd.split("POST '", 1)[-1], f"Double slash in URL for {ev}: {cmd}"
+        # Extract the URL portion: after "POST '" until the closing "'"
+        url = cmd.split("POST '", 1)[-1].split("'", 1)[0]
+        # The URL path should start with /hooks/ not //hooks/
+        assert "//hooks/" not in url, f"Double slash before path for {ev}: {url}"
+        assert url.endswith(f"?token={TOKEN}")
 
 
 # ---------------------------------------------------------------------------
