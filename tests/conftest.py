@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
+from claude_remote.services.tmux_adapter import FakeTmuxAdapter
 
 
 @pytest.fixture()
@@ -76,3 +77,27 @@ async def async_client_with_db(app_with_overrides) -> AsyncClient:  # type: igno
         base_url="http://test",
     ) as c:
         yield c  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# WU-5/WU-6 fixtures — FakeTmuxAdapter DI override
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def fake_tmux_adapter() -> FakeTmuxAdapter:
+    """A fresh FakeTmuxAdapter for each test."""
+    return FakeTmuxAdapter()
+
+
+@pytest.fixture()
+def app_with_fake_tmux(app_with_overrides, fake_tmux_adapter: FakeTmuxAdapter):
+    """App with FakeTmuxAdapter injected via dependency_overrides.
+
+    Uses get_tmux_adapter as the override key so tests don't need libtmux.
+    The fixture is valid only after WU-5 adds get_tmux_adapter to the routes.
+    """
+    from claude_remote.routes.instances import get_tmux_adapter
+
+    app_with_overrides.dependency_overrides[get_tmux_adapter] = lambda: fake_tmux_adapter
+    yield app_with_overrides
