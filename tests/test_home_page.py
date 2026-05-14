@@ -10,10 +10,9 @@ from httpx import AsyncClient
 
 from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
+from claude_remote.db.connection import get_connection_for
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
-from claude_remote.db.connection import get_connection_for
-
 
 pytestmark = pytest.mark.anyio
 
@@ -123,10 +122,10 @@ async def test_home_lists_projects(
     p2_path.mkdir(parents=True)
 
     projects_repo.create(
-        ProjectCreate(name="Alpha", slug="alpha", path=p1_path, domain="example.com")
+        project_create=ProjectCreate(name="Alpha", slug="alpha", path=p1_path, domain="example.com")
     )
     projects_repo.create(
-        ProjectCreate(name="Beta", slug="beta", path=p2_path, domain="example.com")
+        project_create=ProjectCreate(name="Beta", slug="beta", path=p2_path, domain="example.com")
     )
 
     response = await home_client.get("/")
@@ -146,7 +145,7 @@ async def test_home_project_card_has_data_id(
     p_path = tmp_projects_root / "acme.com" / "myproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
-        ProjectCreate(name="MyProj", slug="myproj", path=p_path, domain="acme.com")
+        project_create=ProjectCreate(name="MyProj", slug="myproj", path=p_path, domain="acme.com")
     )
 
     response = await home_client.get("/")

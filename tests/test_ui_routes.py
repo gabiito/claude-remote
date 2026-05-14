@@ -11,7 +11,7 @@ Tests for:
 from __future__ import annotations
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
@@ -20,7 +20,6 @@ from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
 from claude_remote.services.tmux_adapter import FakeTmuxAdapter
-
 
 pytestmark = pytest.mark.anyio
 
@@ -94,7 +93,7 @@ def existing_project(projects_repo, tmp_projects_root):
     path = tmp_projects_root / "example.com" / "myproj"
     path.mkdir(parents=True)
     return projects_repo.create(
-        ProjectCreate(name="MyProj", slug="myproj", path=path, domain="example.com")
+        project_create=ProjectCreate(name="MyProj", slug="myproj", path=path, domain="example.com")
     )
 
 

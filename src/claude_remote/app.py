@@ -7,7 +7,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from claude_remote.api.errors import error_response
 from claude_remote.config import get_settings
@@ -15,7 +14,6 @@ from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.routes import health, hooks, instances, projects
 
 PACKAGE_ROOT = Path(__file__).parent
-TEMPLATES = Jinja2Templates(directory=PACKAGE_ROOT / "templates")
 
 
 @asynccontextmanager
@@ -24,10 +22,6 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     apply_migrations(settings.db_path, MIGRATIONS_DIR)
     yield
-
-
-async def _index(request: Request) -> HTMLResponse:
-    return TEMPLATES.TemplateResponse(request, "index.html")  # type: ignore[return-value]
 
 
 def create_app() -> FastAPI:
@@ -53,7 +47,13 @@ def create_app() -> FastAPI:
     app.include_router(projects.router)
     app.include_router(instances.router)
     app.include_router(hooks.router)
-    app.add_api_route("/", _index, methods=["GET"], response_class=HTMLResponse)
+
+    # UI routers — imported here to avoid circular imports at module level
+    # (home + ui need TEMPLATES which lives in routes/_templates.py, not app.py)
+    from claude_remote.routes import home, ui  # noqa: PLC0415
+
+    app.include_router(home.router)
+    app.include_router(ui.router)
     return app
 
 

@@ -1,0 +1,16 @@
+<div class="instance-row" data-instance-id="{{ instance.id }}">
+  <div class="instance-info">
+    <span class="status-pill status-{{ instance.status }}">{{ instance.status }}</span>
+    <span class="instance-id">{{ instance.id[:8] }}</span>
+  </div>
+  <div class="instance-actions">
+    {% if instance.status in ("running", "starting") %}
+    <button
+      class="btn btn-secondary"
+      hx-post="/ui/instances/{{ instance.id }}/stop"
+      hx-target="closest .instance-row"
+      hx-swap="outerHTML"
+    >Stop</button>
+    {% endif %}
+  </div>
+</div>

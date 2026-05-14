@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}claude-remote{% endblock %}
+
+{% block content %}
+<div class="app-shell">
+  <header class="app-header">
+    <h1>claude-remote</h1>
+    <button
+      class="btn btn-primary"
+      x-data="{ open: false }"
+      @click="open = true"
+      x-on:click="$dispatch('open-create-modal')"
+    >+ New Project</button>
+  </header>
+
+  <!-- Create project modal -->
+  <div
+    x-data="{ open: false }"
+    x-on:open-create-modal.window="open = true"
+    x-show="open"
+    class="modal-backdrop"
+    style="display: none;"
+  >
+    <div class="modal" @click.stop>
+      <h2 class="modal-title">Add Project</h2>
+      <div id="form-error"></div>
+      <form
+        hx-post="/ui/projects"
+        hx-target=".project-list"
+        hx-swap="afterbegin"
+        x-on:htmx:after-request="if (event.detail.successful) open = false"
+      >
+        <div class="form-group">
+          <label for="proj-name">Name</label>
+          <input type="text" id="proj-name" name="name" placeholder="My Project" required>
+        </div>
+        <div class="form-group">
+          <label for="proj-path">Path</label>
+          <input type="text" id="proj-path" name="path" placeholder="/projects/example.com/myproj" required>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" @click="open = false">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Project list -->
+  {% if projects %}
+  <div class="project-list">
+    {% for project in projects %}
+    {% set instances = instances_by_project.get(project.id, []) %}
+    {% include "partials/project_card.html" %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>No hay proyectos. Creá uno para empezar.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
