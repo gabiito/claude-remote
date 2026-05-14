@@ -1,3 +1,4 @@
+import shutil
 from collections.abc import Generator
 from pathlib import Path
 
@@ -8,6 +9,26 @@ from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.services.tmux_adapter import FakeTmuxAdapter
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Register custom markers to suppress PytestUnknownMarkWarning."""
+    config.addinivalue_line(
+        "markers",
+        "requires_tmux: requires a real tmux binary on PATH",
+    )
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config,
+    items: list[pytest.Item],
+) -> None:
+    """Auto-skip requires_tmux tests when tmux binary is not available."""
+    if shutil.which("tmux") is None:
+        skip_marker = pytest.mark.skip(reason="tmux binary not available in this environment")
+        for item in items:
+            if "requires_tmux" in item.keywords:
+                item.add_marker(skip_marker)
 
 
 @pytest.fixture()
