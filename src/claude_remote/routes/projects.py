@@ -10,8 +10,6 @@ All error responses use the structured envelope from api/errors.py:
   {"error": {"code": str, "message": str, "details"?: dict}}
 """
 
-import sqlite3
-from contextlib import contextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
@@ -20,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from claude_remote.api.errors import error_response
 from claude_remote.config import Settings, get_settings
+from claude_remote.db.connection import get_connection_for
 from claude_remote.db.projects import (
     DuplicateProjectError,
     ProjectCreate,
@@ -52,27 +51,6 @@ class ProjectResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Connection factory helper (parametrized by path — avoids global env read)
-# ---------------------------------------------------------------------------
-
-
-@contextmanager
-def _get_connection_for(db_path: Path):
-    """Open a sqlite3 connection to db_path, commit on clean exit, rollback on error."""
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-# ---------------------------------------------------------------------------
 # DI factory for ProjectsRepository
 # ---------------------------------------------------------------------------
 
@@ -82,7 +60,7 @@ def get_projects_repo(
 ) -> ProjectsRepository:
     """Dependency provider: ProjectsRepository pointing at settings.db_path."""
     return ProjectsRepository(
-        connection_factory=lambda: _get_connection_for(settings.db_path)
+        connection_factory=lambda: get_connection_for(settings.db_path)
     )
 
 
