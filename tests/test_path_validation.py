@@ -57,7 +57,7 @@ class TestPathNotADirectory:
     def test_file_path_raises_path_not_a_directory(
         self, projects_root: Path
     ) -> None:
-        """A path that is a file (not a dir) raises PathValidationError with path_not_a_directory."""
+        """A path that is a file (not a dir) raises PathValidationError with path_not_a_directory."""  # noqa: E501
         domain_dir = projects_root / "sandbox"
         domain_dir.mkdir()
         file_path = domain_dir / "a-file.txt"

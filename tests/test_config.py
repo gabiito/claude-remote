@@ -3,8 +3,6 @@
 WU-1 — RED tests (must fail until config.py is implemented).
 """
 
-import os
-
 import pytest
 
 from claude_remote.config import Settings, get_settings

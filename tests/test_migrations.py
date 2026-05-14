@@ -4,6 +4,7 @@ WU-2 — RED tests (must fail until db/migrations.py is implemented).
 """
 
 import sqlite3
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -103,7 +104,7 @@ class TestRollbackOnFailure:
         mig_dir.mkdir()
         (mig_dir / "0001_bad.sql").write_text("THIS IS NOT VALID SQL !!!;")
         db = tmp_path / "fail.db"
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.OperationalError):
             apply_migrations(db, mig_dir)
 
     def test_malformed_sql_leaves_no_schema_migrations_row(self, tmp_path: Path) -> None:
@@ -112,10 +113,8 @@ class TestRollbackOnFailure:
         mig_dir.mkdir()
         (mig_dir / "0001_bad.sql").write_text("THIS IS NOT VALID SQL !!!;")
         db = tmp_path / "fail.db"
-        try:
+        with suppress(sqlite3.OperationalError):
             apply_migrations(db, mig_dir)
-        except Exception:
-            pass
         # schema_migrations table may exist but must have no rows for the failed file
         conn = sqlite3.connect(db)
         tables = {
@@ -140,7 +139,7 @@ class TestRollbackOnFailure:
         )
         (mig_dir / "0002_bad.sql").write_text("INVALID SQL;")
         db = tmp_path / "partial.db"
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.OperationalError):
             apply_migrations(db, mig_dir)
         rows = _migration_rows(db)
         assert rows == ["0001_good.sql"], "Only the successful migration should be recorded"
