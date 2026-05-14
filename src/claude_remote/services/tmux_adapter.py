@@ -215,15 +215,16 @@ class LibTmuxAdapter:
 
     def get_pane_pid(self, name: str) -> int | None:
         """Return the PID of the active pane for the named session, or None."""
-        import libtmux.exc  # local import — REQ-14 isolation
-
         server = self._get_server()
         try:
             session = server.sessions.get(session_name=name)  # type: ignore[union-attr]
             if session is None:
                 return None
             return self._read_pane_pid(session)  # pyright: ignore[reportUnknownArgumentType]
-        except (libtmux.exc.LibTmuxException, KeyError, AttributeError):
+        except Exception:
+            # Catches LibTmuxException, ObjectDoesNotExist (not a LibTmuxException
+            # subclass in libtmux 0.40), KeyError, AttributeError, and any other
+            # library-internal exception variant.  Contract: never raises.
             return None
 
     @staticmethod
