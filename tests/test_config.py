@@ -79,3 +79,47 @@ class TestGetSettings:
         assert settings.projects_root.is_absolute()
         assert "~" not in str(settings.projects_root)
         assert str(settings.projects_root) == str(projects)
+
+
+# ---------------------------------------------------------------------------
+# WU-5: hooks_base_url — RED tests
+# ---------------------------------------------------------------------------
+
+
+class TestHooksBaseUrl:
+    def test_default_hooks_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Default hooks_base_url is http://localhost:8000 when env var absent."""
+        monkeypatch.delenv("CLAUDE_REMOTE_HOOKS_BASE_URL", raising=False)
+        monkeypatch.delenv("CLAUDE_REMOTE_DB_PATH", raising=False)
+        monkeypatch.delenv("CLAUDE_REMOTE_PROJECTS_ROOT", raising=False)
+        settings = get_settings()
+        assert settings.hooks_base_url == "http://localhost:8000"
+
+    def test_env_var_overrides_hooks_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """CLAUDE_REMOTE_HOOKS_BASE_URL env var is picked up."""
+        monkeypatch.setenv("CLAUDE_REMOTE_HOOKS_BASE_URL", "http://100.64.0.1:8000")
+        monkeypatch.delenv("CLAUDE_REMOTE_DB_PATH", raising=False)
+        monkeypatch.delenv("CLAUDE_REMOTE_PROJECTS_ROOT", raising=False)
+        settings = get_settings()
+        assert settings.hooks_base_url == "http://100.64.0.1:8000"
+
+    def test_trailing_slash_stripped_from_hooks_base_url(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Trailing slash is stripped from hooks_base_url on read."""
+        monkeypatch.setenv("CLAUDE_REMOTE_HOOKS_BASE_URL", "http://100.64.0.1:8000/")
+        monkeypatch.delenv("CLAUDE_REMOTE_DB_PATH", raising=False)
+        monkeypatch.delenv("CLAUDE_REMOTE_PROJECTS_ROOT", raising=False)
+        settings = get_settings()
+        assert settings.hooks_base_url == "http://100.64.0.1:8000"
+
+    def test_settings_dataclass_has_hooks_base_url_field(self, tmp_path) -> None:
+        """Settings dataclass accepts hooks_base_url field."""
+        from pathlib import Path
+
+        s = Settings(
+            db_path=tmp_path / "test.db",
+            projects_root=tmp_path,
+            hooks_base_url="http://example.com:8000",
+        )
+        assert s.hooks_base_url == "http://example.com:8000"

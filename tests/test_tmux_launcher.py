@@ -417,3 +417,169 @@ def test_get_with_reconcile_reconciles_drift(
 def test_get_with_reconcile_not_found_returns_none(launcher: TmuxLauncher) -> None:
     result = launcher.get_with_reconcile("nonexistent-id")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# WU-5: Launcher writes settings.json BEFORE tmux session creation
+# ---------------------------------------------------------------------------
+
+
+def _make_launcher_with_hooks(
+    fake_adapter: FakeTmuxAdapter,
+    instances_repo: InstancesRepository,
+    projects_repo: ProjectsRepository,
+    hooks_base_url: str = "http://localhost:8000",
+) -> TmuxLauncher:
+    """Construct a TmuxLauncher with hooks_base_url wired in."""
+    return TmuxLauncher(
+        adapter=fake_adapter,
+        instances_repo=instances_repo,
+        projects_repo=projects_repo,
+        hooks_base_url=hooks_base_url,
+    )
+
+
+def test_launch_writes_settings_json_before_session_created(
+    fake_adapter: FakeTmuxAdapter,
+    instances_repo: InstancesRepository,
+    projects_repo: ProjectsRepository,
+    tmp_path: Path,
+) -> None:
+    """apply_hooks_to_settings must be called BEFORE adapter.create_session.
+
+    We verify this by monkeypatching create_session to check that the
+    .claude/settings.json file already exists when the adapter is called.
+    """
+    import json
+
+    project_dir = tmp_path / "sandbox" / "launch-test"
+    project_dir.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="launch-test", slug="launch-test", path=project_dir, domain="sandbox"
+        )
+    )
+
+    settings_existed_before_create = []
+
+    original_create = fake_adapter.create_session
+
+    def _recording_create(name, cwd, command):
+        settings_path = project_dir / ".claude" / "settings.json"
+        settings_existed_before_create.append(settings_path.exists())
+        return original_create(name, cwd, command)
+
+    fake_adapter.create_session = _recording_create  # type: ignore[method-assign]
+
+    launcher = _make_launcher_with_hooks(fake_adapter, instances_repo, projects_repo)
+    launcher.launch(proj.id)
+
+    assert len(settings_existed_before_create) == 1
+    assert settings_existed_before_create[0] is True, (
+        "settings.json must exist BEFORE adapter.create_session is called"
+    )
+
+
+def test_launch_settings_json_contains_hook_token(
+    fake_adapter: FakeTmuxAdapter,
+    instances_repo: InstancesRepository,
+    projects_repo: ProjectsRepository,
+    tmp_path: Path,
+) -> None:
+    """settings.json must contain the instance's hook_token in the hook URLs."""
+    import json
+
+    project_dir = tmp_path / "sandbox" / "token-test"
+    project_dir.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="token-test", slug="token-test", path=project_dir, domain="sandbox"
+        )
+    )
+
+    hooks_url = "http://127.0.0.1:8000"
+    launcher = _make_launcher_with_hooks(
+        fake_adapter, instances_repo, projects_repo, hooks_base_url=hooks_url
+    )
+    inst = launcher.launch(proj.id)
+
+    settings_path = project_dir / ".claude" / "settings.json"
+    assert settings_path.exists()
+    data = json.loads(settings_path.read_text())
+
+    # All 6 event types must be present with our token
+    for ev in ("SessionStart", "Notification", "Stop", "PreToolUse", "PostToolUse", "SessionEnd"):
+        assert ev in data["hooks"]
+        cmd = data["hooks"][ev][0]["hooks"][0]["command"]
+        assert inst.hook_token in cmd, f"hook_token must appear in command for {ev}"
+        assert hooks_url in cmd, f"hooks_base_url must appear in command for {ev}"
+
+
+def test_launch_settings_write_failure_marks_crashed_and_raises(
+    fake_adapter: FakeTmuxAdapter,
+    instances_repo: InstancesRepository,
+    projects_repo: ProjectsRepository,
+    tmp_path: Path,
+) -> None:
+    """If apply_hooks_to_settings raises, instance is marked crashed and TmuxOperationError raised.
+
+    adapter.create_session must NOT be called.
+    """
+    project_dir = tmp_path / "sandbox" / "fail-settings"
+    project_dir.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="fail-settings", slug="fail-settings", path=project_dir, domain="sandbox"
+        )
+    )
+
+    # Monkeypatch apply_hooks_to_settings to always raise
+    from claude_remote.services import claude_settings as cs_module
+
+    original_fn = cs_module.apply_hooks_to_settings
+
+    def _always_raises(settings_path, hook_token, base_url):
+        raise OSError("simulated write failure")
+
+    cs_module.apply_hooks_to_settings = _always_raises  # type: ignore[assignment]
+
+    try:
+        launcher = _make_launcher_with_hooks(fake_adapter, instances_repo, projects_repo)
+        with pytest.raises(TmuxOperationError):
+            launcher.launch(proj.id)
+
+        # Verify adapter was NOT called
+        create_calls = [c for c in fake_adapter.calls if c[0] == "create_session"]
+        assert len(create_calls) == 0, "adapter.create_session must NOT be called when settings write fails"
+
+        # Verify instance is marked crashed
+        all_instances = instances_repo.list_all()
+        assert len(all_instances) == 1
+        assert all_instances[0].status == "crashed"
+    finally:
+        cs_module.apply_hooks_to_settings = original_fn  # type: ignore[assignment]
+
+
+def test_launch_hook_token_in_returned_instance(
+    fake_adapter: FakeTmuxAdapter,
+    instances_repo: InstancesRepository,
+    projects_repo: ProjectsRepository,
+    tmp_path: Path,
+) -> None:
+    """The launched Instance must expose a non-null hook_token."""
+    project_dir = tmp_path / "sandbox" / "token-return-test"
+    project_dir.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="token-return-test",
+            slug="token-return-test",
+            path=project_dir,
+            domain="sandbox",
+        )
+    )
+
+    launcher = _make_launcher_with_hooks(fake_adapter, instances_repo, projects_repo)
+    inst = launcher.launch(proj.id)
+
+    assert inst.hook_token is not None
+    assert len(inst.hook_token) > 0
