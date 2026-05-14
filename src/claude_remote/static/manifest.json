@@ -1,0 +1,6 @@
+{
+  "name": "claude-remote",
+  "short_name": "claude-remote",
+  "start_url": "/",
+  "display": "standalone"
+}
