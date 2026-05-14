@@ -1,0 +1,13 @@
+# Mark uv lockfile as generated so GitHub collapses it in diffs
+uv.lock linguist-generated=true
+
+# Ensure consistent line endings
+* text=auto
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+Makefile text eol=lf
