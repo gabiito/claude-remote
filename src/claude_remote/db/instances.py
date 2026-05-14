@@ -241,6 +241,25 @@ class InstancesRepository:
             ).fetchall()
         return [self._row_to_instance(row) for row in rows]
 
+    def list_by_project(self, project_id: str) -> list[Instance]:
+        """Return all instances for the given project, regardless of status.
+
+        Covers the full lifecycle history (starting, running, stopped, crashed).
+        Ordered by created_at DESC (newest first), consistent with list_all.
+        """
+        with self._factory() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, project_id, tmux_session_name, pane_pid,
+                       status, created_at, stopped_at
+                FROM instances
+                WHERE project_id = ?
+                ORDER BY created_at DESC
+                """,
+                (project_id,),
+            ).fetchall()
+        return [self._row_to_instance(row) for row in rows]
+
     # ------------------------------------------------------------------
     # internal helpers
     # ------------------------------------------------------------------
