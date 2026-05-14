@@ -26,11 +26,13 @@ from uuid import uuid4
 
 from claude_remote.db.instances import TERMINAL_STATUSES, Instance, InstancesRepository
 from claude_remote.db.projects import ProjectsRepository
+from claude_remote.services.claude_settings import apply_hooks_to_settings
 from claude_remote.services.exceptions import (
     EmptyCommandError,
     InstanceAlreadyRunningError,
     InstanceNotFoundError,
     ProjectNotFoundError,
+    TmuxOperationError,
 )
 from claude_remote.services.tmux_adapter import TmuxAdapter
 
@@ -45,6 +47,8 @@ class TmuxLauncher:
             FakeTmuxAdapter in tests).
         instances_repo: InstancesRepository for DB persistence.
         projects_repo: ProjectsRepository for project lookups.
+        hooks_base_url: Base URL for hook callbacks written into .claude/settings.json.
+            Default: "http://localhost:8000".
     """
 
     def __init__(
@@ -52,10 +56,12 @@ class TmuxLauncher:
         adapter: TmuxAdapter,
         instances_repo: InstancesRepository,
         projects_repo: ProjectsRepository,
+        hooks_base_url: str = "http://localhost:8000",
     ) -> None:
         self._adapter = adapter
         self._instances = instances_repo
         self._projects = projects_repo
+        self._hooks_base_url = hooks_base_url
 
     # ------------------------------------------------------------------
     # Public API
@@ -116,10 +122,28 @@ class TmuxLauncher:
             status="starting",
         )
 
-        # Delegate to adapter — let TmuxOperationError bubble up.
-        # The 'starting' row stays as audit trail; next reconcile → 'crashed'.
+        # Write hook settings BEFORE creating the tmux session.
+        # If this fails, mark the instance as crashed and abort.
         from pathlib import Path
 
+        settings_path = Path(project.path) / ".claude" / "settings.json"
+        try:
+            apply_hooks_to_settings(settings_path, instance.hook_token, self._hooks_base_url)
+        except Exception as exc:
+            logger.error(
+                "Failed to write hook settings for instance %s: %s — marking crashed",
+                instance.id,
+                exc,
+            )
+            self._instances.update_status(
+                instance.id,
+                status="crashed",
+                stopped_at=datetime.now(UTC).isoformat(),
+            )
+            raise TmuxOperationError("apply_hooks_to_settings", exc) from exc
+
+        # Delegate to adapter — let TmuxOperationError bubble up.
+        # The 'starting' row stays as audit trail; next reconcile → 'crashed'.
         pane_pid = self._adapter.create_session(session_name, Path(project.path), cmd)
 
         return self._instances.update_status(

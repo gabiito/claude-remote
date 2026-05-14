@@ -11,17 +11,18 @@ Fixture strategy:
   - ``token``            — hook_token of a seeded instance
 """
 
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
-from pathlib import Path
 
 from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
 from claude_remote.db.connection import get_connection_for
+from claude_remote.db.events import EventsRepository
 from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -108,7 +109,6 @@ async def test_happy_path_event_stored_in_db(
     client: AsyncClient, db_path: Path, token: str, proj_id: str
 ) -> None:
     """Happy path: event row is actually stored in the DB."""
-    from claude_remote.db.events import EventsRepository
 
     events_repo = EventsRepository(_make_factory(db_path))
     resp = await client.post(f"/hooks/SessionStart?token={token}", json={})
@@ -122,7 +122,9 @@ async def test_happy_path_event_stored_in_db(
 @pytest.mark.anyio
 async def test_all_valid_event_types_accepted(client: AsyncClient, token: str) -> None:
     """All 6 Claude Code event types are accepted."""
-    event_types = ["SessionStart", "Notification", "Stop", "PreToolUse", "PostToolUse", "SessionEnd"]
+    event_types = [
+        "SessionStart", "Notification", "Stop", "PreToolUse", "PostToolUse", "SessionEnd"
+    ]
     for ev in event_types:
         resp = await client.post(f"/hooks/{ev}?token={token}", json={})
         assert resp.status_code == 200

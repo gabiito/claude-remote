@@ -75,12 +75,14 @@ def get_tmux_launcher(
     adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
     projects_repo: ProjectsRepository = Depends(get_projects_repo_for_launcher),  # noqa: B008
+    settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> TmuxLauncher:
     """Compose and return a TmuxLauncher with all dependencies injected."""
     return TmuxLauncher(
         adapter=adapter,
         instances_repo=instances_repo,
         projects_repo=projects_repo,
+        hooks_base_url=settings.hooks_base_url,
     )
 
 

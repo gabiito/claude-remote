@@ -450,8 +450,6 @@ def test_launch_writes_settings_json_before_session_created(
     We verify this by monkeypatching create_session to check that the
     .claude/settings.json file already exists when the adapter is called.
     """
-    import json
-
     project_dir = tmp_path / "sandbox" / "launch-test"
     project_dir.mkdir(parents=True)
     proj = projects_repo.create(
@@ -460,12 +458,12 @@ def test_launch_writes_settings_json_before_session_created(
         )
     )
 
+    settings_path = project_dir / ".claude" / "settings.json"
     settings_existed_before_create = []
 
     original_create = fake_adapter.create_session
 
     def _recording_create(name, cwd, command):
-        settings_path = project_dir / ".claude" / "settings.json"
         settings_existed_before_create.append(settings_path.exists())
         return original_create(name, cwd, command)
 
@@ -533,15 +531,15 @@ def test_launch_settings_write_failure_marks_crashed_and_raises(
         )
     )
 
-    # Monkeypatch apply_hooks_to_settings to always raise
-    from claude_remote.services import claude_settings as cs_module
+    # Monkeypatch apply_hooks_to_settings on the tmux_launcher module (where it was imported)
+    import claude_remote.services.tmux_launcher as launcher_module
 
-    original_fn = cs_module.apply_hooks_to_settings
+    original_fn = launcher_module.apply_hooks_to_settings
 
     def _always_raises(settings_path, hook_token, base_url):
         raise OSError("simulated write failure")
 
-    cs_module.apply_hooks_to_settings = _always_raises  # type: ignore[assignment]
+    launcher_module.apply_hooks_to_settings = _always_raises  # type: ignore[assignment]
 
     try:
         launcher = _make_launcher_with_hooks(fake_adapter, instances_repo, projects_repo)
@@ -550,14 +548,16 @@ def test_launch_settings_write_failure_marks_crashed_and_raises(
 
         # Verify adapter was NOT called
         create_calls = [c for c in fake_adapter.calls if c[0] == "create_session"]
-        assert len(create_calls) == 0, "adapter.create_session must NOT be called when settings write fails"
+        assert len(create_calls) == 0, (
+            "adapter.create_session must NOT be called when settings write fails"
+        )
 
         # Verify instance is marked crashed
         all_instances = instances_repo.list_all()
         assert len(all_instances) == 1
         assert all_instances[0].status == "crashed"
     finally:
-        cs_module.apply_hooks_to_settings = original_fn  # type: ignore[assignment]
+        launcher_module.apply_hooks_to_settings = original_fn  # type: ignore[assignment]
 
 
 def test_launch_hook_token_in_returned_instance(

@@ -115,8 +115,6 @@ class TestHooksBaseUrl:
 
     def test_settings_dataclass_has_hooks_base_url_field(self, tmp_path) -> None:
         """Settings dataclass accepts hooks_base_url field."""
-        from pathlib import Path
-
         s = Settings(
             db_path=tmp_path / "test.db",
             projects_root=tmp_path,

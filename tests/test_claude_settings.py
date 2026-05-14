@@ -13,6 +13,7 @@ Claude Code hooks format:
   ]
 """
 
+import contextlib
 import json
 from pathlib import Path
 
@@ -166,10 +167,8 @@ def test_malformed_json_does_not_overwrite_file(tmp_path: Path) -> None:
     settings_path.parent.mkdir(parents=True)
     settings_path.write_text(original_content)
 
-    try:
+    with contextlib.suppress(ValueError):
         apply_hooks_to_settings(settings_path, TOKEN, BASE_URL)
-    except ValueError:
-        pass
 
     assert settings_path.read_text() == original_content, "File must not be overwritten on error"
 

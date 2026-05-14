@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +85,13 @@ def apply_hooks_to_settings(
     if settings_path.exists():
         raw = settings_path.read_text()
         try:
-            settings: dict = json.loads(raw)
+            settings: dict[str, Any] = json.loads(raw)
         except json.JSONDecodeError as exc:
             raise ValueError(
                 f"settings.json at {settings_path} contains malformed JSON: {exc}"
             ) from exc
     else:
-        settings = {}
+        settings: dict[str, Any] = {}
 
     # Ensure hooks section exists (preserve other content)
     if "hooks" not in settings:

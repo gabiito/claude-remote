@@ -47,7 +47,9 @@ def _make_project(projects_repo: ProjectsRepository, tmp_path: Path, *, slug: st
     return proj.id
 
 
-def _make_instance(instances_repo: InstancesRepository, project_id: str, *, suffix: str = "aa") -> str:
+def _make_instance(
+    instances_repo: InstancesRepository, project_id: str, *, suffix: str = "aa"
+) -> str:
     """Insert an instance row and return its id."""
     inst = instances_repo.create(
         project_id=project_id,
@@ -231,8 +233,12 @@ def test_list_for_project_filters_by_project(
 ) -> None:
     proj_b_id = _make_project(projects_repo, tmp_path, slug="proj-b")
 
-    ev_a = repo.create(instance_id=None, project_id=proj_id, event_type="Notification", payload="{}")
-    repo.create(instance_id=None, project_id=proj_b_id, event_type="Notification", payload="{}")
+    ev_a = repo.create(
+        instance_id=None, project_id=proj_id, event_type="Notification", payload="{}"
+    )
+    repo.create(
+        instance_id=None, project_id=proj_b_id, event_type="Notification", payload="{}"
+    )
 
     results = repo.list_for_project(proj_id)
     assert len(results) == 1
@@ -242,9 +248,13 @@ def test_list_for_project_filters_by_project(
 def test_list_for_project_ordered_desc(
     repo: EventsRepository, proj_id: str
 ) -> None:
-    first = repo.create(instance_id=None, project_id=proj_id, event_type="SessionStart", payload="{}")
+    first = repo.create(
+        instance_id=None, project_id=proj_id, event_type="SessionStart", payload="{}"
+    )
     time.sleep(0.01)
-    second = repo.create(instance_id=None, project_id=proj_id, event_type="Notification", payload="{}")
+    second = repo.create(
+        instance_id=None, project_id=proj_id, event_type="Notification", payload="{}"
+    )
 
     results = repo.list_for_project(proj_id)
     ids = [e.id for e in results]
@@ -270,8 +280,12 @@ def test_list_for_instance_filters_by_instance(
 ) -> None:
     inst_b_id = _make_instance(instances_repo, proj_id, suffix="bb")
 
-    ev_a = repo.create(instance_id=inst_id, project_id=proj_id, event_type="Notification", payload="{}")
-    repo.create(instance_id=inst_b_id, project_id=proj_id, event_type="Notification", payload="{}")
+    ev_a = repo.create(
+        instance_id=inst_id, project_id=proj_id, event_type="Notification", payload="{}"
+    )
+    repo.create(
+        instance_id=inst_b_id, project_id=proj_id, event_type="Notification", payload="{}"
+    )
 
     results = repo.list_for_instance(inst_id)
     assert len(results) == 1

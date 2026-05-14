@@ -240,14 +240,17 @@ class TestHookToken0004Migration:
 
     def test_0004_backfills_existing_rows_with_distinct_tokens(self, tmp_path: Path) -> None:
         """Pre-migration rows must be backfilled with distinct non-null tokens."""
+        import shutil
         import sqlite3 as _sqlite3
+        import uuid
+        from datetime import UTC, datetime
+
+        from claude_remote.db.migrations import MIGRATIONS_DIR as REAL_MIGS_DIR
 
         db = tmp_path / "test.db"
-        # Apply migrations 0001 + 0002 (NOT 0004) manually via a temp migration dir
+        # Apply migrations 0001 + 0002 (NOT 0003/0004) via a temp migration dir
         mig_dir = tmp_path / "migs_pre"
         mig_dir.mkdir()
-        from claude_remote.db.migrations import MIGRATIONS_DIR as REAL_MIGS_DIR
-        import shutil
 
         for f in sorted(REAL_MIGS_DIR.glob("*.sql")):
             if f.name in ("0003_create_events.sql", "0004_add_hook_token_to_instances.sql"):
@@ -258,9 +261,6 @@ class TestHookToken0004Migration:
 
         # Insert two pre-migration instance rows (no hook_token column yet)
         conn = _sqlite3.connect(db)
-        import uuid
-        from datetime import UTC, datetime
-
         id1 = str(uuid.uuid4())
         id2 = str(uuid.uuid4())
 
@@ -273,12 +273,14 @@ class TestHookToken0004Migration:
             (proj_id, now),
         )
         conn.execute(
-            "INSERT INTO instances (id, project_id, tmux_session_name, pane_pid, status, created_at, stopped_at)"
+            "INSERT INTO instances"
+            " (id, project_id, tmux_session_name, pane_pid, status, created_at, stopped_at)"
             " VALUES (?, ?, 'claude-remote-p1-aa000001', NULL, 'running', ?, NULL)",
             (id1, proj_id, now),
         )
         conn.execute(
-            "INSERT INTO instances (id, project_id, tmux_session_name, pane_pid, status, created_at, stopped_at)"
+            "INSERT INTO instances"
+            " (id, project_id, tmux_session_name, pane_pid, status, created_at, stopped_at)"
             " VALUES (?, ?, 'claude-remote-p1-bb000001', NULL, 'running', ?, NULL)",
             (id2, proj_id, now),
         )
