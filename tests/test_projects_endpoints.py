@@ -150,13 +150,20 @@ async def test_post_empty_slug_400(async_client_with_db: AsyncClient, make_fake_
 
 
 @pytest.mark.anyio()
-async def test_post_missing_name_422(async_client_with_db: AsyncClient, make_fake_project) -> None:
-    """Body missing 'name' → FastAPI 422 Unprocessable Entity."""
+async def test_post_missing_name_returns_400_validation_error(
+    async_client_with_db: AsyncClient, make_fake_project
+) -> None:
+    """Body missing required 'name' → 400 with validation_error envelope (REQ-5)."""
     project_path = make_fake_project("sandbox", "proj")
     resp = await async_client_with_db.post(
         "/projects", json={"path": str(project_path)}
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["error"]["code"] == "validation_error"
+    assert isinstance(body["error"]["message"], str)
+    assert isinstance(body["error"]["details"], dict)
+    assert body["error"]["details"]  # non-empty
 
 
 # ---------------------------------------------------------------------------
