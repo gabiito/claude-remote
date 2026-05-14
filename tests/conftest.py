@@ -122,3 +122,40 @@ def app_with_fake_tmux(app_with_overrides, fake_tmux_adapter: FakeTmuxAdapter):
 
     app_with_overrides.dependency_overrides[get_tmux_adapter] = lambda: fake_tmux_adapter
     yield app_with_overrides
+
+
+# ---------------------------------------------------------------------------
+# WU-7 fixtures — events repo, settings stubs, fake settings path
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def events_repo(tmp_db_path: Path):
+    """EventsRepository backed by a migrated temp DB."""
+    from claude_remote.db.connection import get_connection_for
+    from claude_remote.db.events import EventsRepository
+    from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
+
+    apply_migrations(tmp_db_path, MIGRATIONS_DIR)
+    return EventsRepository(
+        connection_factory=lambda: get_connection_for(tmp_db_path)
+    )
+
+
+@pytest.fixture()
+def fake_settings_path(tmp_path: Path) -> Path:
+    """A path pointing to a non-existent settings file under a non-existent parent dir.
+
+    Useful for testing apply_hooks_to_settings directory creation behaviour.
+    """
+    return tmp_path / ".claude" / "settings.json"
+
+
+@pytest.fixture()
+def settings_with_hooks_url(tmp_db_path: Path, tmp_projects_root: Path) -> "Settings":
+    """Settings with hooks_base_url set to a test value."""
+    return Settings(
+        db_path=tmp_db_path,
+        projects_root=tmp_projects_root,
+        hooks_base_url="http://test-hooks.local:8000",
+    )
