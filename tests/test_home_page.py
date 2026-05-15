@@ -353,6 +353,84 @@ async def test_home_events_feed_absent_when_no_events(
     assert 'class="events-feed"' not in response.text
 
 
+# ---------------------------------------------------------------------------
+# WU-6 (mvp-project-discovery) — sync button + stale badge + toast
+# ---------------------------------------------------------------------------
+
+
+async def test_home_contains_sync_button(home_client: AsyncClient) -> None:
+    """Home page contains HTMX sync button pointing to /ui/discovery/sync."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'hx-post="/ui/discovery/sync"' in response.text
+
+
+async def test_home_contains_sync_toast_div(home_client: AsyncClient) -> None:
+    """Home page contains <div id='sync-toast'> as the HTMX swap target."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'id="sync-toast"' in response.text
+
+
+async def test_home_stale_card_has_data_stale_attr(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """Stale project card has data-stale='1' attribute."""
+    p_path = tmp_projects_root / "acme" / "gone"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="gone", slug="gone", path=p_path, domain="acme"
+        )
+    )
+    projects_repo.mark_stale(project.id)
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'data-stale="1"' in response.text
+
+
+async def test_home_stale_card_shows_stale_badge(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """Stale project card contains 'stale' text badge."""
+    p_path = tmp_projects_root / "acme" / "staleproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="staleproj", slug="staleproj", path=p_path, domain="acme"
+        )
+    )
+    projects_repo.mark_stale(project.id)
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert "stale" in response.text
+
+
+async def test_home_non_stale_card_has_no_data_stale(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """Non-stale project card does NOT have data-stale='1'."""
+    p_path = tmp_projects_root / "acme" / "healthy"
+    p_path.mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="healthy", slug="healthy", path=p_path, domain="acme"
+        )
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'data-stale="1"' not in response.text
+
+
 async def test_home_instance_row_has_data_db_and_live_status(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,

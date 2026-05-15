@@ -12,6 +12,7 @@
 <div class="cr-card"
      data-project-id="{{ project.id }}"
      data-status="{{ agg_status }}"
+     {% if project.is_stale %}data-stale="1"{% endif %}
      hx-get="/ui/projects/{{ project.id }}/card"
      hx-trigger="every 5s [document.visibilityState === 'visible']"
      hx-swap="outerHTML"
@@ -28,6 +29,7 @@
         <span class="cr-domain">{{ project.domain }}</span>
         <span class="cr-slash">/</span>
         <span class="cr-leaf">{{ project.name }}</span>
+        {% if project.is_stale %}<span class="cr-stale-badge">⚠ stale</span>{% endif %}
       </span>
       {% if instance_views %}
         {% set iv = instance_views[0] %}

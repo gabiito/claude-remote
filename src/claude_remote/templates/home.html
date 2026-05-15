@@ -3,7 +3,7 @@
 {% block title %}claude-remote{% endblock %}
 
 {% block content %}
-<div class="cr-shell">
+<div class="cr-shell" x-data x-on:projects-synced.window="window.location.reload()">
   {# ── Header ── #}
   <div class="cr-header">
     <div class="cr-brand-row">
@@ -40,7 +40,16 @@
               @click="$dispatch('open-create-modal')">
         + Nuevo proyecto
       </button>
+      <button class="cr-new-btn cr-sync-btn"
+              hx-post="/ui/discovery/sync"
+              hx-target="#sync-toast"
+              hx-swap="innerHTML">
+        ↓ Sync
+      </button>
     </div>
+
+    {# Sync toast slot — HTMX swaps sync_summary.html fragment here #}
+    <div id="sync-toast" aria-live="polite"></div>
   </div>
 
   {# ── Create project modal (bottom sheet) ── #}
@@ -91,6 +100,18 @@
         <span>~/Projects/</span>
         <span class="cr-path-arrow">/</span>
         <span class="cr-path-leaf">{{ projects_root }}</span>
+      </div>
+
+      {# Filesystem creation checkboxes #}
+      <div class="cr-field" x-data="{ createDir: false }">
+        <label class="cr-field-checkbox">
+          <input type="checkbox" name="create_dir" x-model="createDir">
+          Crear carpeta si no existe
+        </label>
+        <label class="cr-field-checkbox cr-indent">
+          <input type="checkbox" name="git_init" :disabled="!createDir">
+          git init
+        </label>
       </div>
 
       <div class="cr-sheet-actions">

@@ -949,7 +949,71 @@ body {
   font-size: 11px;
 }
 
-/* ── 22. Keyframes ── */
+/* ── 22. Discovery sync additions ── */
+
+/* Sync button — sibling of cr-new-btn, flex: 0 0 auto so it doesn't stretch */
+.cr-sync-btn {
+  flex: 0 0 auto;
+  padding: 0 14px;
+}
+
+/* Sync toast container — inline mono result strip below actions row */
+.cr-sync-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin: 8px 16px 0;
+  background: var(--bg-2);
+  border: 1px solid var(--line-0);
+  border-radius: 8px;
+  font-family: var(--fnt-mono);
+  font-size: 11px;
+  color: var(--fg-1);
+  animation: cr-fade-in 180ms ease-out;
+}
+.cr-toast-new     { color: var(--st-active); }
+.cr-toast-stale   { color: var(--st-idle); }
+.cr-toast-unstale { color: var(--accent-dim); }
+.cr-toast-err     { color: var(--st-needs); }
+
+/* Stale card — desaturated to signal dead-on-disk */
+.cr-card[data-stale="1"] {
+  opacity: 0.65;
+  filter: saturate(0.6);
+}
+
+/* Stale badge — small pill next to project name */
+.cr-stale-badge {
+  font-family: var(--fnt-mono);
+  font-size: 10px;
+  color: var(--st-needs);
+  border: 1px solid var(--st-needs);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+/* Checkbox fields for the create-project modal */
+.cr-field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--fnt-ui);
+  font-size: 13px;
+  color: var(--fg-1);
+  cursor: pointer;
+}
+.cr-field-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.cr-indent { margin-left: 20px; }
+.cr-field-checkbox input:disabled + * { color: var(--fg-4); }
+
+/* ── 23. Keyframes ── */
 @keyframes cr-blink {
   0%, 50%   { opacity: 1; }
   51%, 100% { opacity: 0; }
@@ -980,7 +1044,7 @@ body {
   to   { transform: translateY(0); }
 }
 
-/* ── 23. Reduced-motion overrides ── */
+/* ── 24. Reduced-motion overrides ── */
 @media (prefers-reduced-motion: reduce) {
   .cr-led[data-status="needs"]::before,
   .cr-led[data-status="needs"]::after,
@@ -989,7 +1053,7 @@ body {
   .cr-pill[data-status="needs"] .cr-pill-mark { animation: none; }
 }
 
-/* ── 24. Desktop responsive wrapper ── */
+/* ── 25. Desktop responsive wrapper ── */
 @media (min-width: 720px) {
   body {
     align-items: center;
