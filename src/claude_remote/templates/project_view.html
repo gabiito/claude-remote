@@ -34,7 +34,8 @@
     {% if primary_instance and primary_instance.live_status not in ('stopped', 'crashed') %}
     <button class="cr-pv-stop"
             hx-post="/ui/instances/{{ primary_instance.instance.id }}/stop"
-            hx-target="closest .cr-shell" hx-swap="none"
+            hx-swap="none"
+            @htmx:after-request="if ($event.detail.successful) window.location.href = '/#{{ project.domain }}'"
             aria-label="Stop instance" title="Stop instance">{{ square_stop(cls='cr-icon') }}</button>
     {% endif %}
   </div>
