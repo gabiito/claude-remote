@@ -212,3 +212,123 @@ async def test_malformed_json_body_still_returns_200(client: AsyncClient, token:
     # Either received:true (raw stored) or at minimum still 200
     body = resp.json()
     assert body["received"] is True or body["received"] is False  # ALWAYS 200, never 5xx
+
+
+# ---------------------------------------------------------------------------
+# WU-4 extension — notifier.dispatch integration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_hook_calls_notifier_dispatch_after_event_persisted(
+    app_hooks, db_path: Path, token: str
+) -> None:
+    """Valid token + event → notifier.dispatch is called with (event, project, prefs)."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from claude_remote.routes import hooks as hooks_module
+
+    dispatch_mock = AsyncMock(return_value=None)
+
+    with patch.object(hooks_module.notifier, "dispatch", dispatch_mock):
+        async with AsyncClient(
+            transport=ASGITransport(app=app_hooks),  # type: ignore[arg-type]
+            base_url="http://test",
+        ) as c:
+            resp = await c.post(
+                f"/hooks/Notification?token={token}",
+                json={"message": "hello from test"},
+            )
+            await asyncio.sleep(0)  # drain fire-and-forget tasks
+
+    assert resp.status_code == 200
+    assert resp.json()["received"] is True
+    dispatch_mock.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_hook_returns_200_when_dispatch_raises(
+    app_hooks, db_path: Path, token: str
+) -> None:
+    """Hook returns 200 even when notifier.dispatch raises synchronously."""
+    from unittest.mock import AsyncMock, patch
+
+    from claude_remote.routes import hooks as hooks_module
+
+    dispatch_mock = AsyncMock(side_effect=RuntimeError("notifier exploded"))
+
+    with patch.object(hooks_module.notifier, "dispatch", dispatch_mock):
+        async with AsyncClient(
+            transport=ASGITransport(app=app_hooks),  # type: ignore[arg-type]
+            base_url="http://test",
+        ) as c:
+            resp = await c.post(
+                f"/hooks/Notification?token={token}",
+                json={"message": "test"},
+            )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["received"] is True  # event was persisted before dispatch was called
+
+
+@pytest.mark.anyio
+async def test_hook_dispatch_not_called_on_unknown_token(
+    app_hooks, db_path: Path
+) -> None:
+    """dispatch is NOT called when token lookup returns None (unknown token)."""
+    from unittest.mock import AsyncMock, patch
+
+    from claude_remote.routes import hooks as hooks_module
+
+    dispatch_mock = AsyncMock(return_value=None)
+
+    with patch.object(hooks_module.notifier, "dispatch", dispatch_mock):
+        async with AsyncClient(
+            transport=ASGITransport(app=app_hooks),  # type: ignore[arg-type]
+            base_url="http://test",
+        ) as c:
+            resp = await c.post(
+                "/hooks/Notification?token=completely-bogus-token",
+                json={"message": "test"},
+            )
+
+    assert resp.status_code == 200
+    assert resp.json()["reason"] == "unknown_token"
+    dispatch_mock.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_hook_fire_and_forget_task_scheduled(
+    app_hooks, db_path: Path, token: str
+) -> None:
+    """Hook returns 200 immediately; the dispatch task runs after the response."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from claude_remote.routes import hooks as hooks_module
+
+    call_order: list[str] = []
+
+    async def _fake_dispatch(*args, **kwargs):  # type: ignore[no-untyped-def]
+        call_order.append("dispatch")
+
+    dispatch_mock = AsyncMock(side_effect=_fake_dispatch)
+
+    with patch.object(hooks_module.notifier, "dispatch", dispatch_mock):
+        async with AsyncClient(
+            transport=ASGITransport(app=app_hooks),  # type: ignore[arg-type]
+            base_url="http://test",
+        ) as c:
+            resp = await c.post(
+                f"/hooks/Notification?token={token}",
+                json={"message": "fire and forget test"},
+            )
+            call_order.append("response_received")
+            await asyncio.sleep(0)  # drain pending tasks
+
+    assert resp.status_code == 200
+    assert "response_received" in call_order
+    # dispatch task ran after response
+    assert "dispatch" in call_order
