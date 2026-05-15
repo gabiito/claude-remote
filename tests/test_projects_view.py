@@ -120,7 +120,9 @@ async def test_get_project_view_happy_path(
     launch_resp = await pv_client.post(f"/ui/projects/{project.id}/launch")
     assert launch_resp.status_code == 200
 
-    response = await pv_client.get(f"/projects/{project.id}")
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
     assert response.status_code == 200
     html = response.text
 
@@ -148,7 +150,9 @@ async def test_get_project_view_no_active_instance(
         )
     )
 
-    response = await pv_client.get(f"/projects/{project.id}")
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
     assert response.status_code == 200
     html = response.text
 
@@ -160,7 +164,9 @@ async def test_get_project_view_not_found(
     pv_client: AsyncClient,
 ) -> None:
     """GET /projects/{nonexistent_id} → 404 with full HTML page (extends base.html)."""
-    response = await pv_client.get("/projects/nonexistent-uuid-xxxx")
+    response = await pv_client.get(
+        "/projects/nonexistent-uuid-xxxx", headers={"Accept": "text/html"}
+    )
     assert response.status_code == 404
     html = response.text
     # Must be a full HTML page (not a fragment)

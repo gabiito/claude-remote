@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import TypedDict
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -25,6 +24,7 @@ from claude_remote.db.events import Event, EventsRepository
 from claude_remote.db.instances import Instance, InstancesRepository
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
 from claude_remote.routes._templates import templates as TEMPLATES
+from claude_remote.routes._views import InstanceView
 from claude_remote.routes.instances import (
     get_events_repo,
     get_instances_repo,
@@ -43,18 +43,6 @@ from claude_remote.services.slug import slugify
 from claude_remote.services.tmux_launcher import TmuxLauncher
 
 router = APIRouter(prefix="/ui", tags=["ui"])
-
-
-# ---------------------------------------------------------------------------
-# Render-time DTOs (ADR-2: never mutate Instance Pydantic model)
-# ---------------------------------------------------------------------------
-
-
-class InstanceView(TypedDict):
-    """Thin render-time DTO pairing an instance with its derived live status."""
-
-    instance: Instance
-    live_status: str
 
 
 # ---------------------------------------------------------------------------
