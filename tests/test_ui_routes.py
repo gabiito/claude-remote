@@ -277,3 +277,93 @@ async def test_delete_ui_project_kills_active_tmux_sessions(
     assert delete_resp.status_code == 200
     assert session_name not in fake_adapter._sessions
     assert len(fake_adapter._sessions) == 0
+
+
+# ---------------------------------------------------------------------------
+# WU-5: POST /ui/projects with create_dir / git_init form params
+# ---------------------------------------------------------------------------
+
+
+async def test_post_ui_projects_with_create_dir_creates_path(
+    ui_client: AsyncClient,
+    tmp_projects_root,
+) -> None:
+    """POST /ui/projects with create_dir=true creates the directory and registers the project."""
+    target = tmp_projects_root / "example.com" / "brand-new"
+    assert not target.exists()
+
+    response = await ui_client.post(
+        "/ui/projects",
+        data={"name": "brand-new", "domain": "example.com", "create_dir": "true"},
+    )
+    assert response.status_code == 200
+    assert target.exists()
+    assert "cr-card" in response.text
+
+
+async def test_post_ui_projects_with_create_dir_and_git_init_creates_repo(
+    ui_client: AsyncClient,
+    tmp_projects_root,
+) -> None:
+    """POST /ui/projects with create_dir=true + git_init=true creates directory with .git/."""
+    target = tmp_projects_root / "example.com" / "git-proj"
+
+    response = await ui_client.post(
+        "/ui/projects",
+        data={
+            "name": "git-proj",
+            "domain": "example.com",
+            "create_dir": "true",
+            "git_init": "true",
+        },
+    )
+    assert response.status_code == 200
+    assert target.exists()
+    assert (target / ".git").is_dir()
+
+
+async def test_post_ui_projects_with_create_dir_when_path_exists_proceeds_normally(
+    ui_client: AsyncClient,
+    tmp_projects_root,
+) -> None:
+    """POST /ui/projects with create_dir=true when path already exists — no error, project registered."""
+    target = tmp_projects_root / "example.com" / "pre-existing"
+    target.mkdir(parents=True)
+
+    response = await ui_client.post(
+        "/ui/projects",
+        data={"name": "pre-existing", "domain": "example.com", "create_dir": "true"},
+    )
+    assert response.status_code == 200
+    assert "cr-card" in response.text
+
+
+async def test_post_ui_projects_create_dir_false_no_filesystem_write(
+    ui_client: AsyncClient,
+    tmp_projects_root,
+) -> None:
+    """POST /ui/projects without create_dir does NOT create the directory (existing behavior)."""
+    target = tmp_projects_root / "example.com" / "phantom"
+    assert not target.exists()
+
+    response = await ui_client.post(
+        "/ui/projects",
+        data={"name": "phantom", "domain": "example.com"},
+    )
+    # Should fail because dir doesn't exist and create_dir is False
+    assert response.status_code == 400
+    assert not target.exists()
+
+
+async def test_post_ui_projects_with_bad_identifier_returns_400(
+    ui_client: AsyncClient,
+    tmp_projects_root,
+) -> None:
+    """POST /ui/projects with create_dir=true + invalid domain returns 400 error fragment."""
+    response = await ui_client.post(
+        "/ui/projects",
+        data={"name": "project", "domain": "INVALID-DOMAIN", "create_dir": "true"},
+    )
+    assert response.status_code == 400
+    assert response.headers.get("HX-Reswap") == "innerHTML"
+    assert 'class="error-message"' in response.text
