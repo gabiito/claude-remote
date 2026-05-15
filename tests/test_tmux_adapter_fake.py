@@ -179,12 +179,12 @@ def test_fake_capture_pane_returns_stored_content(
 
 
 def test_fake_capture_pane_raises_on_missing_session(adapter: FakeTmuxAdapter) -> None:
-    """capture_pane raises TmuxOperationError for a session that was never created (REQ-T1 not-found).
+    """capture_pane raises TmuxOperationError for a session never created (REQ-T1 not-found).
 
-    NOTE: This is a CONTRACT DIVERGENCE from the existing 4 methods (kill_session, session_exists,
-    get_pane_pid, create_session) — those never raise on missing session. capture_pane and send_keys
-    RAISE because routes need to distinguish 'session gone' from 'session present but empty' to
-    serve different HTTP responses. See ADR #651.
+    NOTE: CONTRACT DIVERGENCE from the existing 4 methods (kill_session, session_exists,
+    get_pane_pid, create_session) — those never raise on missing session. capture_pane and
+    send_keys RAISE because routes need to distinguish 'session gone' from 'session present
+    but empty' to serve different HTTP responses. See ADR #651.
     """
     with pytest.raises(TmuxOperationError) as exc_info:
         adapter.capture_pane("gone-session")
@@ -208,7 +208,7 @@ def test_fake_capture_pane_empty_by_default_for_known_session(
 def test_fake_send_keys_records_call_and_appends_to_content(
     adapter: FakeTmuxAdapter, tmp_path: Path
 ) -> None:
-    """send_keys with send_enter=True appends to pane content and records the call (REQ-T2 happy path)."""
+    """send_keys(send_enter=True) appends to pane content and records the call (REQ-T2)."""
     adapter.create_session("my-session", tmp_path, "bash")
     adapter.send_keys("my-session", "hello", send_enter=True)
     assert ("my-session", "hello", True) in adapter.sent_keys
