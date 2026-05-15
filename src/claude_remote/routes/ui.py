@@ -377,3 +377,62 @@ async def get_instance_output(
         content=f'<pre class="claude-output" id="output-content">{escaped}</pre>',
         status_code=200,
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /ui/instances/{id}/input — Deliver keystrokes to tmux pane
+# ---------------------------------------------------------------------------
+
+
+@router.post("/instances/{instance_id}/input", response_class=HTMLResponse)
+async def post_instance_input(
+    request: Request,
+    instance_id: str,
+    text: str | None = Form(default=None),
+    send_enter: bool = Form(default=True),
+    instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
+) -> HTMLResponse:
+    """Deliver text to the active tmux pane via send_keys.
+
+    Form fields:
+      text: str        — keystroke text (REQUIRED, non-empty after strip)
+      send_enter: bool — append Enter after text (default True)
+
+    Returns:
+        200 + empty body + ``HX-Trigger: input-sent`` on success.
+        400 + error fragment when text is empty/whitespace-only.
+        404 + error fragment when instance not found.
+        500 + error fragment on adapter error.
+    """
+    # Validate text
+    stripped = (text or "").strip()
+    if not stripped:
+        return _error_fragment(request, "El texto no puede estar vacío.", status_code=400)
+
+    # Validate instance exists
+    instance = instances_repo.get(instance_id)
+    if instance is None:
+        return _error_fragment(
+            request,
+            f"Instancia '{instance_id}' no encontrada.",
+            status_code=404,
+        )
+
+    # Send to tmux
+    try:
+        await asyncio.to_thread(
+            adapter.send_keys, instance.tmux_session_name, stripped, send_enter=send_enter
+        )
+    except TmuxOperationError as exc:
+        return _error_fragment(
+            request,
+            f"Error de tmux: {exc}",
+            status_code=500,
+        )
+
+    return HTMLResponse(
+        content="",
+        status_code=200,
+        headers={"HX-Trigger": "input-sent"},
+    )
