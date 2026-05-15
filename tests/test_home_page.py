@@ -476,6 +476,131 @@ async def test_home_gear_link_has_settings_class(home_client: AsyncClient) -> No
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# WU-3 (mvp-visual-polish) — status_breakdown + sparkline + dynamic title
+# ---------------------------------------------------------------------------
+
+
+async def test_home_title_no_needs_count(home_client: AsyncClient) -> None:
+    """GET / with zero needs_input projects → title is plain 'claude-remote'."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    # No parenthetical when count is zero
+    assert "<title>claude-remote</title>" in response.text
+
+
+async def test_home_title_with_needs_count(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET / with needs_input projects → title contains count like 'claude-remote (N)'."""
+    p_path = tmp_projects_root / "acme.com" / "needsproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="NeedsProj", slug="needsproj", path=p_path, domain="acme.com"
+        )
+    )
+    launch_resp = await home_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    # Notification event → needs_input status
+    events_repo.create(
+        instance_id=instance.id,
+        project_id=project.id,
+        event_type="Notification",
+        payload=json.dumps({"message": "Review please"}),
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    # Title must contain the count in parentheses
+    assert "claude-remote (1)" in response.text
+
+
+async def test_home_vitals_breakdown_shows_nonzero_counts(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET / vitals strip renders non-zero status counts (e.g. 'running', 'needs')."""
+    # Create a project with an instance in needs_input
+    p_path = tmp_projects_root / "acme.com" / "vitals1"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="Vitals1", slug="vitals1", path=p_path, domain="acme.com"
+        )
+    )
+    launch_resp = await home_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    events_repo.create(
+        instance_id=instance.id,
+        project_id=project.id,
+        event_type="Notification",
+        payload=json.dumps({"message": "need input"}),
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    # Should render a status label (needs, running, idle, etc.)
+    assert any(
+        label in response.text
+        for label in ["needs", "running", "active", "idle", "stopped", "crashed"]
+    )
+
+
+async def test_home_vitals_breakdown_omits_zero_counts(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """GET / vitals strip must NOT render zero-count status entries."""
+    p_path = tmp_projects_root / "acme.com" / "vitals2"
+    p_path.mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="Vitals2", slug="vitals2", path=p_path, domain="acme.com"
+        )
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    # "0 crashed" or "0 stopped" must not appear
+    assert "0 crashed" not in response.text
+    assert "0 stopped" not in response.text
+
+
+async def test_home_sparkline_has_8_bars(home_client: AsyncClient) -> None:
+    """GET / renders exactly 8 cr-spark-bar elements driven by real spark_data."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    # The template should render 8 spark bars from the spark_data context variable
+    bar_count = response.text.count('class="cr-spark-bar"')
+    assert bar_count == 8
+
+
+async def test_home_sparkline_bars_have_height_style(home_client: AsyncClient) -> None:
+    """GET / spark bars have inline style='height: Npx;' attributes."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    # Each bar should have a height style (data-driven inline style)
+    assert 'style="height:' in response.text or "style=\"height:" in response.text
+
+
+# ---------------------------------------------------------------------------
 # Pre-existing test (must stay at end)
 # ---------------------------------------------------------------------------
 

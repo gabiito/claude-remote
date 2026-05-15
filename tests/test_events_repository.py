@@ -335,3 +335,59 @@ def test_cascade_delete_via_instance(
             "SELECT COUNT(*) FROM events WHERE instance_id = ?", (inst_id,)
         ).fetchone()[0]
     assert count == 0, "CASCADE DELETE must remove event rows when instance is deleted"
+
+
+# ---------------------------------------------------------------------------
+# WU-3 (mvp-visual-polish) — count_per_hour_last_24h
+# ---------------------------------------------------------------------------
+
+
+def test_count_per_hour_last_24h_empty_returns_24_zeros(repo: EventsRepository) -> None:
+    """With no events, count_per_hour_last_24h returns a list of 24 zeros."""
+    result = repo.count_per_hour_last_24h()
+    assert result == [0] * 24
+
+
+def test_count_per_hour_last_24h_length(repo: EventsRepository) -> None:
+    """count_per_hour_last_24h always returns exactly 24 elements."""
+    result = repo.count_per_hour_last_24h()
+    assert len(result) == 24
+
+
+def test_count_per_hour_last_24h_counts_recent_events(
+    repo: EventsRepository,
+    proj_id: str,
+    inst_id: str,
+) -> None:
+    """Events inserted within the last 24h appear in the correct bucket."""
+    # Insert 3 events now — they should land in the current-hour bucket (last element)
+    for _ in range(3):
+        repo.create(
+            instance_id=inst_id,
+            project_id=proj_id,
+            event_type="Notification",
+            payload="{}",
+        )
+
+    result = repo.count_per_hour_last_24h()
+    assert len(result) == 24
+    # The last bucket (current hour) should have 3
+    assert result[-1] == 3
+    # Total across all buckets must be 3
+    assert sum(result) == 3
+
+
+def test_count_per_hour_last_24h_all_ints(
+    repo: EventsRepository,
+    proj_id: str,
+    inst_id: str,
+) -> None:
+    """All values in the returned list are integers."""
+    repo.create(
+        instance_id=inst_id,
+        project_id=proj_id,
+        event_type="SessionStart",
+        payload="{}",
+    )
+    result = repo.count_per_hour_last_24h()
+    assert all(isinstance(v, int) for v in result)

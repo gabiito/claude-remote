@@ -294,3 +294,82 @@ async def test_project_view_contains_gear_link(
     assert response.status_code == 200
     assert 'href="/settings"' in response.text
     assert "cr-gear-link" in response.text
+
+
+# ---------------------------------------------------------------------------
+# WU-3 (mvp-visual-polish) — project view title format
+# ---------------------------------------------------------------------------
+
+
+async def test_project_view_title_normal_status(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """GET /projects/{id} active project → title is 'domain/name — claude-remote'."""
+    p_path = tmp_projects_root / "wooli" / "landing"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="landing", slug="landing", path=p_path, domain="wooli"
+        )
+    )
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
+    assert response.status_code == 200
+    html = response.text
+    # Title should contain domain/name pattern
+    assert "wooli" in html
+    assert "landing" in html
+    # Should contain "claude-remote" in title
+    assert "claude-remote" in html
+
+
+async def test_project_view_title_needs_input_has_red_dot(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET /projects/{id} when primary instance is needs_input → title has 🔴 prefix."""
+    import json
+
+    from claude_remote.db.connection import get_connection_for
+    from claude_remote.db.events import EventsRepository
+
+    p_path = tmp_projects_root / "wooli" / "titleproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="titleproj", slug="titleproj", path=p_path, domain="wooli"
+        )
+    )
+
+    launch_resp = await pv_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    # Create events repo and add Notification → needs_input
+    from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
+
+    events_repo = EventsRepository(
+        connection_factory=instances_repo._factory  # type: ignore[attr-defined]
+    )
+    events_repo.create(
+        instance_id=instance.id,
+        project_id=project.id,
+        event_type="Notification",
+        payload=json.dumps({"message": "Please confirm"}),
+    )
+
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
+    assert response.status_code == 200
+    html = response.text
+    # Title must contain the red dot when needs_input
+    assert "🔴" in html

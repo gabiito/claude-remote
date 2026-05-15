@@ -273,3 +273,76 @@ async def test_card_has_hx_preserve_on_details(
     assert response.status_code == 200
     # New design: event appears in cr-events-mini or cr-event-mini section
     assert 'cr-events-mini' in response.text or 'cr-event-mini' in response.text
+
+
+# ---------------------------------------------------------------------------
+# WU-3 (mvp-visual-polish) — HX-Trigger: title-update header
+# ---------------------------------------------------------------------------
+
+
+async def test_card_has_hx_trigger_title_update_when_needs_input(
+    card_client: AsyncClient,
+    existing_project,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Card endpoint returns HX-Trigger header with title-update payload when needs_input."""
+    launch_resp = await card_client.post(
+        f"/ui/projects/{existing_project.id}/launch"
+    )
+    assert launch_resp.status_code == 200
+    instances = instances_repo.list_by_project(existing_project.id)
+    instance = instances[0]
+
+    # Notification event → needs_input live_status
+    events_repo.create(
+        instance_id=instance.id,
+        project_id=existing_project.id,
+        event_type="Notification",
+        payload=json.dumps({"message": "Please approve"}),
+    )
+
+    response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
+    assert response.status_code == 200
+
+    # HX-Trigger header must be present
+    assert "HX-Trigger" in response.headers, "Missing HX-Trigger header when needs_input"
+
+    # Parse the JSON payload
+    hx_trigger = json.loads(response.headers["HX-Trigger"])
+    assert "title-update" in hx_trigger, f"title-update missing from HX-Trigger: {hx_trigger}"
+
+    payload = hx_trigger["title-update"]
+    assert payload["needs"] is True
+    assert payload["domain"] == existing_project.domain
+    assert payload["name"] == existing_project.name
+
+
+async def test_card_no_hx_trigger_when_not_needs_input(
+    card_client: AsyncClient,
+    existing_project,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Card endpoint does NOT include HX-Trigger when instance is running (not needs_input)."""
+    launch_resp = await card_client.post(
+        f"/ui/projects/{existing_project.id}/launch"
+    )
+    assert launch_resp.status_code == 200
+    # No events → live_status=running; no needs_input
+
+    response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
+    assert response.status_code == 200
+
+    # Either no header, or title-update payload has needs=False
+    if "HX-Trigger" in response.headers:
+        hx_trigger_raw = response.headers["HX-Trigger"]
+        # If it's just a simple event name (not JSON), that's fine too
+        try:
+            hx_trigger = json.loads(hx_trigger_raw)
+            if "title-update" in hx_trigger:
+                assert hx_trigger["title-update"]["needs"] is False
+        except (json.JSONDecodeError, KeyError):
+            pass  # simple string trigger is fine too
