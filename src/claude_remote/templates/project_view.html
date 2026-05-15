@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "icons/_macros.html" import gear, chevron_right, x_close, send as send_icon %}
 
-{% block title %}{{ project.domain }}/{{ project.name }} · claude-remote{% endblock %}
+{% block title %}{% if primary_instance and primary_instance.live_status == 'needs_input' %}🔴 {% endif %}{{ project.domain }}/{{ project.name }} — claude-remote{% endblock %}
 
 {% block content %}
 <div class="cr-shell">

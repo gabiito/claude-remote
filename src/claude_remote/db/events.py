@@ -192,6 +192,44 @@ class EventsRepository:
             ).fetchall()
         return [self._row_to_event(row) for row in rows]
 
+    def count_per_hour_last_24h(self, *, now: datetime | None = None) -> list[int]:
+        """Return event counts for the last 24 hours, one int per hour, oldest first.
+
+        Returns exactly 24 ints. Buckets are UTC-hour aligned. Empty buckets return 0.
+        The ``now`` parameter is injectable for testing (defaults to datetime.now(UTC)).
+        """
+        from datetime import timedelta
+
+        if now is None:
+            now = datetime.now(UTC)
+        # Floor to the current hour
+        floor = now.replace(minute=0, second=0, microsecond=0)
+        # 24 buckets: [floor-23h, floor-22h, ..., floor] inclusive
+        start = floor - timedelta(hours=23)
+
+        with self._factory() as conn:
+            rows = conn.execute(
+                """
+                SELECT strftime('%Y-%m-%dT%H', received_at) AS hour, COUNT(*) AS c
+                FROM events
+                WHERE received_at >= ?
+                GROUP BY hour
+                ORDER BY hour
+                """,
+                (start.isoformat(),),
+            ).fetchall()
+
+        row_map: dict[str, int] = {r[0]: r[1] for r in rows}
+
+        buckets: list[int] = []
+        for i in range(24):
+            from datetime import timedelta as _td
+
+            ts = start + _td(hours=i)
+            key = ts.strftime("%Y-%m-%dT%H")
+            buckets.append(row_map.get(key, 0))
+        return buckets
+
     # ------------------------------------------------------------------
     # internal helpers
     # ------------------------------------------------------------------

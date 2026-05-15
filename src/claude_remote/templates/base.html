@@ -16,7 +16,18 @@
   <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
   <script src="https://unpkg.com/alpinejs@3.14.3" defer></script>
 </head>
-<body>
+<body x-data="{
+  updateTitle(detail) {
+    const needs = detail.needs;
+    const domain = detail.domain;
+    const name = detail.name;
+    if (needs && domain && name) {
+      document.title = '🔴 ' + domain + '/' + name + ' — claude-remote';
+    } else if (domain && name) {
+      document.title = domain + '/' + name + ' — claude-remote';
+    }
+  }
+}" x-on:title-update.window="updateTitle($event.detail)">
   {% block content %}{% endblock %}
   <script src="/static/js/app.js" defer></script>
 </body>

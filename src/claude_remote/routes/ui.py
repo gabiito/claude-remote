@@ -14,6 +14,7 @@ Errors return 4xx with HX-Reswap + HX-Retarget headers + error_message partial.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -267,8 +268,22 @@ async def get_project_card(
     ]
     recent_events = events_repo.list_for_project(project_id, limit=5)
 
+    # Determine if any instance is in needs_input → emit title-update HX-Trigger
+    has_needs_input = any(iv["live_status"] == "needs_input" for iv in instance_views)
+    extra_headers: dict[str, str] = {}
+    if has_needs_input:
+        extra_headers["HX-Trigger"] = json.dumps(
+            {
+                "title-update": {
+                    "needs": True,
+                    "domain": project.domain,
+                    "name": project.name,
+                }
+            }
+        )
+
     content = _render_project_card(request, project, instance_views, recent_events)
-    return HTMLResponse(content=content, status_code=200)
+    return HTMLResponse(content=content, status_code=200, headers=extra_headers)
 
 
 # ---------------------------------------------------------------------------

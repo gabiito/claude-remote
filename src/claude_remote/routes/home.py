@@ -26,6 +26,7 @@ from claude_remote.routes._views import InstanceView
 from claude_remote.routes.instances import get_events_repo, get_instances_repo
 from claude_remote.routes.projects import get_projects_repo
 from claude_remote.services.live_status import derive_live_status
+from claude_remote.services.sparkline import compute_sparkline
 
 router = APIRouter(tags=["ui"])
 
@@ -99,6 +100,22 @@ async def home(
         domain_counts[project.domain] = domain_counts.get(project.domain, 0) + 1
     registered_domains = sorted(domain_counts.items(), key=lambda kv: kv[0])
 
+    # Status breakdown — count instances per live_status across all cards
+    status_keys = ("needs", "active", "running", "idle", "stopped", "crashed")
+    status_breakdown: dict[str, int] = {k: 0 for k in status_keys}
+    for card in cards:
+        for iv in card["instance_views"]:
+            raw_status = iv["live_status"]
+            # live_status service returns 'needs_input'; CSS token is 'needs'
+            css_token = "needs" if raw_status == "needs_input" else raw_status
+            if css_token in status_breakdown:
+                status_breakdown[css_token] += 1
+
+    needs_count = status_breakdown.get("needs", 0)
+
+    # Sparkline — last 8 hours, normalised to 2–14px heights
+    spark_data = compute_sparkline(events_repo, buckets=8)
+
     return templates.TemplateResponse(  # type: ignore[return-value]
         request,
         "home.html",
@@ -108,5 +125,8 @@ async def home(
             "projects_root": str(settings.projects_root),
             "registered_domains": registered_domains,
             "total_projects": len(projects),
+            "status_breakdown": status_breakdown,
+            "needs_count": needs_count,
+            "spark_data": spark_data,
         },
     )

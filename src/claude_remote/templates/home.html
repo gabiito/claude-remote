@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "icons/_macros.html" import gear, sync, plus %}
 
-{% block title %}claude-remote{% endblock %}
+{% block title %}claude-remote{% if needs_count %} ({{ needs_count }}){% endif %}{% endblock %}
 
 {% block content %}
 <div class="cr-shell" x-data="{ filter: 'all' }" x-on:projects-synced.window="window.location.reload()">
@@ -17,20 +17,24 @@
     </div>
 
     {# Vitals strip #}
+    {% set status_order = [('needs', 'needs'), ('active', 'active'), ('running', 'running'), ('idle', 'idle'), ('crashed', 'crashed'), ('stopped', 'stopped')] %}
     <div class="cr-vitals">
       <span class="cr-vitals-stat">
         <span class="cr-vitals-led" style="background: var(--accent); color: var(--accent);"></span>
       </span>
-      <span class="cr-vitals-stat"><b>{{ cards|length }}</b>&nbsp;proyectos</span>
+      {% set ns = namespace(first=true) %}
+      {% for key, label in status_order %}
+        {% if status_breakdown[key] %}
+          {% if not ns.first %}<span class="cr-vitals-sep">·</span>{% endif %}
+          <span class="cr-vitals-stat" style="color: var(--st-{{ key }});"><b>{{ status_breakdown[key] }}</b>&nbsp;{{ label }}</span>
+          {% set ns.first = false %}
+        {% endif %}
+      {% endfor %}
+      {% if ns.first %}
+        <span class="cr-vitals-stat"><b>{{ cards|length }}</b>&nbsp;proyectos</span>
+      {% endif %}
       <span class="cr-vitals-spark" aria-hidden="true">
-        <i class="cr-spark-bar" style="height: 4px;"></i>
-        <i class="cr-spark-bar" style="height: 7px;"></i>
-        <i class="cr-spark-bar" style="height: 5px;"></i>
-        <i class="cr-spark-bar" style="height: 9px;"></i>
-        <i class="cr-spark-bar" style="height: 6px;"></i>
-        <i class="cr-spark-bar" style="height: 12px;"></i>
-        <i class="cr-spark-bar" style="height: 8px;"></i>
-        <i class="cr-spark-bar" style="height: 14px;"></i>
+        {% for h in spark_data %}<i class="cr-spark-bar" style="height: {{ h }}px;"></i>{% endfor %}
       </span>
     </div>
 
