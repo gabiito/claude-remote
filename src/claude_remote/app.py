@@ -103,6 +103,12 @@ def create_app() -> FastAPI:
     app.include_router(instances.router)
     app.include_router(hooks.router)
 
+    # Push notification routes — static_sw before push to avoid /api/push/ prefix conflict
+    from claude_remote.routes import push, static_sw  # noqa: PLC0415
+
+    app.include_router(static_sw.router)
+    app.include_router(push.router)
+
     # UI routers — imported here to avoid circular imports at module level
     # (home + ui need TEMPLATES which lives in routes/_templates.py, not app.py)
     from claude_remote.routes import home, settings, ui  # noqa: PLC0415
