@@ -141,6 +141,41 @@ async def test_output_instance_not_found(
     assert "HX-Reswap" in response.headers
 
 
+async def test_output_ansi_produces_html_spans(
+    out_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """ANSI-escaped pane content → response body contains ansi3X span classes (WU-1)."""
+    p_path = tmp_projects_root / "acme.com" / "ansiproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="AnsiProj", slug="ansiproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    launch_resp = await out_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    # Set ANSI-coloured pane content
+    fake_adapter.set_pane_content(
+        instance.tmux_session_name, "\x1b[31mError\x1b[0m normal text"
+    )
+
+    response = await out_client.get(f"/ui/instances/{instance.id}/output")
+    assert response.status_code == 200
+    html = response.text
+    # Must contain an ansi span class (ANSI conversion active)
+    assert "ansi" in html
+    assert "Error" in html
+
+
 async def test_output_adapter_error_returns_200(
     out_client: AsyncClient,
     projects_repo: ProjectsRepository,
