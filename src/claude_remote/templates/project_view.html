@@ -7,9 +7,9 @@
 <div class="cr-shell">
   {# ── Header ── #}
   <div class="cr-pv-header">
-    <button class="cr-back"
-            hx-get="/" hx-target="body" hx-swap="innerHTML" hx-push-url="true"
-            aria-label="Back">{{ chevron_right(cls='cr-icon cr-flip') }}</button>
+    <a class="cr-back" href="/#{{ project.domain }}"
+       aria-label="Back to {{ project.domain }}"
+       title="Back to {{ project.domain }}">{{ chevron_right(cls='cr-icon cr-flip') }}</a>
     <div class="cr-pv-title">
       <span class="cr-proj-name">
         <span class="cr-domain">{{ project.domain }}</span>
