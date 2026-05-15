@@ -173,3 +173,103 @@ async def test_get_project_view_not_found(
     assert "<!doctype html>" in html.lower() or "<html" in html.lower()
     # Must contain some error indication
     assert "404" in html or "not found" in html.lower() or "no encontrado" in html.lower()
+
+
+# ---------------------------------------------------------------------------
+# WU-6: Session-ended banner + events feed (50 events max)
+# ---------------------------------------------------------------------------
+
+
+async def test_project_view_session_ended_banner_appears(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """When all instances are stopped/crashed, the session-ended banner is shown."""
+    p_path = tmp_projects_root / "acme.com" / "bannerproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="BannerProj", slug="bannerproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    # Launch and then stop the instance
+    launch_resp = await pv_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    # Stop the instance
+    stop_resp = await pv_client.post(f"/ui/instances/{instance.id}/stop")
+    assert stop_resp.status_code == 200
+
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
+    assert response.status_code == 200
+    html = response.text
+
+    # Banner must be visible
+    assert "cr-banner" in html
+    # Input form must be disabled (cr-disabled class or disabled attr)
+    assert "cr-disabled" in html or 'disabled' in html
+
+
+async def test_project_view_events_feed_renders_up_to_50(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Events feed shows up to 50 events (not inside a <details> element)."""
+    import json
+
+    from claude_remote.db.connection import get_connection_for
+    from claude_remote.db.events import EventsRepository
+
+    p_path = tmp_projects_root / "acme.com" / "feedproj2"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="FeedProj2", slug="feedproj2", path=p_path, domain="acme.com"
+        )
+    )
+
+    launch_resp = await pv_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    # Insert 60 events (should show max 50)
+    from claude_remote.db.connection import get_connection_for
+    from claude_remote.db.events import EventsRepository
+
+    # Get db from pv_settings in fixture scope
+    # Use the instances_repo's connection to find the db
+    events_repo = EventsRepository(
+        connection_factory=instances_repo._factory  # type: ignore[attr-defined]
+    )
+    for i in range(60):
+        events_repo.create(
+            instance_id=instance.id,
+            project_id=project.id,
+            event_type="Notification",
+            payload=json.dumps({"message": f"event-{i}"}),
+        )
+
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
+    assert response.status_code == 200
+    html = response.text
+
+    # Events feed is always visible (NOT inside a <details> tag)
+    assert "<details" not in html or "cr-events-pane" in html
+    # At most 50 event entries (check cr-event-row count)
+    event_row_count = html.count("cr-event-row")
+    assert event_row_count <= 50
+    assert event_row_count > 0
