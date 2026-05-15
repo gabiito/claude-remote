@@ -210,7 +210,7 @@ async def send_push(
     project: Project,
     prefs: NotificationPreferences,
     *,
-    http_client: "AsyncClient | None" = None,
+    http_client: AsyncClient | None = None,
 ) -> None:
     """POST an event push to ntfy.sh/{prefs.ntfy_topic}.
 
@@ -259,7 +259,7 @@ async def dispatch(
     project: Project,
     prefs: NotificationPreferences,
     *,
-    http_client: "AsyncClient | None" = None,
+    http_client: AsyncClient | None = None,
 ) -> None:
     """Decide whether to push and schedule send_push as a background task.
 

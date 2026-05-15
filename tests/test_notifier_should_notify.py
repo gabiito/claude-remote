@@ -15,13 +15,12 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime
 
 import pytest
 
 from claude_remote.db.events import Event
 from claude_remote.db.notifications import NotificationPreferences
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -237,7 +236,8 @@ class TestWrapAroundQuietHours:
     def test_now_inside_range_before_midnight(self) -> None:
         """now=23:30 is inside overnight window → suppress (False)."""
         should_notify = _get_should_notify()
-        assert should_notify(_make_event("Notification"), self._prefs(), now=_now_at(23, 30)) is False
+        result = should_notify(_make_event("Notification"), self._prefs(), now=_now_at(23, 30))
+        assert result is False
 
     def test_now_outside_range_midday(self) -> None:
         """now=12:00 is outside overnight window → do not suppress (True)."""
@@ -257,7 +257,8 @@ class TestWrapAroundQuietHours:
     def test_just_before_end_boundary_returns_false(self) -> None:
         """now=06:59 is inside overnight window → suppress (False)."""
         should_notify = _get_should_notify()
-        assert should_notify(_make_event("Notification"), self._prefs(), now=_now_at(6, 59)) is False
+        result = should_notify(_make_event("Notification"), self._prefs(), now=_now_at(6, 59))
+        assert result is False
 
 
 # ---------------------------------------------------------------------------

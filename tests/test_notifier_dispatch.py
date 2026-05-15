@@ -14,7 +14,6 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -22,7 +21,6 @@ import pytest
 from claude_remote.db.events import Event
 from claude_remote.db.notifications import NotificationPreferences
 from claude_remote.db.projects import Project
-
 
 # ---------------------------------------------------------------------------
 # Helpers

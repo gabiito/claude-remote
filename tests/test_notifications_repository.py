@@ -21,7 +21,6 @@ import pytest
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -370,10 +369,10 @@ class TestEnvVarOverride:
         settings = get_settings()
         repo = NotificationsRepository(_make_factory(db))
         if settings.ntfy_topic_override:
-            try:
+            import contextlib
+
+            with contextlib.suppress(Exception):
                 repo.update(ntfy_topic=settings.ntfy_topic_override)
-            except Exception:
-                pass
 
         prefs = repo.get()
         assert prefs.ntfy_topic == "my-custom-topic"

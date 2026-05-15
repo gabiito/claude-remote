@@ -28,7 +28,6 @@ from claude_remote.db.events import Event
 from claude_remote.db.notifications import NotificationPreferences
 from claude_remote.db.projects import Project
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -76,10 +75,15 @@ def _make_prefs(ntfy_topic: str = "test-topic-abc") -> NotificationPreferences:
     )
 
 
-async def _call_send_push(event: Event, project: Project, prefs: NotificationPreferences, http_client=None) -> None:
+async def _call_send_push(
+    event: Event,
+    project: Project,
+    prefs: NotificationPreferences,
+    http_client: object = None,
+) -> None:
     from claude_remote.services.notifier import send_push  # type: ignore[import]
 
-    await send_push(event, project, prefs, http_client=http_client)
+    await send_push(event, project, prefs, http_client=http_client)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
