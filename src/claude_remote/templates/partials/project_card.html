@@ -1,7 +1,9 @@
-{# Determine the aggregate status for the card LED from instance_views #}
+{# Determine the aggregate status for the card LED from instance_views.
+   derive_live_status returns 'needs_input' (spec) but CSS uses 'needs' (design).
+   Compare against the service value, emit the CSS token. #}
 {% set agg_status = 'stopped' %}
 {% for iv in instance_views %}
-  {% if iv.live_status == 'needs' %}{% set agg_status = 'needs' %}
+  {% if iv.live_status == 'needs_input' %}{% set agg_status = 'needs' %}
   {% elif iv.live_status == 'active' and agg_status not in ('needs',) %}{% set agg_status = 'active' %}
   {% elif iv.live_status == 'idle' and agg_status not in ('needs', 'active') %}{% set agg_status = 'idle' %}
   {% elif iv.live_status == 'running' and agg_status not in ('needs', 'active', 'idle') %}{% set agg_status = 'running' %}
@@ -36,7 +38,7 @@
     </span>
     {% if instance_views %}
       {% set iv = instance_views[0] %}
-      <span class="cr-pill" data-variant="dot" data-status="{{ iv.live_status }}">
+      <span class="cr-pill" data-variant="dot" data-status="{{ iv.live_status | status_token }}">
         <span class="cr-pill-mark"></span>
         {{ iv.live_status | upper }}
       </span>

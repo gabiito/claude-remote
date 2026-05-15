@@ -6,6 +6,7 @@ routers need TEMPLATES).  This thin module breaks the cycle.
 Custom Jinja2 filters registered here (ADR-3):
   - ``format_relative``  → services/timefmt.py
   - ``extract_snippet``  → services/event_snippet.py
+  - ``status_token``     → maps derive_live_status() output to CSS [data-status] token
 """
 
 from pathlib import Path
@@ -15,9 +16,23 @@ from fastapi.templating import Jinja2Templates
 from claude_remote.services.event_snippet import extract_snippet
 from claude_remote.services.timefmt import format_relative
 
+
+def status_token(live_status: str) -> str:
+    """Map ``derive_live_status`` output → the CSS ``[data-status]`` token.
+
+    The service layer uses ``needs_input`` (spec REQ-1) while the Catppuccin
+    Mocha design system uses ``needs`` (shorter, set during mvp-project-view).
+    Keep both readable in their own domain; bridge here.
+    """
+    if live_status == "needs_input":
+        return "needs"
+    return live_status
+
+
 _PACKAGE_ROOT = Path(__file__).parent.parent
 templates = Jinja2Templates(directory=_PACKAGE_ROOT / "templates")
 
 # Register display helpers as Jinja2 filters so templates can call them inline.
 templates.env.filters["format_relative"] = format_relative
 templates.env.filters["extract_snippet"] = extract_snippet
+templates.env.filters["status_token"] = status_token

@@ -3,7 +3,7 @@
      data-db-status="{{ instance.status }}"
      data-live-status="{{ live_status }}">
   <div class="instance-info">
-    <span class="cr-pill" data-variant="chip" data-status="{{ live_status }}"
+    <span class="cr-pill" data-variant="chip" data-status="{{ live_status | status_token }}"
           title="DB: {{ instance.status }} | Live: {{ live_status }}">
       <span class="cr-pill-mark"></span>
       {{ live_status | upper }}

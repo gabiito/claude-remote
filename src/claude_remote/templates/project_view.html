@@ -17,7 +17,7 @@
       </span>
       <div class="cr-pv-sub">
         {% if primary_instance %}
-          <span class="cr-pill" data-variant="dot" data-status="{{ primary_instance.live_status }}">
+          <span class="cr-pill" data-variant="dot" data-status="{{ primary_instance.live_status | status_token }}">
             <span class="cr-pill-mark"></span>
             {{ primary_instance.live_status | upper }}
           </span>
