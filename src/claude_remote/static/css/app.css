@@ -380,12 +380,16 @@ body {
 .cr-name-link:hover .cr-name-arrow { transform: translateX(2px); opacity: 1; }
 .cr-name-link .cr-leaf { color: var(--accent); font-weight: 600; }
 .cr-name-arrow {
-  font-size: 14px;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1;
   color: var(--accent);
-  opacity: 0.85;
+  opacity: 0.9;
+  margin-left: 2px;
   transition: transform 140ms ease, opacity 140ms;
   display: inline-block;
+  /* Inter renders → with more visual weight than JetBrains Mono */
+  font-family: var(--fnt-ui);
 }
 
 /* Expand/collapse chevron — rotates on open */
