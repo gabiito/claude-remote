@@ -347,10 +347,10 @@ body {
 .cr-card-row1 {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   min-height: 22px;
 }
+.cr-card-row1 .cr-pill { margin-left: auto; }
 .cr-proj-name {
   font-family: var(--fnt-mono);
   font-size: 13.5px;
