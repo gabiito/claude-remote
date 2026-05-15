@@ -21,6 +21,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from claude_remote.services.exceptions import ProjectNotFoundError
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -58,6 +60,7 @@ class Project(BaseModel):
     path: str  # stored as string in SQLite
     domain: str
     created_at: str  # ISO 8601 UTC
+    is_stale: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +139,7 @@ class ProjectsRepository:
         """Return all projects ordered by created_at DESC (newest first)."""
         with self._factory() as conn:
             rows = conn.execute(
-                "SELECT id, slug, name, path, domain, created_at"
+                "SELECT id, slug, name, path, domain, created_at, is_stale"
                 " FROM projects ORDER BY created_at DESC"
             ).fetchall()
         return [self._row_to_project(row) for row in rows]
@@ -145,7 +148,8 @@ class ProjectsRepository:
         """Return a single project by id, or None if not found."""
         with self._factory() as conn:
             row = conn.execute(
-                "SELECT id, slug, name, path, domain, created_at FROM projects WHERE id = ?",
+                "SELECT id, slug, name, path, domain, created_at, is_stale"
+                " FROM projects WHERE id = ?",
                 (project_id,),
             ).fetchone()
         if row is None:
@@ -162,6 +166,38 @@ class ProjectsRepository:
             cursor = conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             return cursor.rowcount > 0
 
+    def mark_stale(self, project_id: str) -> "Project":
+        """Set is_stale=1 for the given project. Returns updated Project.
+
+        Raises:
+            ProjectNotFoundError: when no project with project_id exists.
+        """
+        with self._factory() as conn:
+            cursor = conn.execute(
+                "UPDATE projects SET is_stale = 1 WHERE id = ?", (project_id,)
+            )
+            if cursor.rowcount == 0:
+                raise ProjectNotFoundError(project_id)
+        project = self.get(project_id)
+        assert project is not None  # rowcount > 0 confirmed the row exists
+        return project
+
+    def unmark_stale(self, project_id: str) -> "Project":
+        """Set is_stale=0 for the given project. Returns updated Project. Idempotent.
+
+        Raises:
+            ProjectNotFoundError: when no project with project_id exists.
+        """
+        with self._factory() as conn:
+            cursor = conn.execute(
+                "UPDATE projects SET is_stale = 0 WHERE id = ?", (project_id,)
+            )
+            if cursor.rowcount == 0:
+                raise ProjectNotFoundError(project_id)
+        project = self.get(project_id)
+        assert project is not None
+        return project
+
     @staticmethod
     def _row_to_project(row: Any) -> "Project":
         return Project(
@@ -171,4 +207,5 @@ class ProjectsRepository:
             path=row[3],
             domain=row[4],
             created_at=row[5],
+            is_stale=bool(row[6]),  # SQLite returns 0/1 — coerce to bool
         )
