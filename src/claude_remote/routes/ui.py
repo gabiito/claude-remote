@@ -28,6 +28,7 @@ from claude_remote.routes._views import InstanceView
 from claude_remote.routes.instances import (
     get_events_repo,
     get_instances_repo,
+    get_tmux_adapter,
     get_tmux_launcher,
 )
 from claude_remote.routes.projects import get_projects_repo
@@ -40,6 +41,7 @@ from claude_remote.services.exceptions import (
 from claude_remote.services.live_status import derive_live_status
 from claude_remote.services.path_validation import PathValidationError, validate_project_path
 from claude_remote.services.slug import slugify
+from claude_remote.services.tmux_adapter import TmuxAdapter
 from claude_remote.services.tmux_launcher import TmuxLauncher
 
 router = APIRouter(prefix="/ui", tags=["ui"])
@@ -326,3 +328,52 @@ async def delete_project_ui(
             status_code=404,
         )
     return HTMLResponse(content="", status_code=200)
+
+
+# ---------------------------------------------------------------------------
+# GET /ui/instances/{id}/output — Output fragment (HTMX polling target)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/instances/{instance_id}/output", response_class=HTMLResponse)
+async def get_instance_output(
+    request: Request,
+    instance_id: str,
+    instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
+) -> HTMLResponse:
+    """Return the current tmux pane content as an HTML fragment.
+
+    Polled every 2s by HTMX via ``hx-swap="innerHTML"`` on the stable
+    ``<pre id="output-content">`` element.  Alpine smart-scroll handler
+    stays mounted because innerHTML swap does NOT remount the element.
+
+    Returns:
+        200 + ``<pre id="output-content">`` with pane text on success.
+        200 + ``<pre id="output-content">`` with fallback message on adapter error
+            (NEVER 5xx — keeps the 2s polling loop alive).
+        404 + error fragment with ``HX-Reswap: innerHTML`` when instance missing.
+    """
+    import html as _html  # noqa: PLC0415 — stdlib html.escape
+
+    instance = instances_repo.get(instance_id)
+    if instance is None:
+        content = TEMPLATES.get_template("partials/error_message.html").render(  # type: ignore[attr-defined]
+            message=f"Instancia '{instance_id}' no encontrada."
+        )
+        return HTMLResponse(
+            content=content,
+            status_code=404,
+            headers={"HX-Reswap": "innerHTML"},
+        )
+
+    try:
+        raw = await asyncio.to_thread(adapter.capture_pane, instance.tmux_session_name)
+        escaped = _html.escape(raw)
+    except TmuxOperationError:
+        escaped = "[Sesión no disponible]"
+
+    return HTMLResponse(
+        content=f'<pre class="claude-output" id="output-content">{escaped}</pre>',
+        status_code=200,
+    )
