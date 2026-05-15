@@ -107,7 +107,7 @@ async def test_get_project_view_happy_path(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """GET /projects/{id} with a running instance returns 200 with output panel + input form + quick actions."""
+    """GET /projects/{id} active instance → 200 with output panel + input form + quick actions."""
     p_path = tmp_projects_root / "acme.com" / "myproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -228,7 +228,6 @@ async def test_project_view_events_feed_renders_up_to_50(
     """Events feed shows up to 50 events (not inside a <details> element)."""
     import json
 
-    from claude_remote.db.connection import get_connection_for
     from claude_remote.db.events import EventsRepository
 
     p_path = tmp_projects_root / "acme.com" / "feedproj2"
@@ -245,11 +244,7 @@ async def test_project_view_events_feed_renders_up_to_50(
     instance = instances[0]
 
     # Insert 60 events (should show max 50)
-    from claude_remote.db.connection import get_connection_for
-    from claude_remote.db.events import EventsRepository
-
-    # Get db from pv_settings in fixture scope
-    # Use the instances_repo's connection to find the db
+    # Reuse instances_repo's connection factory to create an events repo
     events_repo = EventsRepository(
         connection_factory=instances_repo._factory  # type: ignore[attr-defined]
     )

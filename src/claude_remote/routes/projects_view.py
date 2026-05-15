@@ -49,9 +49,7 @@ def _wants_html(request: Request) -> bool:
     if "text/html" in accept:
         return True
     # HX-Request header is also a signal that this is an HTMX browser request
-    if request.headers.get("hx-request"):
-        return True
-    return False
+    return bool(request.headers.get("hx-request"))
 
 
 @router.get("/projects/{project_id}")
@@ -80,7 +78,11 @@ async def get_project_view(
 
         project_obj = projects_repo.get(project_id)
         if project_obj is None:
-            return _err(code="not_found", message=f"Project '{project_id}' not found", status_code=404)  # type: ignore[return-value]
+            return _err(  # type: ignore[return-value]
+                code="not_found",
+                message=f"Project '{project_id}' not found",
+                status_code=404,
+            )
         return JSONResponse(content=project_obj.model_dump(mode="json"), status_code=200)
 
     project = projects_repo.get(project_id)

@@ -18,7 +18,6 @@ from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
 from claude_remote.services.tmux_adapter import FakeTmuxAdapter
-from claude_remote.services.exceptions import TmuxOperationError
 
 pytestmark = pytest.mark.anyio
 
@@ -100,7 +99,7 @@ async def test_output_happy_path(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """GET /ui/instances/{id}/output returns 200 with <pre id="output-content"> containing pane text."""
+    """GET /ui/instances/{id}/output returns 200 with pre#output-content containing pane text."""
     p_path = tmp_projects_root / "acme.com" / "outproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -164,5 +163,9 @@ async def test_output_adapter_error_returns_200(
     assert response.status_code == 200  # MUST NOT be 5xx
     html = response.text
     # Must contain a fallback message inside the pre element
-    assert "unavailable" in html.lower() or "no disponible" in html.lower() or "sesión" in html.lower()
+    assert (
+        "unavailable" in html.lower()
+        or "no disponible" in html.lower()
+        or "sesión" in html.lower()
+    )
     assert 'id="output-content"' in html

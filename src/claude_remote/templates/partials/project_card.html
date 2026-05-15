@@ -1,52 +1,98 @@
-<div class="project-card"
+{# Determine the aggregate status for the card LED from instance_views #}
+{% set agg_status = 'stopped' %}
+{% for iv in instance_views %}
+  {% if iv.live_status == 'needs' %}{% set agg_status = 'needs' %}
+  {% elif iv.live_status == 'active' and agg_status not in ('needs',) %}{% set agg_status = 'active' %}
+  {% elif iv.live_status == 'idle' and agg_status not in ('needs', 'active') %}{% set agg_status = 'idle' %}
+  {% elif iv.live_status == 'running' and agg_status not in ('needs', 'active', 'idle') %}{% set agg_status = 'running' %}
+  {% elif iv.live_status == 'crashed' and agg_status not in ('needs', 'active', 'idle', 'running') %}{% set agg_status = 'crashed' %}
+  {% endif %}
+{% endfor %}
+
+<div class="cr-card"
      data-project-id="{{ project.id }}"
+     data-status="{{ agg_status }}"
      hx-get="/ui/projects/{{ project.id }}/card"
      hx-trigger="every 5s [document.visibilityState === 'visible']"
-     hx-swap="outerHTML">
-  <div class="project-card-header">
-    <h2 class="project-card-name">{{ project.name }}</h2>
-  </div>
-  <p class="project-card-meta">{{ project.domain }} / {{ project.slug }}</p>
+     hx-swap="outerHTML"
+     x-data="{ expanded: false }"
+     @click="expanded = !expanded">
 
-  {% if instance_views %}
-  <div class="instance-list">
-    {% for view in instance_views %}
-    {% set instance = view.instance %}
-    {% set live_status = view.live_status %}
-    {% include "partials/instance_row.html" %}
-    {% endfor %}
-  </div>
-  {% endif %}
+  {# Status LED strip (left edge) #}
+  <div class="cr-led" data-status="{{ agg_status }}"></div>
 
-  {% if recent_events %}
-  <details id="events-feed-{{ project.id }}" class="events-feed" hx-preserve="true">
-    <summary>{{ recent_events|length }} evento{{ '' if recent_events|length == 1 else 's' }}</summary>
-    <ul>
-      {% for event in recent_events %}
-      <li>
-        <span class="event-type-pill type-{{ event.event_type|lower }}">{{ event.event_type }}</span>
-        <span class="event-time">{{ event.received_at|format_relative }}</span>
-        {% set snippet = event|extract_snippet %}
-        {% if snippet %}<span class="event-snippet">{{ snippet }}</span>{% endif %}
-      </li>
+  {# Card body link — navigates to deep view on click (action buttons use @click.stop) #}
+  <a href="/projects/{{ project.id }}" class="cr-card-link" @click.stop>
+    <div class="cr-card-row1">
+      <span class="cr-proj-name">
+        <span class="cr-domain">{{ project.domain }}</span>
+        <span class="cr-slash">/</span>
+        <span class="cr-leaf">{{ project.name }}</span>
+      </span>
+      {% if instance_views %}
+        {% set iv = instance_views[0] %}
+        <span class="cr-pill" data-variant="dot" data-status="{{ iv.live_status }}">
+          <span class="cr-pill-mark"></span>
+          {{ iv.live_status | upper }}
+        </span>
+      {% else %}
+        <span class="cr-pill" data-variant="dot" data-status="stopped">
+          <span class="cr-pill-mark"></span>
+          SIN SESIÓN
+        </span>
+      {% endif %}
+    </div>
+
+    <div class="cr-card-row2">
+      <span>{{ project.slug }}</span>
+    </div>
+  </a>
+
+  {# Expanded section — events mini feed + actions #}
+  <div class="cr-card-expanded" x-show="expanded" x-cloak @click.stop>
+    {% if recent_events %}
+    <div class="cr-events-mini">
+      {% for event in recent_events[:3] %}
+      <div class="cr-event-mini">
+        <time>{{ event.received_at|format_relative }}</time>
+        <div class="cr-ev-text">
+          <span class="cr-ev-kind">{{ event.event_type }}</span>
+          {% set snippet = event|extract_snippet %}
+          {{ snippet or '' }}
+        </div>
+      </div>
       {% endfor %}
-    </ul>
-  </details>
-  {% endif %}
+    </div>
+    {% endif %}
 
-  <div class="project-card-actions">
-    <button
-      class="btn btn-primary"
-      hx-post="/ui/projects/{{ project.id }}/launch"
-      hx-target="closest .project-card"
-      hx-swap="outerHTML"
-    >Launch</button>
-    <button
-      class="btn btn-danger"
-      hx-delete="/ui/projects/{{ project.id }}"
-      hx-target="closest .project-card"
-      hx-swap="outerHTML"
-      hx-confirm="¿Borrar el proyecto?"
-    >Delete</button>
+    <div class="cr-card-actions">
+      {% if instance_views and instance_views[0].live_status not in ('stopped', 'crashed') %}
+      <button
+        hx-post="/ui/instances/{{ instance_views[0].instance.id }}/stop"
+        hx-target="closest .cr-card"
+        hx-swap="outerHTML"
+        @click.stop>
+        ■ Stop
+      </button>
+      {% else %}
+      <button
+        class="cr-act-primary"
+        hx-post="/ui/projects/{{ project.id }}/launch"
+        hx-target="closest .cr-card"
+        hx-swap="outerHTML"
+        @click.stop>
+        ▶ Launch
+      </button>
+      {% endif %}
+      <button
+        class="cr-act-danger"
+        hx-delete="/ui/projects/{{ project.id }}"
+        hx-target="closest .cr-card"
+        hx-swap="outerHTML"
+        hx-confirm="¿Borrar el proyecto?"
+        @click.stop>
+        🗑 Delete
+      </button>
+    </div>
   </div>
 </div>

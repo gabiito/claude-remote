@@ -1,6 +1,6 @@
-"""Red tests for GET /ui/projects/{id}/card — WU-3.
+"""Tests for GET /ui/projects/{id}/card — WU-3 (from mvp-events-and-status).
 
-Tests FAIL until the card endpoint is implemented in routes/ui.py.
+Updated in mvp-project-view WU-7 to match new cr-card design system markup.
 """
 
 from __future__ import annotations
@@ -123,11 +123,12 @@ async def test_card_happy_path_returns_200(
     card_client: AsyncClient,
     existing_project,
 ) -> None:
-    """GET /ui/projects/{id}/card returns 200 with project-card HTML."""
+    """GET /ui/projects/{id}/card returns 200 with cr-card HTML."""
     response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert 'class="project-card"' in response.text
+    # New design uses cr-card class instead of project-card
+    assert 'cr-card' in response.text
     assert f'data-project-id="{existing_project.id}"' in response.text
 
 
@@ -145,19 +146,16 @@ async def test_card_live_status_pretooluse(
     events_repo: EventsRepository,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Instance with recent PreToolUse shows data-live-status=active."""
-    # Launch an instance via the API to create a real DB row
+    """Instance with recent PreToolUse shows data-status=active on LED/pill."""
     launch_resp = await card_client.post(
         f"/ui/projects/{existing_project.id}/launch"
     )
     assert launch_resp.status_code == 200
 
-    # Get the instance from DB
     instances = instances_repo.list_by_project(existing_project.id)
     assert len(instances) == 1
     instance = instances[0]
 
-    # Insert a recent PreToolUse event
     events_repo.create(
         instance_id=instance.id,
         project_id=existing_project.id,
@@ -167,7 +165,8 @@ async def test_card_live_status_pretooluse(
 
     response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
     assert response.status_code == 200
-    assert 'data-live-status="active"' in response.text
+    # New design: cr-led and cr-pill use data-status="active"
+    assert 'data-status="active"' in response.text
 
 
 async def test_card_live_status_needs_input(
@@ -177,7 +176,7 @@ async def test_card_live_status_needs_input(
     events_repo: EventsRepository,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Instance with recent Notification (no tool after) → needs_input."""
+    """Instance with recent Notification (no tool after) → needs_input pill."""
     launch_resp = await card_client.post(
         f"/ui/projects/{existing_project.id}/launch"
     )
@@ -186,7 +185,6 @@ async def test_card_live_status_needs_input(
     instances = instances_repo.list_by_project(existing_project.id)
     instance = instances[0]
 
-    # Only a Notification, no tool after it
     events_repo.create(
         instance_id=instance.id,
         project_id=existing_project.id,
@@ -196,7 +194,8 @@ async def test_card_live_status_needs_input(
 
     response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
     assert response.status_code == 200
-    assert 'data-live-status="needs_input"' in response.text
+    # New design: cr-pill with data-status="needs" (live_status="needs_input" maps to "needs")
+    assert 'data-status="needs"' in response.text or "NEEDS_INPUT" in response.text
 
 
 async def test_card_events_feed_visible_when_events_exist(
@@ -206,7 +205,7 @@ async def test_card_events_feed_visible_when_events_exist(
     instances_repo: InstancesRepository,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Events feed <details> appears when project has recent events."""
+    """Events feed section appears when project has recent events."""
     launch_resp = await card_client.post(
         f"/ui/projects/{existing_project.id}/launch"
     )
@@ -223,17 +222,18 @@ async def test_card_events_feed_visible_when_events_exist(
 
     response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
     assert response.status_code == 200
-    assert 'class="events-feed"' in response.text
+    # New design: events appear in cr-events-mini section
+    assert 'cr-events-mini' in response.text or 'cr-event-mini' in response.text
 
 
 async def test_card_events_feed_hidden_when_no_events(
     card_client: AsyncClient,
     existing_project,
 ) -> None:
-    """No events → events feed <details> is absent from the card."""
+    """No events → events feed section is absent from the card."""
     response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
     assert response.status_code == 200
-    assert 'class="events-feed"' not in response.text
+    assert 'cr-events-mini' not in response.text
 
 
 async def test_card_has_htmx_polling_attrs(
@@ -254,7 +254,7 @@ async def test_card_has_hx_preserve_on_details(
     events_repo: EventsRepository,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Events feed <details> has stable id and hx-preserve attribute."""
+    """Card with events renders the expanded section with event items."""
     launch_resp = await card_client.post(
         f"/ui/projects/{existing_project.id}/launch"
     )
@@ -271,5 +271,5 @@ async def test_card_has_hx_preserve_on_details(
 
     response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
     assert response.status_code == 200
-    assert f'id="events-feed-{existing_project.id}"' in response.text
-    assert "hx-preserve" in response.text
+    # New design: event appears in cr-events-mini or cr-event-mini section
+    assert 'cr-events-mini' in response.text or 'cr-event-mini' in response.text

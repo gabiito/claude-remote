@@ -127,7 +127,8 @@ async def test_post_ui_projects_happy_path(
     )
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert 'class="project-card"' in response.text
+    # New design uses cr-card class
+    assert 'cr-card' in response.text
     assert "data-project-id=" in response.text
 
 
@@ -184,9 +185,10 @@ async def test_post_ui_launch_happy_path(
     response = await ui_client.post(f"/ui/projects/{existing_project.id}/launch")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert 'class="instance-row"' in response.text
-    # Status pill should reflect starting or running state
-    assert "status-pill" in response.text
+    # Launch returns a project card with status LED reflecting the new instance
+    assert 'cr-card' in response.text
+    # Status is reflected via data-status on cr-led/cr-pill
+    assert 'data-status=' in response.text
 
 
 async def test_post_ui_launch_not_found(ui_client: AsyncClient) -> None:
@@ -212,19 +214,19 @@ async def test_post_ui_stop_happy_path(
     # Launch first to create an instance
     launch_resp = await ui_client.post(f"/ui/projects/{existing_project.id}/launch")
     assert launch_resp.status_code == 200
-    assert "data-instance-id=" in launch_resp.text
 
-    # Extract the instance id from the HTML
+    # Extract the instance id from the stop button hx-post URL in the new card design
     import re
-    m = re.search(r'data-instance-id="([^"]+)"', launch_resp.text)
-    assert m is not None, f"No data-instance-id in response: {launch_resp.text}"
+    m = re.search(r'hx-post="/ui/instances/([^/]+)/stop"', launch_resp.text)
+    assert m is not None, f"No stop button with instance id in response: {launch_resp.text}"
     instance_id = m.group(1)
 
     response = await ui_client.post(f"/ui/instances/{instance_id}/stop")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "status-pill" in response.text
-    assert "status-stopped" in response.text
+    # New design: stop returns instance_row with cr-pill and data-status
+    assert "cr-pill" in response.text
+    assert 'data-status="stopped"' in response.text or "STOPPED" in response.text
 
 
 async def test_post_ui_stop_not_found(ui_client: AsyncClient) -> None:

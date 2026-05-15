@@ -3,16 +3,19 @@
      data-db-status="{{ instance.status }}"
      data-live-status="{{ live_status }}">
   <div class="instance-info">
-    <span class="status-pill status-{{ live_status }}"
+    <span class="cr-pill" data-variant="chip" data-status="{{ live_status }}"
           title="DB: {{ instance.status }} | Live: {{ live_status }}">
-      {{ live_status }}
+      <span class="cr-pill-mark"></span>
+      {{ live_status | upper }}
     </span>
-    <span class="instance-id">{{ instance.id[:8] }}</span>
+    <span class="instance-id" style="font-family: var(--fnt-mono); font-size: 0.7rem; color: var(--fg-3);">
+      {{ instance.id[:8] }}
+    </span>
   </div>
   <div class="instance-actions">
     {% if instance.status in ("running", "starting") %}
     <button
-      class="btn btn-secondary"
+      style="height: 34px; border-radius: 7px; border: 1px solid var(--line-0); background: var(--bg-2); color: var(--fg-1); font-family: var(--fnt-ui); font-size: 12px; cursor: pointer; padding: 0 12px;"
       hx-post="/ui/instances/{{ instance.id }}/stop"
       hx-target="closest .instance-row"
       hx-swap="outerHTML"

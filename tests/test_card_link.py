@@ -15,7 +15,6 @@ from httpx import AsyncClient
 from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
 from claude_remote.db.connection import get_connection_for
-from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
 from claude_remote.services.tmux_adapter import FakeTmuxAdapter
@@ -117,7 +116,7 @@ async def test_home_action_buttons_have_click_stop(
     """Action buttons have @click.stop to prevent card navigation (REQ-C1)."""
     p_path = tmp_projects_root / "acme.com" / "stopproj"
     p_path.mkdir(parents=True)
-    project = projects_repo.create(
+    projects_repo.create(
         project_create=ProjectCreate(
             name="StopProj", slug="stopproj", path=p_path, domain="acme.com"
         )

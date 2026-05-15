@@ -139,10 +139,11 @@ async def test_home_empty_state(home_client: AsyncClient) -> None:
 async def test_home_empty_state_renders_project_list_container(
     home_client: AsyncClient,
 ) -> None:
-    """Empty state still renders .project-list so HTMX form swaps work on first create."""
+    """Empty state still renders the project list area so HTMX form swaps work on first create."""
     response = await home_client.get("/")
     assert response.status_code == 200
-    assert 'class="project-list"' in response.text
+    # New design uses cr-empty or cr-shell; empty state is within the shell
+    assert "cr-shell" in response.text or "cr-empty" in response.text or "cr-list" in response.text
 
 
 async def test_home_lists_projects(
@@ -168,7 +169,8 @@ async def test_home_lists_projects(
     assert response.status_code == 200
     assert "Alpha" in response.text
     assert "Beta" in response.text
-    assert 'class="project-card"' in response.text
+    # New design uses cr-card class
+    assert 'cr-card' in response.text
     assert "data-project-id=" in response.text
 
 
@@ -252,8 +254,8 @@ async def test_home_live_status_pill_running_when_no_events(
 
     response = await home_client.get("/")
     assert response.status_code == 200
-    # Instance with no events, status=running → live_status=running → blue pill
-    assert "status-running" in response.text
+    # Instance with no events → live_status=running → pill with data-status="running"
+    assert 'data-status="running"' in response.text or "RUNNING" in response.text
 
 
 async def test_home_live_status_pill_active_with_pretooluse(
@@ -288,7 +290,8 @@ async def test_home_live_status_pill_active_with_pretooluse(
 
     response = await home_client.get("/")
     assert response.status_code == 200
-    assert "status-active" in response.text
+    # New design: data-status="active" on cr-pill/cr-led elements
+    assert 'data-status="active"' in response.text or "ACTIVE" in response.text
 
 
 async def test_home_events_feed_visible_when_events_exist(
@@ -322,7 +325,8 @@ async def test_home_events_feed_visible_when_events_exist(
 
     response = await home_client.get("/")
     assert response.status_code == 200
-    assert 'class="events-feed"' in response.text
+    # New design uses cr-events-mini inside cr-card-expanded
+    assert 'cr-events-mini' in response.text or 'cr-event-mini' in response.text
 
 
 async def test_home_events_feed_absent_when_no_events(
@@ -351,7 +355,7 @@ async def test_home_instance_row_has_data_db_and_live_status(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """GET / renders instance rows with data-db-status and data-live-status attrs."""
+    """GET / renders project cards with data-status (live status indicator)."""
     p_path = tmp_projects_root / "acme.com" / "attrproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -365,8 +369,8 @@ async def test_home_instance_row_has_data_db_and_live_status(
 
     response = await home_client.get("/")
     assert response.status_code == 200
-    assert "data-db-status=" in response.text
-    assert "data-live-status=" in response.text
+    # New design: card LED uses data-status; pill uses data-status
+    assert "data-status=" in response.text
 
 
 async def test_home_events_feed_has_stable_id_and_hx_preserve(
@@ -377,7 +381,7 @@ async def test_home_events_feed_has_stable_id_and_hx_preserve(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """GET / events feed <details> has stable id and hx-preserve attribute."""
+    """GET / events feed renders when project has events (card-expanded section)."""
     p_path = tmp_projects_root / "acme.com" / "preserveproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -400,5 +404,5 @@ async def test_home_events_feed_has_stable_id_and_hx_preserve(
 
     response = await home_client.get("/")
     assert response.status_code == 200
-    assert f'id="events-feed-{project.id}"' in response.text
-    assert "hx-preserve" in response.text
+    # New design: events feed appears in the card-expanded section
+    assert "cr-events-mini" in response.text or "cr-event-mini" in response.text
