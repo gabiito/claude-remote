@@ -7,6 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from claude_remote.api.errors import error_response
 from claude_remote.config import get_settings
@@ -43,6 +44,26 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="claude-remote", version="0.0.1", lifespan=_lifespan)
+
+    # Excluded paths: let FastAPI/Starlette default handlers serve these.
+    _PASSTHROUGH_PATHS = ("/openapi.json", "/docs", "/redoc")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exception_handler(  # pyright: ignore[reportUnusedFunction]
+        request: Request, exc: StarletteHTTPException
+    ) -> HTMLResponse:
+        """Custom 404 handler. Excludes API docs and static assets from HTML override."""
+        if exc.status_code == 404:
+            path = request.url.path
+            # Let API docs, openapi schema, and static assets pass through to defaults.
+            if not any(path.startswith(p) for p in _PASSTHROUGH_PATHS) and not path.startswith(
+                "/static/"
+            ):
+                from claude_remote.routes._templates import templates as TEMPLATES  # noqa: PLC0415
+                content: str = TEMPLATES.get_template("404.html").render(request=request)  # type: ignore[attr-defined]
+                return HTMLResponse(content=content, status_code=404)
+        # Fall through to Starlette's default HTTP exception handler for all other cases.
+        raise exc  # re-raise to let Starlette handle it
 
     @app.exception_handler(RequestValidationError)
     async def _validation_exception_handler(  # pyright: ignore[reportUnusedFunction]

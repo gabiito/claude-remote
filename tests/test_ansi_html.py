@@ -11,8 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
-
 
 def test_empty_input_returns_empty() -> None:
     """convert_ansi('') must return '' immediately (fast path)."""

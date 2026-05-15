@@ -354,7 +354,8 @@ class LibTmuxAdapter:
         # libtmux 0.40 does not expose an `e=True` kwarg on capture_pane(), so
         # we call the raw tmux command directly (ADR-V1 — libtmux kwarg fallback).
         result = pane.cmd("capture-pane", "-S", "-", "-p", "-e")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        output: str = result.stdout if isinstance(result.stdout, str) else "\n".join(result.stdout or [])  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        raw = result.stdout  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        output: str = raw if isinstance(raw, str) else "\n".join(raw or [])
         return output
 
     def send_keys(self, session_name: str, text: str, *, send_enter: bool = True) -> None:
