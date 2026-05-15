@@ -46,6 +46,7 @@ def _make_vapid_repo(pub: str = "BTestPublicKey", priv: str = _FAKE_PRIV) -> Mag
 
     repo = MagicMock()
     repo.get.return_value = VapidKeys(
+        id=1,
         public_key=pub,
         private_key=priv,
         created_at="2026-01-01T00:00:00+00:00",

@@ -40,11 +40,16 @@ async function subscribePush() {
   const perm = await Notification.requestPermission();
   if (perm !== 'granted') return { ok: false, reason: 'permission-denied' };
 
-  const publicKey = await fetchVapidPublicKey();
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
-  });
+  // REQ-9.6: reuse an existing browser subscription when present, otherwise
+  // ask the push service for a new one.
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const publicKey = await fetchVapidPublicKey();
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  }
   const subJson = sub.toJSON();
   const r = await fetch('/api/push/subscribe', {
     method: 'POST',

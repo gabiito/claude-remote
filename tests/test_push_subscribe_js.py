@@ -97,7 +97,7 @@ async def test_push_subscribe_js_contains_url_base64_helper(client: AsyncClient)
 
 
 async def test_subscribe_push_checks_existing_subscription(client: AsyncClient) -> None:
-    """subscribePush() body must call getSubscription() before subscribe() for idempotency (REQ-9.6)."""
+    """subscribePush() body must call getSubscription() before subscribe (REQ-9.6)."""
     resp = await client.get("/static/js/push-subscribe.js")
     assert resp.status_code == 200
     body = resp.text

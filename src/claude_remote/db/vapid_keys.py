@@ -20,6 +20,7 @@ from claude_remote.services.vapid_keygen import generate_keypair
 
 
 class VapidKeys(BaseModel):
+    id: int  # always 1 (CHECK constraint at DB level)
     public_key: str  # URL-safe base64 (browser applicationServerKey format)
     private_key: str  # PEM-encoded EC private key
     created_at: str
@@ -98,13 +99,14 @@ class VapidKeysRepository:
     def _fetch(self) -> Any:
         with self._factory() as conn:
             return conn.execute(
-                "SELECT public_key, private_key, created_at FROM vapid_keys WHERE id = 1"
+                "SELECT id, public_key, private_key, created_at FROM vapid_keys WHERE id = 1"
             ).fetchone()
 
     @staticmethod
     def _row_to_model(row: Any) -> VapidKeys:
         return VapidKeys(
-            public_key=row[0],
-            private_key=row[1],
-            created_at=row[2],
+            id=row[0],
+            public_key=row[1],
+            private_key=row[2],
+            created_at=row[3],
         )
