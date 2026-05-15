@@ -272,6 +272,10 @@ body {
   gap: 6px;
   cursor: pointer;
   transition: border-color 140ms, background 140ms, transform 100ms;
+  /* Inside .cr-list (flex column with overflow-y: auto), cards default to
+     flex-shrink: 1 and get squeezed when total content exceeds list height —
+     clipped by our overflow: hidden. Lock the card's height to its content. */
+  flex: 0 0 auto;
 }
 .cr-card:active { transform: scale(0.997); }
 .cr-card:hover { border-color: var(--line-1); }
