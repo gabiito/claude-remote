@@ -35,6 +35,14 @@ class TmuxAdapter(Protocol):
       kill_session    — returns True if killed, False if not found; never raises.
       session_exists  — returns bool; returns False on any error; never raises.
       get_pane_pid    — returns int | None; returns None on any error; never raises.
+
+    CONTRACT DIVERGENCE — capture_pane and send_keys (added in mvp-project-view):
+      The four methods above follow a "never-raises on missing session" contract
+      driven by idempotency (kill missing = success, exists missing = False).
+      capture_pane and send_keys RAISE TmuxOperationError when the target
+      session does not exist.  Routes need to DISTINGUISH "session gone" from
+      "session present, output empty" to produce different HTTP responses.
+      See ADR #651 (decisions/tmux-adapter-raise-on-missing-session).
     """
 
     def create_session(self, name: str, cwd: Path, command: str) -> int | None:
@@ -65,6 +73,37 @@ class TmuxAdapter(Protocol):
         """Return the PID of the session's active pane, or None if unavailable."""
         ...
 
+    def capture_pane(self, session_name: str) -> str:
+        """Return the full pane scrollback for the named session.
+
+        Returns:
+            A single string with pane content (lines joined with newlines).
+
+        Raises:
+            TmuxOperationError: if the session does not exist. See CONTRACT
+            DIVERGENCE note on TmuxAdapter for reasoning (ADR #651).
+        """
+        ...
+
+    def send_keys(self, session_name: str, text: str, *, send_enter: bool = True) -> None:
+        """Deliver text to the active pane of the named session.
+
+        Args:
+            session_name: target tmux session.
+            text: text to deliver verbatim.
+            send_enter: when True (default), appends an Enter keystroke after
+                text. When False, sends text only (no newline appended).
+
+        MVP limitation: ``literal=True`` is used in LibTmuxAdapter, so special
+        key codes like ``C-c`` or ``ESC`` are NOT interpreted — they are sent
+        as literal strings. This is intentional for safety.
+
+        Raises:
+            TmuxOperationError: if the session does not exist. See CONTRACT
+            DIVERGENCE note on TmuxAdapter for reasoning (ADR #651).
+        """
+        ...
+
 
 # ---------------------------------------------------------------------------
 # FakeTmuxAdapter — in-memory test double
@@ -86,18 +125,25 @@ class FakeTmuxAdapter:
             disappears from the internal dict without going through
             kill_session()).  Does NOT record a call — use this to test
             reconciliation drift scenarios.
+        set_pane_content(name, content): set the string returned by
+            capture_pane for the named session (REQ-T3).
 
     Attributes:
         calls: list of (method_name, kwargs_dict) tuples recording every
             call made to the API methods (create_session, kill_session,
             session_exists, get_pane_pid).  kill_session_externally is
             intentionally excluded.
+        sent_keys: ordered list of (session_name, text, send_enter) tuples
+            recording every send_keys call (REQ-T3).
     """
 
     def __init__(self, starting_pid: int = 1000) -> None:
         self._sessions: dict[str, _FakeSession] = {}
         self._next_pid = starting_pid
         self.calls: list[tuple[str, dict[str, object]]] = []
+        # capture_pane / send_keys state (mvp-project-view, REQ-T1..T3)
+        self._pane_contents: dict[str, str] = {}
+        self.sent_keys: list[tuple[str, str, bool]] = []
 
     def create_session(self, name: str, cwd: Path, command: str) -> int | None:
         self.calls.append(("create_session", {"name": name, "cwd": cwd, "command": command}))
@@ -131,6 +177,59 @@ class FakeTmuxAdapter:
         to set up reconciliation drift scenarios.
         """
         self._sessions.pop(name, None)
+
+    # ------------------------------------------------------------------
+    # capture_pane / send_keys (mvp-project-view, REQ-T1..T3)
+    #
+    # CONTRACT DIVERGENCE: both raise TmuxOperationError on missing session
+    # (unlike kill_session/session_exists/get_pane_pid which never raise).
+    # Routes need to distinguish "session gone" from "session present but empty".
+    # See ADR #651 (decisions/tmux-adapter-raise-on-missing-session).
+    # ------------------------------------------------------------------
+
+    def set_pane_content(self, session_name: str, content: str) -> None:
+        """Test helper: set the string returned by capture_pane for a session.
+
+        Overwrites any previously stored content.  The session MUST exist
+        (created via create_session) before calling this helper.
+        """
+        self._pane_contents[session_name] = content
+
+    def capture_pane(self, session_name: str) -> str:
+        """Return stored pane content for session_name.
+
+        Returns:
+            The string set by set_pane_content, or "" if no content was set.
+
+        Raises:
+            TmuxOperationError: if session_name is not in the active sessions.
+        """
+        if session_name not in self._sessions:
+            raise TmuxOperationError(
+                "capture_pane",
+                RuntimeError(f"session not found: {session_name}"),
+            )
+        return self._pane_contents.get(session_name, "")
+
+    def send_keys(self, session_name: str, text: str, *, send_enter: bool = True) -> None:
+        """Record a send_keys call and append text to the session's pane content.
+
+        The text (with optional newline) is appended to _pane_contents so that
+        tests can call capture_pane() immediately and observe the sent text.
+
+        Raises:
+            TmuxOperationError: if session_name is not in the active sessions.
+        """
+        if session_name not in self._sessions:
+            raise TmuxOperationError(
+                "send_keys",
+                RuntimeError(f"session not found: {session_name}"),
+            )
+        self.sent_keys.append((session_name, text, send_enter))
+        suffix = "\n" if send_enter else ""
+        self._pane_contents[session_name] = (
+            self._pane_contents.get(session_name, "") + text + suffix
+        )
 
 
 # ---------------------------------------------------------------------------
