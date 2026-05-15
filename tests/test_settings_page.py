@@ -127,15 +127,16 @@ async def test_get_settings_prefills_checked_toggle(
     assert "checked" in response.text
 
 
-async def test_get_settings_shows_ntfy_topic(
+async def test_get_settings_has_no_ntfy_section(
     st_client: AsyncClient,
-    notifications_repo: NotificationsRepository,
 ) -> None:
-    """GET /settings → ntfy_topic value appears in the page."""
-    prefs = notifications_repo.get()
+    """GET /settings → page must NOT contain ntfy_topic or ntfy.sh references (WU-7)."""
     response = await st_client.get("/settings")
     assert response.status_code == 200
-    assert prefs.ntfy_topic in response.text
+    html = response.text
+    assert "ntfy_topic" not in html
+    assert "ntfy.sh" not in html
+    assert "ntfy" not in html.lower().replace("<!-- ntfy removed -->", "")
 
 
 async def test_get_settings_prefills_quiet_hours(
@@ -288,3 +289,50 @@ async def test_post_settings_valid_quiet_hours_stored(
     prefs = notifications_repo.get()
     assert prefs.quiet_hours_start == "22:00"
     assert prefs.quiet_hours_end == "08:00"
+
+
+# ---------------------------------------------------------------------------
+# WU-7 — Push notifications section (REQ-10)
+# ---------------------------------------------------------------------------
+
+
+async def test_get_settings_has_push_section(st_client: AsyncClient) -> None:
+    """GET /settings → page contains Push notifications section (REQ-10.2)."""
+    response = await st_client.get("/settings")
+    assert response.status_code == 200
+    html = response.text
+    # Section heading or container
+    assert "push" in html.lower() or "cr-push-section" in html
+
+
+async def test_get_settings_has_subscribe_button(st_client: AsyncClient) -> None:
+    """GET /settings → page contains a subscribe / enable notifications button (REQ-10.4)."""
+    response = await st_client.get("/settings")
+    assert response.status_code == 200
+    html = response.text
+    # Should contain either a subscribePush call or enable button text
+    assert "subscribePush" in html or "Enable notifications" in html
+
+
+async def test_get_settings_has_install_hint_logic(st_client: AsyncClient) -> None:
+    """GET /settings → page contains standalone / install hint logic (REQ-10.7)."""
+    response = await st_client.get("/settings")
+    assert response.status_code == 200
+    html = response.text
+    assert "standalone" in html
+
+
+async def test_get_settings_references_push_subscriptions_api(
+    st_client: AsyncClient,
+) -> None:
+    """GET /settings → page references /api/push/subscriptions for device list (REQ-10.6)."""
+    response = await st_client.get("/settings")
+    assert response.status_code == 200
+    assert "/api/push/subscriptions" in response.text
+
+
+async def test_get_settings_renders_200_post_migration(st_client: AsyncClient) -> None:
+    """GET /settings returns 200 with no template errors after ntfy removal (SC-10.6)."""
+    response = await st_client.get("/settings")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]

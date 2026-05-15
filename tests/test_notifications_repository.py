@@ -407,3 +407,35 @@ class TestEnvVarOverride:
 
         settings = get_settings()
         assert settings.ntfy_topic_override == "overridden"
+
+
+# ---------------------------------------------------------------------------
+# WU-5 — ntfy_topic removed from NotificationPreferences model
+# ---------------------------------------------------------------------------
+
+
+class TestNtfyTopicRemoved:
+    def test_model_has_no_ntfy_topic_field(self) -> None:
+        """NotificationPreferences must NOT have ntfy_topic field (WU-5 removal)."""
+        from claude_remote.db.notifications import NotificationPreferences
+
+        assert "ntfy_topic" not in NotificationPreferences.model_fields
+
+    def test_update_rejects_ntfy_topic(self, tmp_path: Path) -> None:
+        """update(ntfy_topic=...) must raise ValueError (not in _UPDATABLE)."""
+        from claude_remote.db.notifications import NotificationsRepository
+
+        db = _migrated_db(tmp_path)
+        repo = NotificationsRepository(_make_factory(db))
+        with pytest.raises(ValueError, match="Unknown preference fields"):
+            repo.update(ntfy_topic="should-fail")  # type: ignore[call-arg]
+
+    def test_get_works_post_migration(self, tmp_path: Path) -> None:
+        """get() succeeds after 0009 drops ntfy_topic column (or skips on old SQLite)."""
+        from claude_remote.db.notifications import NotificationsRepository
+
+        db = _migrated_db(tmp_path)
+        repo = NotificationsRepository(_make_factory(db))
+        prefs = repo.get()
+        # Should succeed without referencing ntfy_topic
+        assert prefs.notify_on_notification is True

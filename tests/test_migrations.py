@@ -365,3 +365,77 @@ class TestIsStale0005Migration:
         ).fetchall()
         conn.close()
         assert len(rows) == 1
+
+
+# ---------------------------------------------------------------------------
+# WU-5 migration tests — 0009_drop_ntfy_topic.sql
+# ---------------------------------------------------------------------------
+
+
+class TestDropNtfyTopic0009Migration:
+    def test_0009_drops_ntfy_topic_on_modern_sqlite(self, tmp_path: Path) -> None:
+        """Migration 0009 drops ntfy_topic when SQLite >= 3.35.0."""
+        import sqlite3 as _sqlite3
+
+        db = tmp_path / "test.db"
+        apply_migrations(db, MIGRATIONS_DIR)
+        conn = _sqlite3.connect(db)
+        rows = conn.execute("PRAGMA table_info(notification_preferences)").fetchall()
+        conn.close()
+        col_names = {r[1] for r in rows}
+        # On modern SQLite (Python 3.12 ships >= 3.40), ntfy_topic should be gone
+        if _sqlite3.sqlite_version_info >= (3, 35, 0):
+            assert "ntfy_topic" not in col_names
+        else:
+            # On old SQLite, column stays but no exception raised
+            assert "ntfy_topic" in col_names
+
+    def test_0009_skips_gracefully_on_simulated_old_sqlite(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Migration 0009 is skipped and recorded as _skipped: on SQLite < 3.35.0."""
+        import sqlite3 as _sqlite3
+
+        # Monkey-patch sqlite_version_info to simulate old SQLite
+        monkeypatch.setattr(_sqlite3, "sqlite_version_info", (3, 34, 0))
+
+        db = tmp_path / "test.db"
+        apply_migrations(db, MIGRATIONS_DIR)
+
+        conn = _sqlite3.connect(db)
+        rows = conn.execute(
+            "SELECT filename FROM schema_migrations"
+            " WHERE filename LIKE '%0009_drop_ntfy_topic%'"
+        ).fetchall()
+        col_rows = conn.execute("PRAGMA table_info(notification_preferences)").fetchall()
+        conn.close()
+
+        # Exactly one record for 0009 (either applied or _skipped:)
+        assert len(rows) == 1
+        # The _skipped: record must exist (not the normal filename)
+        assert rows[0][0].startswith("_skipped:")
+
+        # ntfy_topic column must still be there (skip = no ALTER)
+        col_names = {r[1] for r in col_rows}
+        assert "ntfy_topic" in col_names
+
+    def test_0009_idempotent(self, tmp_path: Path) -> None:
+        """Running apply_migrations twice records 0009 exactly once."""
+        db = tmp_path / "test.db"
+        apply_migrations(db, MIGRATIONS_DIR)
+        apply_migrations(db, MIGRATIONS_DIR)
+        conn = sqlite3.connect(db)
+        rows = conn.execute(
+            "SELECT filename FROM schema_migrations"
+            " WHERE filename LIKE '%0009_drop_ntfy_topic%'"
+        ).fetchall()
+        conn.close()
+        assert len(rows) == 1
+
+    def test_schema_migrations_count_includes_0009(self, tmp_path: Path) -> None:
+        """After all migrations, schema_migrations has one row per SQL file."""
+        db = tmp_path / "test.db"
+        apply_migrations(db, MIGRATIONS_DIR)
+        rows = _migration_rows(db)
+        sql_file_count = len(list(MIGRATIONS_DIR.glob("*.sql")))
+        assert len(rows) == sql_file_count
