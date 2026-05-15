@@ -17,7 +17,6 @@ import pytest
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -121,7 +120,7 @@ class TestVapidKeysModel:
 
 class TestVapidKeysRepositoryGetOrCreate:
     def test_get_or_create_generates_keypair_on_fresh_db(self, tmp_path: Path) -> None:
-        """get_or_create() on empty vapid_keys returns a VapidKeys with non-empty fields. (SC-3.1)"""
+        """get_or_create() on empty vapid_keys returns VapidKeys with non-empty fields. (SC-3.1)"""
         from claude_remote.db.vapid_keys import VapidKeys, VapidKeysRepository
 
         db = _migrated_db(tmp_path)
@@ -161,7 +160,7 @@ class TestVapidKeysRepositoryGetOrCreate:
         assert count == 1
 
     def test_get_or_create_race_simulation(self, tmp_path: Path) -> None:
-        """If row already inserted by another writer, get_or_create returns that row (INSERT OR IGNORE)."""
+        """If row already inserted by another writer, get_or_create returns that row."""
         from claude_remote.db.vapid_keys import VapidKeysRepository
 
         db = _migrated_db(tmp_path)
@@ -215,7 +214,8 @@ class TestPublicKeyUncompressed:
         # Must be non-empty
         assert result
         # Must contain only base64url chars (no + / = in URL-safe)
-        assert all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_" for c in result)
+        _b64url_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+        assert all(c in _b64url_chars for c in result)
         # Must decode to exactly 65 bytes (0x04 prefix + 32 X + 32 Y)
         # Add padding back for decode
         padding = "=" * ((4 - len(result) % 4) % 4)
