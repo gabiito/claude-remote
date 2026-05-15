@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% from "icons/_macros.html" import chevron_right %}
 {% block title %}Configuración · claude-remote{% endblock %}
 {% block content %}
 <div class="cr-shell">
   {# ── Header ── #}
   <div class="cr-pv-header">
-    <a class="cr-back" href="/" aria-label="Volver">←</a>
+    <a class="cr-back" href="/" aria-label="Volver">{{ chevron_right(cls='cr-icon cr-flip') }}</a>
     <div class="cr-pv-title">
       <span class="cr-proj-name">
         <span class="cr-leaf">Configuración</span>

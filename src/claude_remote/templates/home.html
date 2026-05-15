@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "icons/_macros.html" import gear, sync, plus %}
 
 {% block title %}claude-remote{% endblock %}
 
@@ -38,15 +39,15 @@
       <button class="cr-new-btn"
               x-data
               @click="$dispatch('open-create-modal')">
-        + Nuevo proyecto
+        {{ plus(cls='cr-icon') }} Nuevo proyecto
       </button>
       <button class="cr-new-btn cr-sync-btn"
               hx-post="/ui/discovery/sync"
               hx-target="#sync-toast"
               hx-swap="innerHTML">
-        ↓ Sync
+        {{ sync(cls='cr-icon') }} Sync
       </button>
-      <a href="/settings" class="cr-gear-link" aria-label="Configuración" title="Configuración">⚙</a>
+      <a href="/settings" class="cr-gear-link" aria-label="Configuración" title="Configuración">{{ gear(cls='cr-icon') }}</a>
     </div>
 
     {# Sync toast slot — HTMX swaps sync_summary.html fragment here #}
@@ -161,7 +162,7 @@
         <p>Creá uno para empezar una sesión remota de Claude.</p>
         <button class="cr-new-btn" style="flex: none; min-width: 180px;"
                 x-data @click="$dispatch('open-create-modal')">
-          + Nuevo proyecto
+          {{ plus(cls='cr-icon') }} Nuevo proyecto
         </button>
       </div>
     {% endif %}

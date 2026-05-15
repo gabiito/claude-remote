@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "icons/_macros.html" import gear, chevron_right, x_close, send as send_icon %}
 
 {% block title %}{{ project.domain }}/{{ project.name }} · claude-remote{% endblock %}
 
@@ -8,7 +9,7 @@
   <div class="cr-pv-header">
     <button class="cr-back"
             hx-get="/" hx-target="body" hx-swap="innerHTML" hx-push-url="true"
-            aria-label="Volver">←</button>
+            aria-label="Volver">{{ chevron_right(cls='cr-icon cr-flip') }}</button>
     <div class="cr-pv-title">
       <span class="cr-proj-name">
         <span class="cr-domain">{{ project.domain }}</span>
@@ -29,7 +30,7 @@
         {% endif %}
       </div>
     </div>
-    <a href="/settings" class="cr-gear-link" aria-label="Configuración" title="Configuración">⚙</a>
+    <a href="/settings" class="cr-gear-link" aria-label="Configuración" title="Configuración">{{ gear(cls='cr-icon') }}</a>
     <button class="cr-pv-menu" aria-label="Menú">⋯</button>
   </div>
 
@@ -140,14 +141,14 @@ Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
       <span class="cr-input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> para enviar</span>
     </div>
     <input type="hidden" name="send_enter" value="true">
-    <button type="submit" class="cr-send" aria-label="Enviar">→</button>
+    <button type="submit" class="cr-send" aria-label="Enviar">{{ send_icon(cls='cr-icon') }}</button>
   </form>
   {% else %}
   <div id="input-form" class="cr-input-dock cr-disabled">
     <div class="cr-input-wrap">
       <textarea disabled placeholder="Sin sesión activa…"></textarea>
     </div>
-    <button class="cr-send" disabled>→</button>
+    <button class="cr-send" disabled>{{ send_icon(cls='cr-icon') }}</button>
   </div>
   {% endif %}
 </div>

@@ -1,3 +1,4 @@
+{% from "icons/_macros.html" import arrow_right %}
 {# Determine the aggregate status for the card LED from instance_views.
    derive_live_status returns 'needs_input' (spec) but CSS uses 'needs' (design).
    Compare against the service value, emit the CSS token. #}
@@ -32,7 +33,7 @@
       <span class="cr-slash">/</span>
       <a href="/projects/{{ project.id }}" class="cr-name-link" @click.stop>
         <span class="cr-leaf">{{ project.name }}</span>
-        <span class="cr-name-arrow" aria-hidden="true">❯</span>
+        {{ arrow_right(cls='cr-icon cr-name-arrow') }}
       </a>
       {% if project.is_stale %}<span class="cr-stale-badge">⚠ stale</span>{% endif %}
     </span>
