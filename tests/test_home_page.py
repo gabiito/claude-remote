@@ -1,9 +1,11 @@
-"""Red tests for GET / home page — WU-6/WU-7.
+"""Tests for GET / home page — WU-6/WU-7 (original) + WU-4 additions.
 
-These tests must FAIL until home.py + home.html are implemented.
+WU-4 cases extend this file with live_status enrichment + hx-preserve assertions.
 """
 
 from __future__ import annotations
+
+import json
 
 import pytest
 from httpx import AsyncClient
@@ -11,8 +13,11 @@ from httpx import AsyncClient
 from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
 from claude_remote.db.connection import get_connection_for
+from claude_remote.db.events import EventsRepository
+from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
+from claude_remote.services.tmux_adapter import FakeTmuxAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -42,9 +47,17 @@ def home_settings(tmp_db, tmp_projects_root):
 
 
 @pytest.fixture()
-def home_app(home_settings, tmp_db):
+def fake_adapter():
+    return FakeTmuxAdapter()
+
+
+@pytest.fixture()
+def home_app(home_settings, tmp_db, fake_adapter):
+    from claude_remote.routes.instances import get_tmux_adapter
+
     app = create_app()
     app.dependency_overrides[get_settings] = lambda: home_settings
+    app.dependency_overrides[get_tmux_adapter] = lambda: fake_adapter
     yield app
     app.dependency_overrides.clear()
 
@@ -62,6 +75,20 @@ async def home_client(home_app):
 @pytest.fixture()
 def projects_repo(home_settings):
     return ProjectsRepository(
+        connection_factory=lambda: get_connection_for(home_settings.db_path)
+    )
+
+
+@pytest.fixture()
+def instances_repo(home_settings):
+    return InstancesRepository(
+        connection_factory=lambda: get_connection_for(home_settings.db_path)
+    )
+
+
+@pytest.fixture()
+def events_repo(home_settings):
+    return EventsRepository(
         connection_factory=lambda: get_connection_for(home_settings.db_path)
     )
 
@@ -175,3 +202,203 @@ async def test_home_project_card_has_data_id(
 
     response = await home_client.get("/")
     assert f'data-project-id="{project.id}"' in response.text
+
+
+# ---------------------------------------------------------------------------
+# WU-4 additions: live_status enrichment + hx-preserve + polling attrs
+# ---------------------------------------------------------------------------
+
+
+async def test_home_card_has_htmx_polling_attrs(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """GET / renders project cards with hx-get polling attribute pointing to /card endpoint."""
+    p_path = tmp_projects_root / "acme.com" / "pollproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="PollProj", slug="pollproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert f'hx-get="/ui/projects/{project.id}/card"' in response.text
+    assert "every 5s" in response.text
+    assert 'hx-swap="outerHTML"' in response.text
+
+
+async def test_home_live_status_pill_running_when_no_events(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET / shows status-running class for instance with no recent events."""
+    p_path = tmp_projects_root / "acme.com" / "runproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="RunProj", slug="runproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    # Launch an instance so there's one to render
+    launch_resp = await home_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    # Instance with no events, status=running → live_status=running → blue pill
+    assert "status-running" in response.text
+
+
+async def test_home_live_status_pill_active_with_pretooluse(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET / shows status-active class for instance with recent PreToolUse."""
+    p_path = tmp_projects_root / "acme.com" / "activeproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="ActiveProj", slug="activeproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    launch_resp = await home_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    events_repo.create(
+        instance_id=instance.id,
+        project_id=project.id,
+        event_type="PreToolUse",
+        payload=json.dumps({"tool_name": "Edit"}),
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert "status-active" in response.text
+
+
+async def test_home_events_feed_visible_when_events_exist(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET / shows events feed <details> when project has events."""
+    p_path = tmp_projects_root / "acme.com" / "feedproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="FeedProj", slug="feedproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    launch_resp = await home_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    events_repo.create(
+        instance_id=instance.id,
+        project_id=project.id,
+        event_type="Notification",
+        payload=json.dumps({"message": "Review"}),
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'class="events-feed"' in response.text
+
+
+async def test_home_events_feed_absent_when_no_events(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """GET / hides events feed when project has no events."""
+    p_path = tmp_projects_root / "acme.com" / "emptyproj"
+    p_path.mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="EmptyProj", slug="emptyproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'class="events-feed"' not in response.text
+
+
+async def test_home_instance_row_has_data_db_and_live_status(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET / renders instance rows with data-db-status and data-live-status attrs."""
+    p_path = tmp_projects_root / "acme.com" / "attrproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="AttrProj", slug="attrproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    launch_resp = await home_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert "data-db-status=" in response.text
+    assert "data-live-status=" in response.text
+
+
+async def test_home_events_feed_has_stable_id_and_hx_preserve(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET / events feed <details> has stable id and hx-preserve attribute."""
+    p_path = tmp_projects_root / "acme.com" / "preserveproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="PreserveProj", slug="preserveproj", path=p_path, domain="acme.com"
+        )
+    )
+
+    launch_resp = await home_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instances = instances_repo.list_by_project(project.id)
+    instance = instances[0]
+
+    events_repo.create(
+        instance_id=instance.id,
+        project_id=project.id,
+        event_type="Notification",
+        payload=json.dumps({"message": "test"}),
+    )
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert f'id="events-feed-{project.id}"' in response.text
+    assert "hx-preserve" in response.text
