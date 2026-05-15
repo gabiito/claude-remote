@@ -294,3 +294,73 @@ input[type="text"]:focus {
     flex-wrap: nowrap;
   }
 }
+
+/* ── Live-status pill colors (mvp-events-and-status)
+   NOTE: .status-running CHANGES from green to blue (#2563eb).
+   Green is now reserved for .status-active only.
+   Existing .status-stopped, .status-crashed, .status-starting remain unchanged.
+   ── */
+.status-pill.status-running     { background: #2563eb; color: white; }
+.status-pill.status-active      { background: #16a34a; color: white; }
+.status-pill.status-needs-input { background: #dc2626; color: white;
+                                  animation: pulse 1.2s ease-in-out infinite; }
+.status-pill.status-idle        { background: #eab308; color: white; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-pill.status-needs-input { animation: none; }
+}
+
+/* ── Events feed ── */
+.events-feed {
+  border-top: 1px solid #e5e7eb;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.events-feed summary {
+  cursor: pointer;
+  color: #6b7280;
+  user-select: none;
+}
+
+.events-feed ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0 0 0;
+}
+
+.events-feed li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.25rem 0;
+  line-height: 1.4;
+}
+
+.event-type-pill {
+  font-size: 0.7rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.event-time {
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5em;
+}
+
+.event-snippet {
+  color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
