@@ -580,6 +580,16 @@ body {
   border-radius: 999px;
 }
 
+/* Tab panel — flex column that constrains the scrollable child.
+   Defined as a class (not inline style) because Alpine's `x-show` was
+   overwriting `display: flex` on initialization, collapsing the layout. */
+.cr-tab-panel {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* ── 15. Terminal pane (output <pre>) ── */
 .cr-terminal {
   flex: 1 1 0;

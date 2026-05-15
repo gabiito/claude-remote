@@ -70,7 +70,7 @@
     </div>
 
     {# ── Output panel ── #}
-    <div x-show="tab === 'terminal'" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+    <div class="cr-tab-panel" x-show="tab === 'terminal'">
       {% if primary_instance %}
       <pre class="cr-terminal cr-scroll" id="output-content"
            x-data="{ smartScroll: true }"
@@ -86,7 +86,7 @@ Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
     </div>
 
     {# ── Events pane ── #}
-    <div class="cr-events-pane cr-scroll" x-show="tab === 'events'" x-cloak style="flex: 1;">
+    <div class="cr-events-pane cr-scroll cr-tab-panel" x-show="tab === 'events'" x-cloak>
       {% if recent_events %}
         {% for event in recent_events %}
         <div class="cr-event-row" data-kind="{{ event.event_type }}">
