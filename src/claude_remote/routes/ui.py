@@ -216,8 +216,10 @@ async def delete_project_ui(
     request: Request,
     project_id: str,
     repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
+    launcher: TmuxLauncher = Depends(get_tmux_launcher),  # noqa: B008
 ) -> HTMLResponse:
-    """Delete a project and return empty 200 (caller removes the card via outerHTML swap)."""
+    """Delete a project + kill its tmux sessions. Returns empty 200."""
+    await asyncio.to_thread(lambda: launcher.kill_all_for_project(project_id))
     deleted = repo.delete(project_id)
     if not deleted:
         return _error_fragment(

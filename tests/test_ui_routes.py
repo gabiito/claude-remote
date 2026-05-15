@@ -258,3 +258,20 @@ async def test_delete_ui_project_not_found(ui_client: AsyncClient) -> None:
     assert response.headers.get("HX-Reswap") == "innerHTML"
     assert response.headers.get("HX-Retarget") == "#form-error"
     assert 'class="error-message"' in response.text
+
+
+async def test_delete_ui_project_kills_active_tmux_sessions(
+    ui_client: AsyncClient,
+    existing_project,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """DELETE /ui/projects/{id} kills any running tmux sessions before removing the project."""
+    launch_resp = await ui_client.post(f"/ui/projects/{existing_project.id}/launch")
+    assert launch_resp.status_code == 200
+    assert len(fake_adapter._sessions) == 1
+    [session_name] = list(fake_adapter._sessions.keys())
+
+    delete_resp = await ui_client.delete(f"/ui/projects/{existing_project.id}")
+    assert delete_resp.status_code == 200
+    assert session_name not in fake_adapter._sessions
+    assert len(fake_adapter._sessions) == 0

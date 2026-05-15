@@ -189,8 +189,10 @@ async def get_project(
 async def delete_project(
     project_id: str,
     repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
+    launcher: TmuxLauncher = Depends(get_tmux_launcher),  # noqa: B008
 ) -> Response:
-    """Delete a project by id. Returns 204 on success, 404 if not found."""
+    """Delete a project + kill its tmux sessions. Returns 204 on success, 404 if not found."""
+    await asyncio.to_thread(lambda: launcher.kill_all_for_project(project_id))
     deleted = repo.delete(project_id)
     if not deleted:
         return error_response(

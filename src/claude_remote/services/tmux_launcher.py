@@ -229,6 +229,29 @@ class TmuxLauncher:
         """
         return [self.reconcile(inst) for inst in self._instances.list_all()]
 
+    def kill_all_for_project(self, project_id: str) -> list[Instance]:
+        """Kill every tmux session belonging to the given project and mark instances stopped.
+
+        Defensive — adapter errors are swallowed so a single zombie cannot block
+        cleanup of others. Returns the list of instances that were active before
+        cleanup ran. Idempotent on terminal instances.
+        """
+        instances = self._instances.list_by_project(project_id)
+        cleaned: list[Instance] = []
+        for inst in instances:
+            if inst.status in TERMINAL_STATUSES:
+                continue
+            try:
+                self._adapter.kill_session(inst.tmux_session_name)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "kill_session failed for %s during project cleanup: %s",
+                    inst.tmux_session_name,
+                    exc,
+                )
+            cleaned.append(self._instances.mark_stopped(inst.id))
+        return cleaned
+
     def get_with_reconcile(self, instance_id: str) -> Instance | None:
         """Load an instance, reconcile it, and return it; None if not found.
 
