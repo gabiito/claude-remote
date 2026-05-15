@@ -9,6 +9,7 @@ Spec: REQ-3.5, REQ-3.6, SC-3.3
 from __future__ import annotations
 
 import base64
+from typing import cast
 
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from py_vapid import Vapid  # type: ignore[import-untyped]
@@ -28,10 +29,13 @@ def generate_keypair() -> tuple[str, str]:
     """
     v = Vapid()
     v.generate_keys()
-    public_raw = v.public_key.public_bytes(  # type: ignore[union-attr]
-        encoding=Encoding.X962,
-        format=PublicFormat.UncompressedPoint,
+    public_raw = cast(
+        bytes,
+        v.public_key.public_bytes(  # type: ignore[union-attr]
+            encoding=Encoding.X962,
+            format=PublicFormat.UncompressedPoint,
+        ),
     )
     public_b64 = base64.urlsafe_b64encode(public_raw).decode("ascii").rstrip("=")
-    private_pem = v.private_pem().decode("ascii")
+    private_pem = cast(str, v.private_pem().decode("ascii"))  # type: ignore[attr-defined]
     return public_b64, private_pem

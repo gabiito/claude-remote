@@ -24,7 +24,7 @@ from claude_remote.db.vapid_keys import VapidKeysRepository
 logger = logging.getLogger(__name__)
 
 # VAPID contact claim — required by spec. Single-user local app; value is never delivered.
-_VAPID_CLAIMS = {"sub": "mailto:user@claude-remote.local"}
+_VAPID_CLAIMS: dict[str, str | int] = {"sub": "mailto:user@claude-remote.local"}
 
 
 class SendPushResult(Enum):
