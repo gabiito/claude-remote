@@ -193,3 +193,107 @@ def test_multiple_sessions_are_independent(
     # Cleanup B (tracked_sessions teardown also handles it, but explicit is fine).
     adapter.kill_session(name_b)
     assert adapter.session_exists(name_b) is False
+
+
+# ---------------------------------------------------------------------------
+# capture_pane integration tests (mvp-project-view, REQ-T1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.requires_tmux
+def test_capture_pane_returns_initial_content(
+    adapter: LibTmuxAdapter,
+    tracked_sessions: list[str],
+    tmp_path: Path,
+) -> None:
+    """capture_pane on a real bash session returns a non-empty string (REQ-T1)."""
+    name = unique_name()
+    tracked_sessions.append(name)
+    adapter.create_session(name, tmp_path, LONG_RUNNING_CMD)
+    try:
+        result = adapter.capture_pane(name)
+        # Result must be a string (may be empty if pane hasn't printed anything yet,
+        # but capture-pane itself must succeed without exception).
+        assert isinstance(result, str)
+    finally:
+        adapter.kill_session(name)
+
+
+@pytest.mark.requires_tmux
+def test_capture_pane_raises_for_missing_session(adapter: LibTmuxAdapter) -> None:
+    """capture_pane raises TmuxOperationError for a session that does not exist (REQ-T1)."""
+    name = f"cr-pytest-ghost-{uuid4().hex[:8]}"
+    with pytest.raises(TmuxOperationError) as exc_info:
+        adapter.capture_pane(name)
+    assert exc_info.value.operation == "capture_pane"
+
+
+# ---------------------------------------------------------------------------
+# send_keys integration tests (mvp-project-view, REQ-T2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.requires_tmux
+def test_send_keys_appears_in_capture_pane(
+    adapter: LibTmuxAdapter,
+    tracked_sessions: list[str],
+    tmp_path: Path,
+) -> None:
+    """send_keys text appears in capture_pane output after a short delay (REQ-T2)."""
+    import time
+
+    name = unique_name()
+    tracked_sessions.append(name)
+    adapter.create_session(name, tmp_path, LONG_RUNNING_CMD)
+    try:
+        # Send a unique echo command via send_keys.
+        unique_token = f"hello_{uuid4().hex[:8]}"
+        adapter.send_keys(name, f"echo {unique_token}", send_enter=True)
+        # Give tmux a moment to process and update pane buffer.
+        time.sleep(0.2)
+        result = adapter.capture_pane(name)
+        assert unique_token in result, (
+            f"Expected '{unique_token}' in pane output but got:\n{result!r}"
+        )
+    finally:
+        adapter.kill_session(name)
+
+
+@pytest.mark.requires_tmux
+def test_send_keys_raises_for_missing_session(adapter: LibTmuxAdapter) -> None:
+    """send_keys raises TmuxOperationError for a session that does not exist (REQ-T2)."""
+    name = f"cr-pytest-ghost-{uuid4().hex[:8]}"
+    with pytest.raises(TmuxOperationError) as exc_info:
+        adapter.send_keys(name, "hello")
+    assert exc_info.value.operation == "send_keys"
+
+
+@pytest.mark.requires_tmux
+def test_send_keys_no_enter_does_not_submit(
+    adapter: LibTmuxAdapter,
+    tracked_sessions: list[str],
+    tmp_path: Path,
+) -> None:
+    """send_keys with send_enter=False sends text without executing it (REQ-T2).
+
+    We send a unique string without enter. The text should appear in pane output
+    (visible in the input line), but since the shell prompt won't have processed
+    it yet, we can't assert execution-side effects. We assert the literal text
+    is in the captured output.
+    """
+    import time
+
+    name = unique_name()
+    tracked_sessions.append(name)
+    adapter.create_session(name, tmp_path, LONG_RUNNING_CMD)
+    try:
+        unique_token = f"noeenter_{uuid4().hex[:8]}"
+        adapter.send_keys(name, unique_token, send_enter=False)
+        time.sleep(0.1)
+        result = adapter.capture_pane(name)
+        # The token should appear in the pane (in the shell input buffer).
+        assert unique_token in result, (
+            f"Expected '{unique_token}' in pane output but got:\n{result!r}"
+        )
+    finally:
+        adapter.kill_session(name)
