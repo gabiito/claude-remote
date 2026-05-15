@@ -583,7 +583,11 @@ body {
 /* ── 15. Terminal pane (output <pre>) ── */
 .cr-terminal {
   flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
+  user-select: text;
+  -webkit-user-select: text;
   background:
     repeating-linear-gradient(0deg,
       transparent 0 2px,

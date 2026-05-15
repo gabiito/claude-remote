@@ -77,7 +77,7 @@
            @scroll="smartScroll = (Math.abs($el.scrollTop + $el.clientHeight - $el.scrollHeight) < 50)"
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"
            hx-get="/ui/instances/{{ primary_instance.instance.id }}/output"
-           hx-trigger="load, every 2s [document.visibilityState === 'visible']"
+           hx-trigger="load, every 2s [document.visibilityState === 'visible' && !(window.getSelection().toString() && document.getElementById('output-content').contains(window.getSelection().anchorNode))]"
            hx-swap="innerHTML">Cargando…</pre>
       {% else %}
       <pre class="cr-terminal cr-scroll" id="output-content" style="opacity: 0.5;">
