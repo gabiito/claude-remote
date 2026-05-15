@@ -71,33 +71,73 @@
         </p>
       </section>
 
-      <hr class="cr-divider">
-
-      {# ── Ntfy topic ── #}
-      <section class="cr-settings-section"
-               x-data="{ copied: false, copy(text){ navigator.clipboard.writeText(text).then(()=>{ this.copied=true; setTimeout(()=>{ this.copied=false }, 1500) }) } }">
-        <h2>Ntfy</h2>
-        <div class="cr-topic-row">
-          <input class="cr-topic-input" type="text" readonly
-                 value="{{ prefs.ntfy_topic }}" id="ntfy-topic-field">
-          <button type="button" class="cr-topic-copy"
-                  @click="copy(document.getElementById('ntfy-topic-field').value)">
-            <span x-show="!copied">Copy</span>
-            <span x-show="copied" x-cloak>✓ Copied</span>
-          </button>
-        </div>
-        <p class="cr-helper">
-          Subscribe to this topic in the ntfy app on your phone to receive push.
-          URL: <code>https://ntfy.sh/{{ prefs.ntfy_topic }}</code>
-        </p>
-      </section>
-
       <div class="cr-settings-actions">
         <button type="submit" class="cr-btn-primary">Save</button>
       </div>
 
       <div id="settings-toast" aria-live="polite"></div>
     </form>
+
+    <hr class="cr-divider">
+
+    {# ── Push notifications ── #}
+    <section class="cr-settings-section cr-push-section"
+             x-data="pushSettings()"
+             x-init="init()">
+      <h2>Push notifications</h2>
+
+      <template x-if="!standalone && isIOS">
+        <div class="cr-install-hint" role="status">
+          <p>
+            On iPhone: tap the Share icon and choose
+            <strong>Add to Home Screen</strong>, then reopen claude-remote from the
+            home screen to enable push.
+          </p>
+        </div>
+      </template>
+
+      <div class="cr-push-state-row">
+        <span>Permission</span>
+        <span class="cr-push-perm-badge"
+              :data-perm="permission"
+              x-text="permissionLabel"></span>
+      </div>
+
+      <div class="cr-push-actions">
+        <button type="button" class="cr-btn-primary"
+                x-show="!subscribed"
+                :disabled="permission === 'denied'"
+                @click="onSubscribe()">
+          Enable notifications
+        </button>
+        <button type="button" class="cr-btn-secondary"
+                x-show="subscribed"
+                @click="onUnsubscribe(currentEndpoint)">
+          Disable on this device
+        </button>
+        <span class="cr-push-status" x-text="status" aria-live="polite"></span>
+      </div>
+
+      <div class="cr-push-devices">
+        <h3>Registered devices</h3>
+        <ul class="cr-device-list"
+            hx-trigger="load"
+            hx-get="/api/push/subscriptions"
+            hx-swap="none">
+          <template x-for="d in devices" :key="d.id">
+            <li class="cr-device-row">
+              <span class="cr-device-ua" x-text="d.user_agent || '(unknown)'"></span>
+              <button type="button" class="cr-device-remove"
+                      @click="onUnsubscribe(d.endpoint)"
+                      aria-label="Unsubscribe device">&times;</button>
+            </li>
+          </template>
+          <template x-if="devices.length === 0">
+            <li class="cr-device-empty">No devices yet.</li>
+          </template>
+        </ul>
+      </div>
+    </section>
   </main>
 </div>
 {% endblock %}
