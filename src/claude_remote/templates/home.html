@@ -4,7 +4,10 @@
 {% block title %}claude-remote{% if needs_count %} ({{ needs_count }}){% endif %}{% endblock %}
 
 {% block content %}
-<div class="cr-shell" x-data="{ filter: 'all' }" x-on:projects-synced.window="window.location.reload()">
+<div class="cr-shell"
+     x-data="{ filter: window.location.hash.slice(1) || 'all' }"
+     x-init="window.addEventListener('hashchange', () => { filter = window.location.hash.slice(1) || 'all' })"
+     x-on:projects-synced.window="window.location.reload()">
   {# ── Header ── #}
   <div class="cr-header">
     <div class="cr-brand-row">
@@ -169,13 +172,13 @@
   <div class="cr-domains cr-scroll">
     <button class="cr-domain-chip"
             :data-on="filter === 'all' ? '1' : '0'"
-            @click="filter = 'all'">
+            @click="location.hash = 'all'">
       All <span class="cr-count">{{ total_projects }}</span>
     </button>
     {% for domain, count in registered_domains %}
     <button class="cr-domain-chip"
             :data-on="filter === '{{ domain }}' ? '1' : '0'"
-            @click="filter = '{{ domain }}'">
+            @click="location.hash = '{{ domain }}'">
       {{ domain }} <span class="cr-count">{{ count }}</span>
     </button>
     {% endfor %}
