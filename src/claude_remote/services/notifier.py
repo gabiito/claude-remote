@@ -181,8 +181,8 @@ async def dispatch(
     project: Project,
     prefs: NotificationPreferences,
     *,
-    subscriptions_repo: "PushSubscriptionsRepository",
-    vapid_repo: "VapidKeysRepository",
+    subscriptions_repo: PushSubscriptionsRepository,
+    vapid_repo: VapidKeysRepository,
 ) -> None:
     """Decide whether to push and schedule web_push.send_to_all as a background task.
 

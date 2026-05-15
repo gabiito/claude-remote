@@ -362,7 +362,7 @@ class TestEnvVarOverride:
     ) -> None:
         """Settings must NOT have ntfy_topic_override field after WU-5 removal."""
         monkeypatch.setenv("CLAUDE_REMOTE_NTFY_TOPIC", "should-be-ignored")
-        from claude_remote.config import Settings, get_settings
+        from claude_remote.config import get_settings
 
         settings = get_settings()
         assert not hasattr(settings, "ntfy_topic_override")
@@ -371,9 +371,10 @@ class TestEnvVarOverride:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Settings has exactly db_path, projects_root, hooks_base_url after WU-5."""
+        import dataclasses
+
         from claude_remote.config import Settings
 
-        import dataclasses
         field_names = {f.name for f in dataclasses.fields(Settings)}
         assert field_names == {"db_path", "projects_root", "hooks_base_url"}
 

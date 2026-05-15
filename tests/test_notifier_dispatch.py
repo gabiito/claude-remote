@@ -150,7 +150,11 @@ async def test_dispatch_passes_correct_title_to_send_to_all() -> None:
 
     call_kwargs = send_to_all_mock.call_args
     assert call_kwargs is not None
-    title = call_kwargs.kwargs.get("title") or call_kwargs.args[2] if len(call_kwargs.args) > 2 else call_kwargs.kwargs.get("title")
+    title = (
+        call_kwargs.kwargs.get("title") or call_kwargs.args[2]
+        if len(call_kwargs.args) > 2
+        else call_kwargs.kwargs.get("title")
+    )
     assert title == "sandbox/myproject"
 
 
