@@ -14,7 +14,9 @@ Errors return 4xx with HX-Reswap + HX-Retarget headers + error_message partial.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -32,6 +34,7 @@ from claude_remote.routes.instances import (
     get_tmux_launcher,
 )
 from claude_remote.routes.projects import get_projects_repo
+from claude_remote.services.discovery import scan_projects_root
 from claude_remote.services.exceptions import (
     InstanceAlreadyRunningError,
     InstanceNotFoundError,
@@ -45,6 +48,87 @@ from claude_remote.services.tmux_adapter import TmuxAdapter
 from claude_remote.services.tmux_launcher import TmuxLauncher
 
 router = APIRouter(prefix="/ui", tags=["ui"])
+
+
+# ---------------------------------------------------------------------------
+# Sync summary dataclass
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SyncSummary:
+    """Counts collected during a discovery sync run."""
+
+    new: int = 0
+    stale: int = 0
+    unstale: int = 0
+    errors: list[str] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Sync helper (synchronous — runs inside asyncio.to_thread)
+# ---------------------------------------------------------------------------
+
+
+def _run_sync(projects_root: Path, repo: ProjectsRepository) -> SyncSummary:
+    """Scan filesystem and reconcile with DB.
+
+    Best-effort per-row: a single failure does not abort the rest.
+
+    Args:
+        projects_root: Root directory to scan (2-level walk).
+        repo: ProjectsRepository to read/write.
+
+    Returns:
+        SyncSummary with counts of new, stale, unstale, and errors.
+    """
+    candidates = scan_projects_root(projects_root)
+    existing = repo.list_all()
+
+    # Build two indexes for dedup lookups
+    existing_by_pair: dict[tuple[str, str], object] = {
+        (p.domain, p.slug): p for p in existing
+    }
+    existing_by_path: dict[str, object] = {p.path: p for p in existing}
+
+    summary = SyncSummary()
+
+    # Insert new candidates
+    for cand in candidates:
+        if (cand.domain, cand.suggested_slug) in existing_by_pair:
+            continue
+        if str(cand.absolute_path) in existing_by_path:
+            continue
+        try:
+            repo.create(
+                project_create=ProjectCreate(
+                    name=cand.name,
+                    slug=cand.suggested_slug,
+                    path=cand.absolute_path,
+                    domain=cand.domain,
+                )
+            )
+            summary.new += 1
+        except Exception as exc:  # noqa: BLE001 — best-effort by design
+            summary.errors.append(f"{cand.domain}/{cand.name}: {exc}")
+
+    # Stale pass — operate on pre-sync snapshot
+    for p in existing:
+        path_alive = Path(p.path).exists() and Path(p.path).is_dir()
+        if not path_alive and not p.is_stale:
+            try:
+                repo.mark_stale(p.id)
+                summary.stale += 1
+            except Exception as exc:  # noqa: BLE001
+                summary.errors.append(f"mark_stale {p.id}: {exc}")
+        elif path_alive and p.is_stale:
+            try:
+                repo.unmark_stale(p.id)
+                summary.unstale += 1
+            except Exception as exc:  # noqa: BLE001
+                summary.errors.append(f"unmark_stale {p.id}: {exc}")
+
+    return summary
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +184,33 @@ def _render_instance_row(request: Request, instance: Instance, live_status: str)
     return TEMPLATES.get_template("partials/instance_row.html").render(  # type: ignore[attr-defined, return-value]
         instance=instance,
         live_status=live_status,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /ui/discovery/sync — Scan filesystem + reconcile DB
+# ---------------------------------------------------------------------------
+
+
+@router.post("/discovery/sync", response_class=HTMLResponse)
+async def discovery_sync(
+    request: Request,
+    settings: Settings = Depends(get_settings),  # noqa: B008
+    projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
+) -> HTMLResponse:
+    """Scan projects_root, register new directories, flag missing ones as stale.
+
+    Returns an HTMX HTML fragment (toast) summarising the sync result.
+    Always includes HX-Trigger: projects-synced so the home page can reload.
+    """
+    summary = await asyncio.to_thread(_run_sync, settings.projects_root, projects_repo)
+    content: str = TEMPLATES.get_template("partials/sync_summary.html").render(  # type: ignore[attr-defined]
+        summary=summary
+    )
+    return HTMLResponse(
+        content=content,
+        status_code=200,
+        headers={"HX-Trigger": "projects-synced"},
     )
 
 

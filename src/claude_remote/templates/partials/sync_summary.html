@@ -1,0 +1,10 @@
+<div class="cr-sync-toast" role="status">
+  {% if summary.new == 0 and summary.stale == 0 and summary.unstale == 0 and not summary.errors %}
+    <span>Nada para sincronizar.</span>
+  {% else %}
+    {% if summary.new %}<span class="cr-toast-new">+{{ summary.new }} nuevos</span>{% endif %}
+    {% if summary.stale %}<span class="cr-toast-stale">⚠ {{ summary.stale }} stale</span>{% endif %}
+    {% if summary.unstale %}<span class="cr-toast-unstale">↻ {{ summary.unstale }} reactivados</span>{% endif %}
+    {% if summary.errors %}<span class="cr-toast-err">{{ summary.errors|length }} errores</span>{% endif %}
+  {% endif %}
+</div>
