@@ -1,4 +1,4 @@
-{% from "icons/_macros.html" import arrow_right %}
+{% from "icons/_macros.html" import arrow_right, play, square_stop, trash %}
 {# Determine the aggregate status for the card LED from instance_views.
    derive_live_status returns 'needs_input' (spec) but CSS uses 'needs' (design).
    Compare against the service value, emit the CSS token. #}
@@ -82,7 +82,7 @@
         hx-target="closest .cr-card"
         hx-swap="outerHTML"
         @click.stop>
-        ■ Stop
+        {{ square_stop(cls='cr-icon', size=14) }} Stop
       </button>
       {% else %}
       <button
@@ -91,7 +91,7 @@
         hx-target="closest .cr-card"
         hx-swap="outerHTML"
         @click.stop>
-        ▶ Launch
+        {{ play(cls='cr-icon', size=14) }} Launch
       </button>
       {% endif %}
       <button
@@ -101,7 +101,7 @@
         hx-swap="outerHTML"
         hx-confirm="Delete this project?"
         @click.stop>
-        🗑 Delete
+        {{ trash(cls='cr-icon', size=14) }} Delete
       </button>
     </div>
   </div></div>

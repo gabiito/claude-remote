@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "icons/_macros.html" import gear, chevron_right, x_close, send as send_icon, square_stop %}
+{% from "icons/_macros.html" import gear, chevron_right, x_close, send as send_icon, square_stop, play, list as list_icon %}
 
 {% block title %}{% if primary_instance and primary_instance.live_status == 'needs_input' %}🔴 {% endif %}{{ project.domain }}/{{ project.name }} — claude-remote{% endblock %}
 
@@ -70,11 +70,11 @@
     <div style="display: flex; background: var(--bg-1); padding: 0 12px; border-bottom: 1px solid var(--line-0); flex: 0 0 auto;">
       <button class="cr-pv-tab" :data-on="tab === 'terminal' ? '1' : '0'"
               @click="location.hash = 'terminal'">
-        ▶ Terminal
+        {{ play(cls='cr-icon', size=14) }} Terminal
       </button>
       <button class="cr-pv-tab" :data-on="tab === 'events' ? '1' : '0'"
               @click="location.hash = 'events'">
-        ≡ Events
+        {{ list_icon(cls='cr-icon', size=14) }} Events
         <span class="cr-tab-badge">{{ recent_events|length }}</span>
       </button>
     </div>
