@@ -373,10 +373,11 @@ async def get_instance_output(
     except TmuxOperationError:
         escaped = "[Sesión no disponible]"
 
-    return HTMLResponse(
-        content=f'<pre class="claude-output" id="output-content">{escaped}</pre>',
-        status_code=200,
-    )
+    # Return raw escaped text only — the <pre id="output-content"> wrapper is
+    # owned by project_view.html and stays mounted (so Alpine smart-scroll
+    # state survives the HTMX innerHTML swap). Returning the wrapper here
+    # would nest <pre> inside <pre>, hiding the outer cr-terminal styles.
+    return HTMLResponse(content=escaped, status_code=200)
 
 
 # ---------------------------------------------------------------------------

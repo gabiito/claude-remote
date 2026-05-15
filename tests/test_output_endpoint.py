@@ -99,7 +99,12 @@ async def test_output_happy_path(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """GET /ui/instances/{id}/output returns 200 with pre#output-content containing pane text."""
+    """GET /ui/instances/{id}/output returns 200 with raw escaped pane text.
+
+    The endpoint returns text only (no <pre> wrapper); the wrapping <pre
+    id="output-content"> lives in project_view.html and stays mounted across
+    HTMX innerHTML swaps so Alpine state survives.
+    """
     p_path = tmp_projects_root / "acme.com" / "outproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -121,7 +126,9 @@ async def test_output_happy_path(
     response = await out_client.get(f"/ui/instances/{instance.id}/output")
     assert response.status_code == 200
     html = response.text
-    assert 'id="output-content"' in html
+    # Must NOT include a nested <pre> wrapper — that would nest inside the
+    # outer pre#output-content in the template and break scroll.
+    assert "<pre" not in html
     assert "Claude output text" in html
 
 
@@ -162,10 +169,11 @@ async def test_output_adapter_error_returns_200(
     response = await out_client.get(f"/ui/instances/{instance.id}/output")
     assert response.status_code == 200  # MUST NOT be 5xx
     html = response.text
-    # Must contain a fallback message inside the pre element
+    # Endpoint returns plain escaped text — fallback message lives there
+    # without a <pre> wrapper.
+    assert "<pre" not in html
     assert (
         "unavailable" in html.lower()
         or "no disponible" in html.lower()
         or "sesión" in html.lower()
     )
-    assert 'id="output-content"' in html
