@@ -14,7 +14,6 @@ import pytest
 
 from claude_remote.db.push_subscriptions import PushSubscription
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -39,7 +38,10 @@ def _make_subs_repo(subs: list[PushSubscription]) -> MagicMock:
     return repo
 
 
-def _make_vapid_repo(pub: str = "BTestPublicKey", priv: str = "-----BEGIN PRIVATE KEY-----\nfake") -> MagicMock:
+_FAKE_PRIV = "-----BEGIN PRIVATE KEY-----\nfake"
+
+
+def _make_vapid_repo(pub: str = "BTestPublicKey", priv: str = _FAKE_PRIV) -> MagicMock:
     from claude_remote.db.vapid_keys import VapidKeys
 
     repo = MagicMock()
@@ -100,7 +102,7 @@ async def test_send_to_all_deletes_expired_endpoint() -> None:
     vapid_repo = _make_vapid_repo()
 
     # s2 is EXPIRED, s1 and s3 are OK
-    async def _mock_send(sub_info: dict, priv: str, title: str, body: str, data=None, ttl: int = 60):  # type: ignore[no-untyped-def]
+    async def _mock_send(sub_info: dict, priv: str, title: str, body: str, data=None, ttl: int = 60):  # noqa: E501  # type: ignore[no-untyped-def]
         if sub_info["endpoint"] == "https://ep-expired":
             return SendPushResult.EXPIRED
         return SendPushResult.OK
@@ -176,7 +178,7 @@ async def test_send_to_all_returns_mixed_results() -> None:
         "https://ep3": SendPushResult.FAILED,
     }
 
-    async def _mock_send(sub_info: dict, priv: str, title: str, body: str, data=None, ttl: int = 60):  # type: ignore[no-untyped-def]
+    async def _mock_send(sub_info: dict, priv: str, title: str, body: str, data=None, ttl: int = 60):  # noqa: E501  # type: ignore[no-untyped-def]
         return results_map[sub_info["endpoint"]]
 
     with patch.object(web_push, "send_push", side_effect=_mock_send):
