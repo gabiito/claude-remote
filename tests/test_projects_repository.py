@@ -237,3 +237,103 @@ def test_delete_removes_row(repo: ProjectsRepository, project_path: Path) -> Non
 def test_delete_not_found_returns_false(repo: ProjectsRepository) -> None:
     result = repo.delete("nonexistent-id")
     assert result is False
+
+
+# ---------------------------------------------------------------------------
+# WU-3 (mvp-project-discovery): is_stale + mark_stale / unmark_stale
+# ---------------------------------------------------------------------------
+
+
+def test_project_has_is_stale_field(repo: ProjectsRepository, project_path: Path) -> None:
+    """Project model has is_stale field defaulting to False."""
+    created = repo.create(project_create=make_project_create(path=project_path))
+    assert hasattr(created, "is_stale")
+    assert created.is_stale is False
+
+
+def test_list_all_exposes_is_stale(repo: ProjectsRepository, project_path: Path) -> None:
+    """list_all returns projects with is_stale field accessible."""
+    repo.create(project_create=make_project_create(path=project_path))
+    projects = repo.list_all()
+    assert len(projects) == 1
+    assert hasattr(projects[0], "is_stale")
+    assert projects[0].is_stale is False
+
+
+def test_get_exposes_is_stale(repo: ProjectsRepository, project_path: Path) -> None:
+    """get() returns project with is_stale field accessible."""
+    created = repo.create(project_create=make_project_create(path=project_path))
+    found = repo.get(created.id)
+    assert found is not None
+    assert hasattr(found, "is_stale")
+    assert found.is_stale is False
+
+
+def test_mark_stale_sets_flag_true(repo: ProjectsRepository, project_path: Path) -> None:
+    """mark_stale sets is_stale=True and returns updated Project."""
+    from claude_remote.services.exceptions import ProjectNotFoundError  # noqa: F401
+
+    created = repo.create(project_create=make_project_create(path=project_path))
+    assert created.is_stale is False
+
+    updated = repo.mark_stale(created.id)
+
+    assert isinstance(updated, Project)
+    assert updated.id == created.id
+    assert updated.is_stale is True
+
+
+def test_mark_stale_persists_to_db(repo: ProjectsRepository, project_path: Path) -> None:
+    """mark_stale persists is_stale=True so subsequent get() reflects it."""
+    created = repo.create(project_create=make_project_create(path=project_path))
+    repo.mark_stale(created.id)
+
+    fetched = repo.get(created.id)
+    assert fetched is not None
+    assert fetched.is_stale is True
+
+
+def test_mark_stale_idempotent(repo: ProjectsRepository, project_path: Path) -> None:
+    """Calling mark_stale twice on already-stale project succeeds without error."""
+    created = repo.create(project_create=make_project_create(path=project_path))
+    repo.mark_stale(created.id)
+    updated = repo.mark_stale(created.id)  # second call must not raise
+    assert updated.is_stale is True
+
+
+def test_mark_stale_unknown_id_raises(repo: ProjectsRepository) -> None:
+    """mark_stale with a nonexistent project_id raises ProjectNotFoundError."""
+    from claude_remote.services.exceptions import ProjectNotFoundError
+
+    with pytest.raises(ProjectNotFoundError):
+        repo.mark_stale("bad-id-does-not-exist")
+
+
+def test_unmark_stale_sets_flag_false(repo: ProjectsRepository, project_path: Path) -> None:
+    """unmark_stale clears is_stale=False after mark_stale, returns updated Project."""
+    from claude_remote.services.exceptions import ProjectNotFoundError  # noqa: F401
+
+    created = repo.create(project_create=make_project_create(path=project_path))
+    repo.mark_stale(created.id)
+
+    updated = repo.unmark_stale(created.id)
+
+    assert isinstance(updated, Project)
+    assert updated.is_stale is False
+
+
+def test_unmark_stale_idempotent(repo: ProjectsRepository, project_path: Path) -> None:
+    """unmark_stale on already-not-stale project succeeds (idempotent)."""
+    created = repo.create(project_create=make_project_create(path=project_path))
+    assert created.is_stale is False
+
+    updated = repo.unmark_stale(created.id)  # was already False — must not raise
+    assert updated.is_stale is False
+
+
+def test_unmark_stale_unknown_id_raises(repo: ProjectsRepository) -> None:
+    """unmark_stale with a nonexistent project_id raises ProjectNotFoundError."""
+    from claude_remote.services.exceptions import ProjectNotFoundError
+
+    with pytest.raises(ProjectNotFoundError):
+        repo.unmark_stale("bad-id-does-not-exist")

@@ -313,3 +313,55 @@ class TestHookToken0004Migration:
         ).fetchall()
         conn.close()
         assert len(rows) == 1
+
+
+# ---------------------------------------------------------------------------
+# WU-3 (mvp-project-discovery) — 0005_add_is_stale_to_projects.sql
+# ---------------------------------------------------------------------------
+
+
+class TestIsStale0005Migration:
+    def test_0005_adds_is_stale_column(self, tmp_path: Path) -> None:
+        """Migration 0005 must add is_stale column to projects table."""
+        db = tmp_path / "test.db"
+        apply_migrations(db, MIGRATIONS_DIR)
+        conn = sqlite3.connect(db)
+        rows = conn.execute("PRAGMA table_info(projects)").fetchall()
+        conn.close()
+        col_names = {r[1] for r in rows}
+        assert "is_stale" in col_names
+
+    def test_0005_is_stale_defaults_to_zero(self, tmp_path: Path) -> None:
+        """Migration 0005 must set is_stale=0 (DEFAULT 0) for new rows."""
+        import uuid
+        from datetime import UTC, datetime
+
+        db = tmp_path / "test.db"
+        apply_migrations(db, MIGRATIONS_DIR)
+        conn = sqlite3.connect(db)
+        now = datetime.now(UTC).isoformat()
+        proj_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO projects (id, slug, name, path, domain, created_at)"
+            " VALUES (?, 'p1', 'P1', '/tmp/p1', 'test', ?)",
+            (proj_id, now),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT is_stale FROM projects WHERE id = ?", (proj_id,)
+        ).fetchone()
+        conn.close()
+        assert row[0] == 0
+
+    def test_0005_idempotent(self, tmp_path: Path) -> None:
+        """Applying migrations twice leaves exactly one schema_migrations row for 0005."""
+        db = tmp_path / "test.db"
+        apply_migrations(db, MIGRATIONS_DIR)
+        apply_migrations(db, MIGRATIONS_DIR)
+        conn = sqlite3.connect(db)
+        rows = conn.execute(
+            "SELECT filename FROM schema_migrations"
+            " WHERE filename = '0005_add_is_stale_to_projects.sql'"
+        ).fetchall()
+        conn.close()
+        assert len(rows) == 1
