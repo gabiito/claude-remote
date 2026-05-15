@@ -100,17 +100,29 @@ class TestMigration0008:
 
 class TestVapidKeysModel:
     def test_model_has_all_fields(self) -> None:
-        """VapidKeys must have public_key, private_key, created_at fields."""
+        """VapidKeys must have id, public_key, private_key, created_at fields (REQ-3.3)."""
         from claude_remote.db.vapid_keys import VapidKeys
 
         keys = VapidKeys(
+            id=1,
             public_key="BPub123",
             private_key="-----BEGIN PRIVATE KEY-----\n...",
             created_at="2026-01-01T00:00:00+00:00",
         )
+        assert keys.id == 1
         assert keys.public_key == "BPub123"
         assert "BEGIN PRIVATE KEY" in keys.private_key
         assert keys.created_at == "2026-01-01T00:00:00+00:00"
+
+    def test_get_returns_model_with_id_one(self, tmp_path: Path) -> None:
+        """VapidKeysRepository.get() returns a model whose id == 1 (REQ-3.3)."""
+        from claude_remote.db.vapid_keys import VapidKeysRepository
+
+        db = _migrated_db(tmp_path)
+        repo = VapidKeysRepository(_make_factory(db))
+        repo.get_or_create()
+        keys = repo.get()
+        assert keys.id == 1
 
 
 # ---------------------------------------------------------------------------

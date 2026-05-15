@@ -96,6 +96,29 @@ async def test_push_subscribe_js_contains_url_base64_helper(client: AsyncClient)
     assert "urlBase64ToUint8Array" in resp.text
 
 
+async def test_subscribe_push_checks_existing_subscription(client: AsyncClient) -> None:
+    """subscribePush() body must call getSubscription() before subscribe() for idempotency (REQ-9.6)."""
+    resp = await client.get("/static/js/push-subscribe.js")
+    assert resp.status_code == 200
+    body = resp.text
+    # Locate the start of the subscribePush function.
+    sub_idx = body.find("async function subscribePush")
+    if sub_idx == -1:
+        sub_idx = body.find("function subscribePush")
+    assert sub_idx != -1, "subscribePush function definition not found"
+    # Bound the slice at the next top-level function declaration so we only
+    # inspect subscribePush's own body (not unsubscribePush or pushSettings).
+    after_open = body.find("{", sub_idx)
+    next_fn = body.find("\nasync function ", after_open)
+    if next_fn == -1:
+        next_fn = body.find("\nfunction ", after_open)
+    assert next_fn != -1, "could not bound subscribePush body"
+    body_slice = body[sub_idx:next_fn]
+    assert "getSubscription" in body_slice, (
+        "subscribePush() must call getSubscription() before subscribing (REQ-9.6)"
+    )
+
+
 async def test_push_subscribe_js_contains_push_settings(client: AsyncClient) -> None:
     """push-subscribe.js exposes window.pushSettings Alpine factory."""
     resp = await client.get("/static/js/push-subscribe.js")
@@ -128,3 +151,20 @@ async def test_base_html_has_apple_mobile_web_app_capable(client: AsyncClient) -
     resp = await client.get("/settings")
     assert resp.status_code == 200
     assert "apple-mobile-web-app-capable" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Manifest scope (REQ-11.2)
+# ---------------------------------------------------------------------------
+
+
+async def test_manifest_has_explicit_scope(client: AsyncClient) -> None:
+    """static/manifest.json must declare \"scope\": \"/\" explicitly (REQ-11.2)."""
+    import json
+
+    resp = await client.get("/static/manifest.json")
+    assert resp.status_code == 200
+    data = json.loads(resp.text)
+    assert data.get("scope") == "/", (
+        "manifest.json must include explicit scope: / per REQ-11.2"
+    )
