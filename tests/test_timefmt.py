@@ -90,3 +90,19 @@ def test_format_relative_z_suffix_timestamp() -> None:
     ts = "2026-05-14T21:59:00Z"  # 60 seconds before NOW
     result = format_relative(ts, now=NOW)
     assert result == "hace 1m"
+
+
+def test_format_relative_datetime_object() -> None:
+    """Passing a datetime object directly is supported."""
+    from datetime import timedelta
+    ts = NOW - timedelta(seconds=90)  # 90 seconds ago → "hace 1m"
+    result = format_relative(ts, now=NOW)
+    assert result == "hace 1m"
+
+
+def test_format_relative_naive_datetime_object() -> None:
+    """Naive datetime object is treated as UTC."""
+    from datetime import timedelta
+    ts = (NOW - timedelta(seconds=30)).replace(tzinfo=None)
+    result = format_relative(ts, now=NOW)
+    assert result == "hace 30s"
