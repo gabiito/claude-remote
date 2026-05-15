@@ -10,6 +10,7 @@ response so Claude Code's lifecycle is never interrupted.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -20,6 +21,9 @@ from claude_remote.config import Settings, get_settings
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.events import EVENT_TYPES, EventsRepository
 from claude_remote.db.instances import InstancesRepository
+from claude_remote.db.notifications import NotificationsRepository
+from claude_remote.db.projects import ProjectsRepository
+from claude_remote.services import notifier
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,24 @@ def get_instances_repo_for_hooks(
     )
 
 
+def get_projects_repo_for_hooks(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> ProjectsRepository:
+    """Dependency provider: ProjectsRepository for loading project by id."""
+    return ProjectsRepository(
+        connection_factory=lambda: get_connection_for(settings.db_path)
+    )
+
+
+def get_notifications_repo_for_hooks(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> NotificationsRepository:
+    """Dependency provider: NotificationsRepository for notification prefs."""
+    return NotificationsRepository(
+        connection_factory=lambda: get_connection_for(settings.db_path)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -60,6 +82,8 @@ async def receive_hook(
     request: Request,
     events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
     instances_repo: InstancesRepository = Depends(get_instances_repo_for_hooks),  # noqa: B008
+    projects_repo: ProjectsRepository = Depends(get_projects_repo_for_hooks),  # noqa: B008
+    notifications_repo: NotificationsRepository = Depends(get_notifications_repo_for_hooks),  # noqa: B008
 ) -> JSONResponse:
     """Receive a Claude Code hook event.
 
@@ -116,6 +140,17 @@ async def receive_hook(
             event_type=event_type,
             payload=json.dumps(body),
         )
+
+        # Step 6: dispatch to notifier (fire-and-forget, never-raise)
+        # Inner try/except is distinct from the outer one: it catches repo/wiring
+        # failures so they never escalate. The outer try/except is the final net.
+        try:
+            project = projects_repo.get(instance.project_id)
+            if project is not None:
+                prefs = notifications_repo.get()
+                asyncio.create_task(notifier.dispatch(event, project, prefs))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Notifier wiring failed for event %s: %s", event.id, exc)
 
         return JSONResponse(
             status_code=200,

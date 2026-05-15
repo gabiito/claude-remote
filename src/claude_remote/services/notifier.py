@@ -8,6 +8,7 @@ Module is extended across WU-2, WU-3, WU-4 in strict order:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, time
 from typing import TYPE_CHECKING
@@ -246,3 +247,39 @@ async def send_push(
 
     except Exception as exc:  # noqa: BLE001
         logger.warning("ntfy push failed for event %s: %s", event.id, exc)
+
+
+# ---------------------------------------------------------------------------
+# dispatch — orchestrator (fire-and-forget, never raises)
+# ---------------------------------------------------------------------------
+
+
+async def dispatch(
+    event: Event,
+    project: Project,
+    prefs: NotificationPreferences,
+    *,
+    http_client: "AsyncClient | None" = None,
+) -> None:
+    """Decide whether to push and schedule send_push as a background task.
+
+    Decision: calls should_notify with the current UTC time. If False, returns
+    immediately. If True, schedules send_push via asyncio.create_task so the
+    caller returns without waiting for the network call.
+
+    MUST NOT raise under any circumstance. All exceptions are logged and
+    swallowed so the hook handler's never-raise contract is preserved.
+
+    Args:
+        event: the persisted event record.
+        project: the project owning the event.
+        prefs: current notification preferences.
+        http_client: optional AsyncClient for test injection.
+    """
+    try:
+        now = datetime.now(UTC)
+        if not should_notify(event, prefs, now=now):
+            return
+        asyncio.create_task(send_push(event, project, prefs, http_client=http_client))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Notifier dispatch failed for event %s: %s", event.id, exc)
