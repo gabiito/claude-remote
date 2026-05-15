@@ -63,9 +63,11 @@
 
   <!-- Project list (always rendered so HTMX form swaps have a target) -->
   <div class="project-list">
-    {% if projects %}
-      {% for project in projects %}
-      {% set instances = instances_by_project.get(project.id, []) %}
+    {% if cards %}
+      {% for card in cards %}
+      {% set project = card.project %}
+      {% set instance_views = card.instance_views %}
+      {% set recent_events = card.recent_events %}
       {% include "partials/project_card.html" %}
       {% endfor %}
     {% else %}
