@@ -17,7 +17,6 @@ import pytest
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
