@@ -43,6 +43,11 @@ from claude_remote.services.exceptions import (
 )
 from claude_remote.services.live_status import derive_live_status
 from claude_remote.services.path_validation import PathValidationError, validate_project_path
+from claude_remote.services.project_filesystem import (
+    DirectoryAlreadyExistsError,
+    InvalidIdentifierError,
+    create_project_directory,
+)
 from claude_remote.services.slug import slugify
 from claude_remote.services.tmux_adapter import TmuxAdapter
 from claude_remote.services.tmux_launcher import TmuxLauncher
@@ -276,6 +281,8 @@ async def create_project_ui(
     request: Request,
     name: str | None = Form(default=None),
     domain: str | None = Form(default=None),
+    create_dir: bool = Form(default=False),
+    git_init: bool = Form(default=False),
     settings: Settings = Depends(get_settings),  # noqa: B008
     repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
 ) -> HTMLResponse:
@@ -283,6 +290,10 @@ async def create_project_ui(
 
     Accepts `domain` + `name` from the form; composes the filesystem path as
     `<projects_root>/<domain>/<name>` and runs the standard path validation.
+
+    Optional form fields:
+      create_dir: if True, mkdir the target path before validation.
+      git_init:   if True (and create_dir True), run git init in the new dir.
     """
     if not domain or not domain.strip():
         return _error_fragment(request, "El campo 'domain' es obligatorio.")
@@ -290,14 +301,39 @@ async def create_project_ui(
     if not name or not name.strip():
         return _error_fragment(request, "El campo 'name' es obligatorio.")
 
-    composed_path = settings.projects_root / domain.strip() / name.strip()
+    domain_clean = domain.strip()
+    name_clean = name.strip()
+
+    # Optionally create the directory before path validation
+    if create_dir:
+        target = settings.projects_root / domain_clean / name_clean
+        if not target.exists():
+            try:
+                create_project_directory(
+                    settings.projects_root,
+                    domain_clean,
+                    name_clean,
+                    git_init=git_init,
+                )
+            except InvalidIdentifierError as exc:
+                return _error_fragment(
+                    request,
+                    f"Identificador inválido: {exc}",
+                    status_code=400,
+                )
+            except DirectoryAlreadyExistsError:
+                # TOCTOU race — directory appeared between exists() and mkdir.
+                # Proceed to validation; treat as success.
+                pass
+
+    composed_path = settings.projects_root / domain_clean / name_clean
 
     try:
         validated = validate_project_path(str(composed_path), settings.projects_root)
     except PathValidationError as exc:
         return _error_fragment(request, exc.message)
 
-    slug = slugify(name)
+    slug = slugify(name_clean)
     if not slug:
         return _error_fragment(request, "El nombre no genera un slug válido.")
 
@@ -306,7 +342,7 @@ async def create_project_ui(
     try:
         project = repo.create(
             project_create=ProjectCreate(
-                name=name,
+                name=name_clean,
                 slug=slug,
                 path=validated.absolute_path,
                 domain=validated.domain,

@@ -289,12 +289,12 @@ async def test_post_ui_projects_with_create_dir_creates_path(
     tmp_projects_root,
 ) -> None:
     """POST /ui/projects with create_dir=true creates the directory and registers the project."""
-    target = tmp_projects_root / "example.com" / "brand-new"
+    target = tmp_projects_root / "gabiito" / "brand-new"
     assert not target.exists()
 
     response = await ui_client.post(
         "/ui/projects",
-        data={"name": "brand-new", "domain": "example.com", "create_dir": "true"},
+        data={"name": "brand-new", "domain": "gabiito", "create_dir": "true"},
     )
     assert response.status_code == 200
     assert target.exists()
@@ -306,13 +306,13 @@ async def test_post_ui_projects_with_create_dir_and_git_init_creates_repo(
     tmp_projects_root,
 ) -> None:
     """POST /ui/projects with create_dir=true + git_init=true creates directory with .git/."""
-    target = tmp_projects_root / "example.com" / "git-proj"
+    target = tmp_projects_root / "gabiito" / "git-proj"
 
     response = await ui_client.post(
         "/ui/projects",
         data={
             "name": "git-proj",
-            "domain": "example.com",
+            "domain": "gabiito",
             "create_dir": "true",
             "git_init": "true",
         },
@@ -327,12 +327,12 @@ async def test_post_ui_projects_with_create_dir_when_path_exists_proceeds_normal
     tmp_projects_root,
 ) -> None:
     """POST /ui/projects with create_dir=true when path already exists — no error, project registered."""
-    target = tmp_projects_root / "example.com" / "pre-existing"
+    target = tmp_projects_root / "gabiito" / "pre-existing"
     target.mkdir(parents=True)
 
     response = await ui_client.post(
         "/ui/projects",
-        data={"name": "pre-existing", "domain": "example.com", "create_dir": "true"},
+        data={"name": "pre-existing", "domain": "gabiito", "create_dir": "true"},
     )
     assert response.status_code == 200
     assert "cr-card" in response.text
@@ -343,12 +343,12 @@ async def test_post_ui_projects_create_dir_false_no_filesystem_write(
     tmp_projects_root,
 ) -> None:
     """POST /ui/projects without create_dir does NOT create the directory (existing behavior)."""
-    target = tmp_projects_root / "example.com" / "phantom"
+    target = tmp_projects_root / "gabiito" / "phantom"
     assert not target.exists()
 
     response = await ui_client.post(
         "/ui/projects",
-        data={"name": "phantom", "domain": "example.com"},
+        data={"name": "phantom", "domain": "gabiito"},
     )
     # Should fail because dir doesn't exist and create_dir is False
     assert response.status_code == 400
