@@ -153,14 +153,14 @@ def should_notify(
     if not getattr(prefs, toggle_field):
         return False
 
-    # Quiet hours check
+    # Quiet hours check — caller passes the relevant wall-clock datetime.
+    # The function uses .time() directly so timezone conversion is the caller's
+    # responsibility (dispatch() passes datetime.now(), which is local-naive).
     if prefs.quiet_hours_start and prefs.quiet_hours_end:
         start = _parse_time(prefs.quiet_hours_start)
         end = _parse_time(prefs.quiet_hours_end)
         if start is not None and end is not None:
-            # Convert to server-local time
-            now_local_time = now.astimezone().time()
-            if _in_quiet_hours(now_local_time, start, end):
+            if _in_quiet_hours(now.time(), start, end):
                 return False
 
     return True
@@ -277,7 +277,8 @@ async def dispatch(
         http_client: optional AsyncClient for test injection.
     """
     try:
-        now = datetime.now(UTC)
+        # Use local wall-clock for quiet-hours comparison (matches user's HH:MM input).
+        now = datetime.now()
         if not should_notify(event, prefs, now=now):
             return
         asyncio.create_task(send_push(event, project, prefs, http_client=http_client))
