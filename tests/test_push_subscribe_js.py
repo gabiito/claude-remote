@@ -126,6 +126,44 @@ async def test_push_subscribe_js_contains_push_settings(client: AsyncClient) -> 
     assert "pushSettings" in resp.text
 
 
+async def test_push_settings_registered_via_alpine_init(client: AsyncClient) -> None:
+    """pushSettings must be registered through the alpine:init event with Alpine.data.
+
+    Relying on a bare ``window.pushSettings`` global with all scripts deferred
+    races against Alpine's auto-start (Alpine evaluates x-data in a microtask
+    that runs before the next deferred script executes). The robust pattern is
+    to register the component on the alpine:init event.
+    """
+    resp = await client.get("/static/js/push-subscribe.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "alpine:init" in body, (
+        "push-subscribe.js must register pushSettings on the alpine:init event"
+    )
+    assert "Alpine.data" in body, (
+        "push-subscribe.js must register pushSettings via Alpine.data(...)"
+    )
+
+
+async def test_push_subscribe_js_loads_before_alpine(client: AsyncClient) -> None:
+    """base.html must load push-subscribe.js BEFORE the Alpine core script.
+
+    Alpine.data registrations must exist before Alpine initializes. With defer,
+    the registering script has to come first in document order.
+    """
+    resp = await client.get("/settings")
+    assert resp.status_code == 200
+    html = resp.text
+    push_idx = html.find("push-subscribe.js")
+    alpine_idx = html.find("alpinejs@")
+    assert push_idx != -1, "push-subscribe.js script tag missing"
+    assert alpine_idx != -1, "alpinejs script tag missing"
+    assert push_idx < alpine_idx, (
+        "push-subscribe.js must appear before alpinejs in base.html so the "
+        "Alpine.data registration is in place before Alpine starts"
+    )
+
+
 # ---------------------------------------------------------------------------
 # base.html contains push-subscribe.js script tag (SC-9.2 equivalent)
 # ---------------------------------------------------------------------------
