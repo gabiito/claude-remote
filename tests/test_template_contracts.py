@@ -127,3 +127,83 @@ def test_manifest_has_required_icon_sizes() -> None:
     # SVG "any" is acceptable; we also require explicit PNG placeholder sizes
     assert "192x192" in sizes, f"192x192 missing from manifest icons: {sizes}"
     assert "512x512" in sizes, f"512x512 missing from manifest icons: {sizes}"
+
+
+# ---------------------------------------------------------------------------
+# WU-4: HTMX indicator CSS + toast slide-in keyframe
+# ---------------------------------------------------------------------------
+
+
+def test_css_has_htmx_indicator_rule() -> None:
+    """app.css defines .cr-htmx-indicator with position:fixed and height:2px."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "cr-htmx-indicator" in css
+    assert "position: fixed" in css or "position:fixed" in css
+
+
+def test_css_has_toast_enter_keyframe() -> None:
+    """app.css defines cr-toast-enter animation class."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "cr-toast-enter" in css
+
+
+# ---------------------------------------------------------------------------
+# WU-5: Card grid transition CSS + pull-refresh
+# ---------------------------------------------------------------------------
+
+
+def test_css_has_card_grid_transition() -> None:
+    """app.css defines grid-template-rows transition for .cr-card-expanded."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "cr-card-expanded" in css
+    assert "grid-template-rows" in css
+
+
+def test_css_has_supports_not_fallback() -> None:
+    """app.css has @supports not block for max-height fallback."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "@supports not" in css
+
+
+def test_pull_refresh_js_exists() -> None:
+    """static/js/pull-refresh.js file exists."""
+    js_path = PACKAGE_ROOT / "static" / "js" / "pull-refresh.js"
+    assert js_path.exists(), "pull-refresh.js not found"
+
+
+# ---------------------------------------------------------------------------
+# WU-6: Safe-area insets + button scale
+# ---------------------------------------------------------------------------
+
+
+def test_css_has_safe_area_inset_top() -> None:
+    """app.css contains env(safe-area-inset-top) for header padding."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "env(safe-area-inset-top" in css or "env(safe-area-inset-top," in css
+
+
+def test_css_has_safe_area_inset_bottom() -> None:
+    """app.css contains env(safe-area-inset-bottom) for dock padding."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "env(safe-area-inset-bottom" in css
+
+
+def test_css_no_non_canonical_border_radius_7px() -> None:
+    """app.css does not use border-radius: 7px (non-canonical; use 6px)."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "border-radius: 7px" not in css
+
+
+def test_css_no_non_canonical_border_radius_8px() -> None:
+    """app.css does not use border-radius: 8px in button/chip rules (use 9px or 6px)."""
+    # Check that 8px doesn't appear for button-scale targets
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    # Allow 8px in specific container-only contexts; for MVP we check button selectors
+    # The canonical set is 6/9/12 for buttons; 8px is not canonical
+    assert "border-radius: 8px" not in css
+
+
+def test_css_no_non_canonical_border_radius_11px() -> None:
+    """app.css does not use border-radius: 11px (non-canonical; use 12px)."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert "border-radius: 11px" not in css

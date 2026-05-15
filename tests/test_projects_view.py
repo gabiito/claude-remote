@@ -326,6 +326,34 @@ async def test_project_view_title_normal_status(
     assert "claude-remote" in html
 
 
+async def test_project_view_send_button_has_alpine_pulse(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Project view send button has Alpine x-data + htmx:before-request pulse handler."""
+    p_path = tmp_projects_root / "acme.com" / "pulseproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="PulseProj", slug="pulseproj", path=p_path, domain="acme.com"
+        )
+    )
+    launch_resp = await pv_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
+    assert response.status_code == 200
+    html = response.text
+    # Send button must have Alpine flash handler
+    assert "cr-send" in html
+    assert "cr-send-flash" in html or "htmx:before-request" in html
+
+
 async def test_project_view_title_needs_input_has_red_dot(
     pv_client: AsyncClient,
     projects_repo: ProjectsRepository,
