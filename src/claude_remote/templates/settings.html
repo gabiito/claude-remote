@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Configuración · claude-remote{% endblock %}
+{% block content %}
+<div class="cr-shell">
+  {# ── Header ── #}
+  <div class="cr-pv-header">
+    <a class="cr-back" href="/" aria-label="Volver">←</a>
+    <div class="cr-pv-title">
+      <span class="cr-proj-name">
+        <span class="cr-leaf">Configuración</span>
+      </span>
+    </div>
+  </div>
+
+  <main class="cr-settings-main cr-scroll">
+    <form hx-post="/ui/settings"
+          hx-target="#settings-toast"
+          hx-swap="innerHTML">
+
+      {# ── Eventos ── #}
+      <section class="cr-settings-section">
+        <h2>Eventos</h2>
+        <label class="cr-toggle-row">
+          <span>Notificaciones (Claude pide algo)</span>
+          <input type="checkbox" name="notify_on_notification"
+                 {% if prefs.notify_on_notification %}checked{% endif %}>
+        </label>
+        <label class="cr-toggle-row">
+          <span>Stop (Claude se detiene)</span>
+          <input type="checkbox" name="notify_on_stop"
+                 {% if prefs.notify_on_stop %}checked{% endif %}>
+        </label>
+        <label class="cr-toggle-row">
+          <span>Fin de sesión (SessionEnd)</span>
+          <input type="checkbox" name="notify_on_session_end"
+                 {% if prefs.notify_on_session_end %}checked{% endif %}>
+        </label>
+        <label class="cr-toggle-row">
+          <span>Inicio de sesión (SessionStart)</span>
+          <input type="checkbox" name="notify_on_session_start"
+                 {% if prefs.notify_on_session_start %}checked{% endif %}>
+        </label>
+        <label class="cr-toggle-row">
+          <span>Pre-herramienta (PreToolUse)</span>
+          <input type="checkbox" name="notify_on_pre_tool_use"
+                 {% if prefs.notify_on_pre_tool_use %}checked{% endif %}>
+        </label>
+        <label class="cr-toggle-row">
+          <span>Post-herramienta (PostToolUse)</span>
+          <input type="checkbox" name="notify_on_post_tool_use"
+                 {% if prefs.notify_on_post_tool_use %}checked{% endif %}>
+        </label>
+      </section>
+
+      <hr class="cr-divider">
+
+      {# ── Quiet hours ── #}
+      <section class="cr-settings-section">
+        <h2>Quiet hours</h2>
+        <div class="cr-time-range">
+          <input type="time" name="quiet_hours_start"
+                 value="{{ prefs.quiet_hours_start or '' }}">
+          <span>–</span>
+          <input type="time" name="quiet_hours_end"
+                 value="{{ prefs.quiet_hours_end or '' }}">
+        </div>
+        <p class="cr-helper">
+          Durante este rango los eventos se siguen guardando pero no recibís push.
+          Dejá ambos vacíos para desactivar.
+        </p>
+      </section>
+
+      <hr class="cr-divider">
+
+      {# ── Ntfy topic ── #}
+      <section class="cr-settings-section">
+        <h2>Ntfy</h2>
+        <input class="cr-topic-input" type="text" readonly
+               value="{{ prefs.ntfy_topic }}">
+        <p class="cr-helper">
+          Suscribite a este topic en la app de ntfy en tu celu para recibir push.
+          URL: <code>https://ntfy.sh/{{ prefs.ntfy_topic }}</code>
+        </p>
+      </section>
+
+      <div class="cr-settings-actions">
+        <button type="submit" class="cr-btn-primary">Guardar</button>
+      </div>
+
+      <div id="settings-toast" aria-live="polite"></div>
+    </form>
+  </main>
+</div>
+{% endblock %}
