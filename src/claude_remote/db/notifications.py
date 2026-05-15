@@ -20,6 +20,8 @@ class NotificationPreferences(BaseModel):
 
     INTEGER columns are exposed as bool; the repo handles int↔bool coercion
     at the DB boundary so callers always work with typed Python values.
+
+    Note: ntfy_topic was removed in migration 0009 (WU-5 cutover).
     """
 
     notify_on_notification: bool
@@ -30,7 +32,6 @@ class NotificationPreferences(BaseModel):
     notify_on_post_tool_use: bool
     quiet_hours_start: str | None
     quiet_hours_end: str | None
-    ntfy_topic: str
     updated_at: str
 
 
@@ -45,7 +46,6 @@ _COLUMNS = (
     "notify_on_post_tool_use",
     "quiet_hours_start",
     "quiet_hours_end",
-    "ntfy_topic",
     "updated_at",
 )
 _UPDATABLE: frozenset[str] = frozenset(_COLUMNS)
@@ -136,6 +136,5 @@ class NotificationsRepository:
             notify_on_post_tool_use=bool(row[5]),
             quiet_hours_start=row[6],
             quiet_hours_end=row[7],
-            ntfy_topic=row[8],
-            updated_at=row[9],
+            updated_at=row[8],
         )

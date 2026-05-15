@@ -1,9 +1,7 @@
-"""ntfy-based push notifier. Pure decision + async HTTP egress. Never raises.
+"""Web-push notifier. Pure decision + fire-and-forget egress via web_push.send_to_all.
 
-Module is extended across WU-2, WU-3, WU-4 in strict order:
-  WU-2: constants + _parse_time + _in_quiet_hours + should_notify
-  WU-3: _build_body + send_push (+ httpx runtime dep)
-  WU-4: dispatch
+ntfy egress removed in WU-5. dispatch() now calls web_push.send_to_all.
+should_notify, _build_body, and quiet-hours helpers are UNCHANGED.
 """
 
 from __future__ import annotations
@@ -13,15 +11,15 @@ import logging
 from datetime import datetime, time
 from typing import TYPE_CHECKING
 
-import httpx
-
 from claude_remote.db.events import Event
 from claude_remote.db.notifications import NotificationPreferences
 from claude_remote.db.projects import Project
+from claude_remote.services import web_push
 from claude_remote.services.event_snippet import extract_snippet
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    from claude_remote.db.push_subscriptions import PushSubscriptionsRepository
+    from claude_remote.db.vapid_keys import VapidKeysRepository
 
 logger = logging.getLogger(__name__)
 
@@ -36,32 +34,6 @@ EVENT_TYPE_TO_TOGGLE: dict[str, str] = {
     "SessionStart": "notify_on_session_start",
     "PreToolUse": "notify_on_pre_tool_use",
     "PostToolUse": "notify_on_post_tool_use",
-}
-
-# ---------------------------------------------------------------------------
-# Event-type → ntfy priority
-# ---------------------------------------------------------------------------
-
-EVENT_TYPE_TO_PRIORITY: dict[str, str] = {
-    "Notification": "urgent",
-    "Stop": "default",
-    "SessionEnd": "default",
-    "SessionStart": "low",
-    "PreToolUse": "low",
-    "PostToolUse": "low",
-}
-
-# ---------------------------------------------------------------------------
-# Event-type → ntfy tag emoji
-# ---------------------------------------------------------------------------
-
-EVENT_TYPE_TO_TAGS: dict[str, str] = {
-    "Notification": "bell",
-    "Stop": "octagonal_sign",
-    "SessionEnd": "checkered_flag",
-    "SessionStart": "rocket",
-    "PreToolUse": "hourglass_flowing_sand",
-    "PostToolUse": "white_check_mark",
 }
 
 # ---------------------------------------------------------------------------
@@ -166,7 +138,7 @@ def should_notify(
 
 
 # ---------------------------------------------------------------------------
-# _build_body — compose the ntfy push body per event type
+# _build_body — compose the push body per event type
 # ---------------------------------------------------------------------------
 
 
@@ -200,55 +172,6 @@ def _build_body(event: Event, project: Project) -> str:
 
 
 # ---------------------------------------------------------------------------
-# send_push — async ntfy POST (never raises)
-# ---------------------------------------------------------------------------
-
-
-async def send_push(
-    event: Event,
-    project: Project,
-    prefs: NotificationPreferences,
-    *,
-    http_client: AsyncClient | None = None,
-) -> None:
-    """POST an event push to ntfy.sh/{prefs.ntfy_topic}.
-
-    On ANY exception (network, timeout, HTTP error, JSON error): log a WARNING
-    and return None. MUST NOT raise.
-
-    Args:
-        event: the event to push.
-        project: the project owning the event (used in Title and body templates).
-        prefs: notification preferences (ntfy_topic, etc.).
-        http_client: optional pre-built AsyncClient (for test injection via respx).
-            When None, a fresh per-call client is opened with timeout=5.0s.
-    """
-    try:
-        title = f"{project.domain}/{project.name}"
-        body = _build_body(event, project)
-        url = f"https://ntfy.sh/{prefs.ntfy_topic}"
-        headers = {
-            "Title": title,
-            "Priority": EVENT_TYPE_TO_PRIORITY.get(event.event_type, "default"),
-            "Tags": EVENT_TYPE_TO_TAGS.get(event.event_type, "bell"),
-        }
-
-        if http_client is None:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.post(url, content=body.encode(), headers=headers)
-        else:
-            response = await http_client.post(url, content=body.encode(), headers=headers)
-
-        if response.status_code >= 400:
-            logger.warning(
-                "ntfy push returned HTTP %d for event %s", response.status_code, event.id
-            )
-
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("ntfy push failed for event %s: %s", event.id, exc)
-
-
-# ---------------------------------------------------------------------------
 # dispatch — orchestrator (fire-and-forget, never raises)
 # ---------------------------------------------------------------------------
 
@@ -258,13 +181,14 @@ async def dispatch(
     project: Project,
     prefs: NotificationPreferences,
     *,
-    http_client: AsyncClient | None = None,
+    subscriptions_repo: "PushSubscriptionsRepository",
+    vapid_repo: "VapidKeysRepository",
 ) -> None:
-    """Decide whether to push and schedule send_push as a background task.
+    """Decide whether to push and schedule web_push.send_to_all as a background task.
 
-    Decision: calls should_notify with the current UTC time. If False, returns
-    immediately. If True, schedules send_push via asyncio.create_task so the
-    caller returns without waiting for the network call.
+    Decision: calls should_notify with the current local wall-clock time.
+    If False, returns immediately. If True, schedules send_to_all via
+    asyncio.create_task (fire-and-forget, double-detach — see ADR-14).
 
     MUST NOT raise under any circumstance. All exceptions are logged and
     swallowed so the hook handler's never-raise contract is preserved.
@@ -273,13 +197,30 @@ async def dispatch(
         event: the persisted event record.
         project: the project owning the event.
         prefs: current notification preferences.
-        http_client: optional AsyncClient for test injection.
+        subscriptions_repo: repo for push subscriptions (DI-injected by hooks.py).
+        vapid_repo: repo for VAPID keys (DI-injected by hooks.py).
     """
     try:
         # Use local wall-clock for quiet-hours comparison (matches user's HH:MM input).
         now = datetime.now()
         if not should_notify(event, prefs, now=now):
             return
-        asyncio.create_task(send_push(event, project, prefs, http_client=http_client))
+
+        title = f"{project.domain}/{project.name}"
+        body = _build_body(event, project)
+        data = {
+            "url": f"/projects/{project.id}",
+            "event_type": event.event_type,
+        }
+
+        asyncio.create_task(
+            web_push.send_to_all(
+                subscriptions_repo,
+                vapid_repo,
+                title=title,
+                body=body,
+                data=data,
+            )
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Notifier dispatch failed for event %s: %s", event.id, exc)

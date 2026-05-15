@@ -14,7 +14,6 @@ from claude_remote.api.errors import error_response
 from claude_remote.config import get_settings
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
-from claude_remote.db.notifications import NotificationsRepository
 from claude_remote.db.vapid_keys import VapidKeysRepository
 from claude_remote.routes import health, hooks, instances, projects, projects_view
 
@@ -28,8 +27,6 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Run migrations before the app accepts requests.
 
     Also ensures the VAPID keypair exists (idempotent: no-op on subsequent boots).
-    Also applies CLAUDE_REMOTE_NTFY_TOPIC env-var override to the DB singleton
-    row if the env var is set, so /settings always shows the effective topic.
     Startup must not crash even if any step fails.
     """
     settings = get_settings()
@@ -43,15 +40,6 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         vapid_repo.get_or_create()
     except Exception as exc:  # noqa: BLE001
         logger.warning("VAPID keygen failed at startup: %s", exc)
-
-    if settings.ntfy_topic_override:
-        try:
-            repo = NotificationsRepository(
-                connection_factory=lambda: get_connection_for(settings.db_path)
-            )
-            repo.update(ntfy_topic=settings.ntfy_topic_override)
-        except Exception:  # noqa: BLE001
-            pass  # startup must not crash if DB locked or migration not yet applied
 
     yield
 

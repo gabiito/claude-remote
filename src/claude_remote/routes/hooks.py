@@ -23,6 +23,8 @@ from claude_remote.db.events import EVENT_TYPES, EventsRepository
 from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.notifications import NotificationsRepository
 from claude_remote.db.projects import ProjectsRepository
+from claude_remote.db.push_subscriptions import PushSubscriptionsRepository
+from claude_remote.db.vapid_keys import VapidKeysRepository
 from claude_remote.services import notifier
 
 logger = logging.getLogger(__name__)
@@ -71,6 +73,24 @@ def get_notifications_repo_for_hooks(
     )
 
 
+def get_push_subscriptions_repo_for_hooks(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> PushSubscriptionsRepository:
+    """Dependency provider: PushSubscriptionsRepository for web push fan-out."""
+    return PushSubscriptionsRepository(
+        connection_factory=lambda: get_connection_for(settings.db_path)
+    )
+
+
+def get_vapid_keys_repo_for_hooks(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> VapidKeysRepository:
+    """Dependency provider: VapidKeysRepository for VAPID signing key."""
+    return VapidKeysRepository(
+        connection_factory=lambda: get_connection_for(settings.db_path)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -84,6 +104,8 @@ async def receive_hook(
     instances_repo: InstancesRepository = Depends(get_instances_repo_for_hooks),  # noqa: B008
     projects_repo: ProjectsRepository = Depends(get_projects_repo_for_hooks),  # noqa: B008
     notifications_repo: NotificationsRepository = Depends(get_notifications_repo_for_hooks),  # noqa: B008
+    subs_repo: PushSubscriptionsRepository = Depends(get_push_subscriptions_repo_for_hooks),  # noqa: B008
+    vapid_repo: VapidKeysRepository = Depends(get_vapid_keys_repo_for_hooks),  # noqa: B008
 ) -> JSONResponse:
     """Receive a Claude Code hook event.
 
@@ -148,7 +170,15 @@ async def receive_hook(
             project = projects_repo.get(instance.project_id)
             if project is not None:
                 prefs = notifications_repo.get()
-                asyncio.create_task(notifier.dispatch(event, project, prefs))
+                asyncio.create_task(
+                    notifier.dispatch(
+                        event,
+                        project,
+                        prefs,
+                        subscriptions_repo=subs_repo,
+                        vapid_repo=vapid_repo,
+                    )
+                )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Notifier wiring failed for event %s: %s", event.id, exc)
 

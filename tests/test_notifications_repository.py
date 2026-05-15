@@ -97,19 +97,26 @@ class TestMigration0006:
         assert row[0] is None
         assert row[1] is None
 
-    def test_0006_ntfy_topic_is_nonempty_hex(self, tmp_path: Path) -> None:
-        """ntfy_topic must be a non-empty lowercase hex string (32 chars)."""
+    def test_0006_ntfy_topic_seeded_or_dropped(self, tmp_path: Path) -> None:
+        """ntfy_topic was seeded by 0006; on modern SQLite it is dropped by 0009.
+
+        This test verifies either:
+        - the column was seeded properly (SQLite < 3.35 — column still present), OR
+        - the column was dropped (SQLite >= 3.35 — 0009 ran).
+        """
         db = _migrated_db(tmp_path)
         conn = sqlite3.connect(db)
-        row = conn.execute(
-            "SELECT ntfy_topic FROM notification_preferences WHERE id=1"
-        ).fetchone()
+        col_info = conn.execute(
+            "PRAGMA table_info(notification_preferences)"
+        ).fetchall()
         conn.close()
-        topic = row[0]
-        assert topic is not None
-        assert len(topic) == 32
-        assert topic == topic.lower()
-        assert all(c in "0123456789abcdef" for c in topic)
+        col_names = {r[1] for r in col_info}
+        # On modern SQLite the column should be gone after 0009
+        # On old SQLite it should still be there
+        if sqlite3.sqlite_version_info >= (3, 35, 0):
+            assert "ntfy_topic" not in col_names
+        else:
+            assert "ntfy_topic" in col_names
 
     def test_0006_updated_at_is_nonempty_string(self, tmp_path: Path) -> None:
         """updated_at must be a non-empty string (ISO 8601-ish)."""
@@ -129,8 +136,8 @@ class TestMigration0006:
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(
                 "INSERT INTO notification_preferences"
-                " (id, ntfy_topic, updated_at)"
-                " VALUES (2, 'abc', 'now')"
+                " (id, updated_at)"
+                " VALUES (2, 'now')"
             )
         conn.close()
 
@@ -175,7 +182,6 @@ class TestNotificationPreferencesModel:
             notify_on_post_tool_use=0,  # type: ignore[arg-type]
             quiet_hours_start=None,
             quiet_hours_end=None,
-            ntfy_topic="abc",
             updated_at="2026-01-01T00:00:00Z",
         )
         assert prefs.notify_on_notification is True
@@ -194,7 +200,6 @@ class TestNotificationPreferencesModel:
             notify_on_post_tool_use=False,
             quiet_hours_start=None,
             quiet_hours_end=None,
-            ntfy_topic="abc",
             updated_at="2026-01-01T00:00:00Z",
         )
         assert prefs.quiet_hours_start is None
@@ -248,15 +253,14 @@ class TestNotificationsRepositoryGet:
         with pytest.raises(RuntimeError, match="migration 0006"):
             repo.get()
 
-    def test_get_ntfy_topic_is_nonempty(self, tmp_path: Path) -> None:
-        """get() must return a non-empty ntfy_topic."""
+    def test_get_succeeds_and_has_no_ntfy_topic(self, tmp_path: Path) -> None:
+        """get() succeeds post-migration; ntfy_topic is no longer a field (WU-5)."""
         from claude_remote.db.notifications import NotificationsRepository
 
         db = _migrated_db(tmp_path)
         repo = NotificationsRepository(_make_factory(db))
         prefs = repo.get()
-        assert prefs.ntfy_topic
-        assert len(prefs.ntfy_topic) > 0
+        assert not hasattr(prefs, "ntfy_topic")
 
 
 class TestNotificationsRepositoryUpdate:
@@ -280,7 +284,6 @@ class TestNotificationsRepositoryUpdate:
         updated = repo.update(notify_on_session_start=True)
         assert updated.notify_on_notification == original.notify_on_notification
         assert updated.notify_on_stop == original.notify_on_stop
-        assert updated.ntfy_topic == original.ntfy_topic
 
     def test_update_stamps_updated_at(self, tmp_path: Path) -> None:
         """update() must produce a later updated_at than the original."""
@@ -349,64 +352,30 @@ class TestNotificationsRepositoryUpdate:
 
 
 # ---------------------------------------------------------------------------
-# Env-var override — CLAUDE_REMOTE_NTFY_TOPIC
+# Env-var override — CLAUDE_REMOTE_NTFY_TOPIC removed in WU-5
 # ---------------------------------------------------------------------------
 
 
 class TestEnvVarOverride:
-    def test_env_var_override_writes_to_db_at_startup(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """CLAUDE_REMOTE_NTFY_TOPIC set at startup must write-through to DB row."""
-        monkeypatch.setenv("CLAUDE_REMOTE_NTFY_TOPIC", "my-custom-topic")
-
-        db = _migrated_db(tmp_path)
-
-        # Simulate the startup override logic (as implemented in app.py lifespan)
-        from claude_remote.config import get_settings
-        from claude_remote.db.notifications import NotificationsRepository
-
-        settings = get_settings()
-        repo = NotificationsRepository(_make_factory(db))
-        if settings.ntfy_topic_override:
-            import contextlib
-
-            with contextlib.suppress(Exception):
-                repo.update(ntfy_topic=settings.ntfy_topic_override)
-
-        prefs = repo.get()
-        assert prefs.ntfy_topic == "my-custom-topic"
-
-    def test_env_var_not_set_leaves_topic_unchanged(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """When CLAUDE_REMOTE_NTFY_TOPIC is not set, DB topic remains the seeded value."""
-        monkeypatch.delenv("CLAUDE_REMOTE_NTFY_TOPIC", raising=False)
-
-        db = _migrated_db(tmp_path)
-        from claude_remote.db.notifications import NotificationsRepository
-
-        repo = NotificationsRepository(_make_factory(db))
-        original_topic = repo.get().ntfy_topic
-
-        # When env var not set, no override happens
-        from claude_remote.config import get_settings
-
-        settings = get_settings()
-        assert settings.ntfy_topic_override is None
-
-        # Topic stays as seeded
-        assert repo.get().ntfy_topic == original_topic
-
-    def test_config_exposes_ntfy_topic_override_field(
+    def test_config_has_no_ntfy_topic_override_field(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Settings must have ntfy_topic_override field."""
-        monkeypatch.setenv("CLAUDE_REMOTE_NTFY_TOPIC", "overridden")
-        from claude_remote.config import get_settings
+        """Settings must NOT have ntfy_topic_override field after WU-5 removal."""
+        monkeypatch.setenv("CLAUDE_REMOTE_NTFY_TOPIC", "should-be-ignored")
+        from claude_remote.config import Settings, get_settings
 
         settings = get_settings()
-        assert settings.ntfy_topic_override == "overridden"
+        assert not hasattr(settings, "ntfy_topic_override")
+
+    def test_settings_has_three_fields_only(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Settings has exactly db_path, projects_root, hooks_base_url after WU-5."""
+        from claude_remote.config import Settings
+
+        import dataclasses
+        field_names = {f.name for f in dataclasses.fields(Settings)}
+        assert field_names == {"db_path", "projects_root", "hooks_base_url"}
 
 
 # ---------------------------------------------------------------------------

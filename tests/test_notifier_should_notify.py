@@ -48,7 +48,6 @@ def _make_prefs(
     notify_on_post_tool_use: bool = True,
     quiet_hours_start: str | None = None,
     quiet_hours_end: str | None = None,
-    ntfy_topic: str = "test-topic",
 ) -> NotificationPreferences:
     return NotificationPreferences(
         notify_on_notification=notify_on_notification,
@@ -59,7 +58,6 @@ def _make_prefs(
         notify_on_post_tool_use=notify_on_post_tool_use,
         quiet_hours_start=quiet_hours_start,
         quiet_hours_end=quiet_hours_end,
-        ntfy_topic=ntfy_topic,
         updated_at="2026-01-01T00:00:00Z",
     )
 

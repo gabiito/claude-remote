@@ -17,7 +17,6 @@ class Settings:
     db_path: Path
     projects_root: Path
     hooks_base_url: str = "http://localhost:8000"
-    ntfy_topic_override: str | None = None
 
 
 def get_settings() -> Settings:
@@ -44,11 +43,9 @@ def get_settings() -> Settings:
             "CLAUDE_REMOTE_HOOKS_BASE_URL=%r does not start with http:// or https://",
             hooks_base_url,
         )
-    ntfy_topic_override: str | None = os.environ.get("CLAUDE_REMOTE_NTFY_TOPIC") or None
 
     return Settings(
         db_path=db_path,
         projects_root=projects_root,
         hooks_base_url=hooks_base_url,
-        ntfy_topic_override=ntfy_topic_override,
     )
