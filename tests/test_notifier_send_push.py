@@ -239,7 +239,8 @@ async def test_notification_body_capped_at_1000_chars() -> None:
         async with httpx.AsyncClient() as client:
             await _call_send_push(event, project, prefs, http_client=client)
         request = route.calls.last.request
-        assert len(request.content) <= 1000
+        # Check character count (not bytes) since body is UTF-8 encoded text
+        assert len(request.content.decode("utf-8")) <= 1000
 
 
 # ---------------------------------------------------------------------------

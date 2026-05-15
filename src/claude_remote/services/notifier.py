@@ -12,11 +12,15 @@ import logging
 from datetime import UTC, datetime, time
 from typing import TYPE_CHECKING
 
+import httpx
+
 from claude_remote.db.events import Event
 from claude_remote.db.notifications import NotificationPreferences
+from claude_remote.db.projects import Project
+from claude_remote.services.event_snippet import extract_snippet
 
 if TYPE_CHECKING:
-    pass
+    from httpx import AsyncClient
 
 logger = logging.getLogger(__name__)
 
@@ -159,3 +163,86 @@ def should_notify(
                 return False
 
     return True
+
+
+# ---------------------------------------------------------------------------
+# _build_body — compose the ntfy push body per event type
+# ---------------------------------------------------------------------------
+
+
+def _build_body(event: Event, project: Project) -> str:
+    """Compose the push notification body.
+
+    For Notification events: extract message from payload (via extract_snippet).
+    For other events: use the canned template, substituting project_name / tool_name.
+    All output is capped at _MAX_BODY chars.
+    Never raises.
+    """
+    et = event.event_type
+
+    if et == "Notification":
+        body = extract_snippet(event, max_length=_MAX_BODY)
+        if not body:
+            body = f"Notification from {project.domain}/{project.name}"
+        return body[:_MAX_BODY]
+
+    template = EVENT_TYPE_TO_BODY_TEMPLATE.get(et, "")
+    if not template:
+        return ""
+
+    tool_name = (
+        extract_snippet(event, max_length=80) if et in ("PreToolUse", "PostToolUse") else ""
+    )
+    return template.format(
+        project_name=f"{project.domain}/{project.name}",
+        tool_name=tool_name or "una herramienta",
+    )[:_MAX_BODY]
+
+
+# ---------------------------------------------------------------------------
+# send_push — async ntfy POST (never raises)
+# ---------------------------------------------------------------------------
+
+
+async def send_push(
+    event: Event,
+    project: Project,
+    prefs: NotificationPreferences,
+    *,
+    http_client: "AsyncClient | None" = None,
+) -> None:
+    """POST an event push to ntfy.sh/{prefs.ntfy_topic}.
+
+    On ANY exception (network, timeout, HTTP error, JSON error): log a WARNING
+    and return None. MUST NOT raise.
+
+    Args:
+        event: the event to push.
+        project: the project owning the event (used in Title and body templates).
+        prefs: notification preferences (ntfy_topic, etc.).
+        http_client: optional pre-built AsyncClient (for test injection via respx).
+            When None, a fresh per-call client is opened with timeout=5.0s.
+    """
+    try:
+        title = f"{project.domain}/{project.name}"
+        body = _build_body(event, project)
+        url = f"https://ntfy.sh/{prefs.ntfy_topic}"
+        headers = {
+            "Title": title,
+            "Priority": EVENT_TYPE_TO_PRIORITY.get(event.event_type, "default"),
+            "Tags": EVENT_TYPE_TO_TAGS.get(event.event_type, "bell"),
+        }
+
+        if http_client is None:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(url, content=body.encode(), headers=headers)
+        else:
+            response = await http_client.post(url, content=body.encode(), headers=headers)
+
+        if response.status_code >= 400:
+            logger.warning(
+                "ntfy push returned HTTP %d for event %s", response.status_code, event.id
+            )
+
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("ntfy push failed for event %s: %s", event.id, exc)
