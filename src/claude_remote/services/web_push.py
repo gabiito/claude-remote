@@ -13,6 +13,7 @@ import logging
 from enum import Enum
 from typing import Any
 
+from py_vapid import Vapid  # type: ignore[import-untyped]
 from pywebpush import WebPushException, webpush  # type: ignore[import-untyped]
 
 from claude_remote.db.push_subscriptions import (
@@ -49,11 +50,18 @@ def _sync_send_push(
     """
     payload = json.dumps({"title": title, "body": body[:1000], "data": data or {}})
     try:
+        # pywebpush routes a raw PEM string to Vapid.from_string(), which
+        # b64-decodes the PEM (header included) and raises ValueError. Build
+        # the Vapid object explicitly via from_pem so the key actually loads.
+        vapid_key = Vapid.from_pem(vapid_private_pem.encode("ascii"))
+        # pywebpush mutates vapid_claims in place (adds aud/exp). Pass a fresh
+        # copy each call so the module-level singleton stays pristine across
+        # devices on different push origins.
         webpush(
             subscription_info=subscription_info,
             data=payload,
-            vapid_private_key=vapid_private_pem,
-            vapid_claims=_VAPID_CLAIMS,
+            vapid_private_key=vapid_key,
+            vapid_claims=dict(_VAPID_CLAIMS),
             ttl=ttl,
         )
         return SendPushResult.OK
