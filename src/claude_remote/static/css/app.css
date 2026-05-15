@@ -380,9 +380,10 @@ body {
 .cr-name-link:hover .cr-name-arrow { transform: translateX(2px); opacity: 1; }
 .cr-name-link .cr-leaf { color: var(--accent); font-weight: 600; }
 .cr-name-arrow {
-  font-size: 11px;
-  color: var(--accent-dim);
-  opacity: 0.6;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.85;
   transition: transform 140ms ease, opacity 140ms;
   display: inline-block;
 }
