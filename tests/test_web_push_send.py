@@ -13,7 +13,10 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
+from py_vapid import Vapid
 from pywebpush import WebPushException
+
+from claude_remote.services.vapid_keygen import generate_keypair
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -22,7 +25,9 @@ from pywebpush import WebPushException
 _ENDPOINT = "https://fcm.googleapis.com/fcm/send/test123"
 _P256DH = "BGy7base64key"
 _AUTH = "authsecret"
-_PRIVATE_PEM = "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----"
+# Real PEM: pywebpush only accepts a Vapid object or a from_string-compatible
+# encoding. A fake PEM never round-trips, so use a genuine generated keypair.
+_PUBLIC_KEY, _PRIVATE_PEM = generate_keypair()
 
 _SUBSCRIPTION_INFO = {
     "endpoint": _ENDPOINT,
@@ -83,7 +88,7 @@ async def test_send_push_returns_ok_on_success() -> None:
 
 @pytest.mark.anyio
 async def test_send_push_calls_webpush_with_correct_args() -> None:
-    """send_push passes subscription_info, private_key, vapid_claims to webpush."""
+    """send_push passes subscription_info, a Vapid object, vapid_claims to webpush."""
     from claude_remote.services.web_push import _VAPID_CLAIMS, send_push
 
     with patch("claude_remote.services.web_push.webpush") as mock_wp:
@@ -93,9 +98,55 @@ async def test_send_push_calls_webpush_with_correct_args() -> None:
     mock_wp.assert_called_once()
     kwargs = mock_wp.call_args.kwargs
     assert kwargs["subscription_info"] == _SUBSCRIPTION_INFO
-    assert kwargs["vapid_private_key"] == _PRIVATE_PEM
+    # pywebpush mishandles a raw PEM string (routes it to Vapid.from_string
+    # which b64-decodes the PEM header). We must hand it a Vapid object.
+    assert isinstance(kwargs["vapid_private_key"], Vapid)
     assert kwargs["vapid_claims"] == _VAPID_CLAIMS
     assert kwargs["ttl"] == 30
+
+
+@pytest.mark.anyio
+async def test_send_push_passes_vapid_object_built_from_pem() -> None:
+    """send_push must convert the stored PEM to a Vapid object before webpush.
+
+    Regression: passing the PEM string straight through makes pywebpush call
+    Vapid.from_string(pem), which raises ValueError ("Could not deserialize
+    key data") and the push is silently dropped as FAILED.
+    """
+    from claude_remote.services.web_push import SendPushResult, send_push
+
+    with patch("claude_remote.services.web_push.webpush") as mock_wp:
+        mock_wp.return_value = None
+        result = await send_push(_SUBSCRIPTION_INFO, _PRIVATE_PEM, "T", "B")
+
+    assert result == SendPushResult.OK
+    vp = mock_wp.call_args.kwargs["vapid_private_key"]
+    assert isinstance(vp, Vapid)
+    # The Vapid object must be a real, signable key (not a half-built stub).
+    header = vp.sign({"sub": "mailto:user@claude-remote.local", "aud": "https://x.example"})
+    assert "Authorization" in header
+
+
+@pytest.mark.anyio
+async def test_send_push_does_not_poison_shared_claims() -> None:
+    """pywebpush mutates vapid_claims in place (adds aud/exp). send_push must
+    pass a per-call copy so the module-level _VAPID_CLAIMS stays pristine,
+    otherwise a second device on a different push origin gets a stale aud."""
+    from claude_remote.services import web_push
+
+    def _fake_webpush(**kwargs: object) -> None:
+        # Simulate pywebpush's in-place mutation of the claims dict.
+        claims = kwargs["vapid_claims"]
+        assert isinstance(claims, dict)
+        claims["aud"] = "https://fcm.googleapis.com"
+        claims["exp"] = 1234567890
+
+    with patch("claude_remote.services.web_push.webpush", side_effect=_fake_webpush):
+        await web_push.send_push(_SUBSCRIPTION_INFO, _PRIVATE_PEM, "T", "B")
+
+    assert web_push._VAPID_CLAIMS == {"sub": "mailto:user@claude-remote.local"}, (
+        f"shared claims were mutated: {web_push._VAPID_CLAIMS}"
+    )
 
 
 @pytest.mark.anyio
