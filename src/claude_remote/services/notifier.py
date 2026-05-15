@@ -69,11 +69,11 @@ EVENT_TYPE_TO_TAGS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 EVENT_TYPE_TO_BODY_TEMPLATE: dict[str, str] = {
-    "Stop": "Claude se detuvo en {project_name}",
-    "SessionEnd": "Sesión finalizada en {project_name}",
-    "SessionStart": "Sesión iniciada en {project_name}",
-    "PreToolUse": "Claude está usando {tool_name}",
-    "PostToolUse": "Claude terminó {tool_name}",
+    "Stop": "Claude stopped on {project_name}",
+    "SessionEnd": "Session ended on {project_name}",
+    "SessionStart": "Session started on {project_name}",
+    "PreToolUse": "Claude is using {tool_name}",
+    "PostToolUse": "Claude finished {tool_name}",
 }
 
 _MAX_BODY = 1000

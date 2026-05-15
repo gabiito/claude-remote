@@ -35,7 +35,7 @@
         {% endif %}
       {% endfor %}
       {% if ns.first %}
-        <span class="cr-vitals-stat"><b>{{ cards|length }}</b>&nbsp;proyectos</span>
+        <span class="cr-vitals-stat"><b>{{ cards|length }}</b>&nbsp;projects</span>
       {% endif %}
       <span class="cr-vitals-spark" aria-hidden="true">
         {% for h in spark_data %}<i class="cr-spark-bar" style="height: {{ h }}px;"></i>{% endfor %}
@@ -47,7 +47,7 @@
       <button class="cr-new-btn"
               x-data
               @click="$dispatch('open-create-modal')">
-        {{ plus(cls='cr-icon') }} Nuevo proyecto
+        {{ plus(cls='cr-icon') }} New project
       </button>
       <button class="cr-new-btn cr-sync-btn"
               hx-post="/ui/discovery/sync"
@@ -55,7 +55,37 @@
               hx-swap="innerHTML">
         {{ sync(cls='cr-icon') }} Sync
       </button>
-      <a href="/settings" class="cr-gear-link" aria-label="Configuración" title="Configuración">{{ gear(cls='cr-icon') }}</a>
+      <button class="cr-filter-btn"
+              x-data="{
+                modes: ['az', 'za', 'status'],
+                i: 0,
+                get mode() { return this.modes[this.i] },
+                next() { this.i = (this.i + 1) % this.modes.length; this.apply() },
+                apply() {
+                  const cards = Array.from(document.querySelectorAll('.cr-list .cr-card'));
+                  const m = this.mode;
+                  const statusOrder = ['needs', 'active', 'running', 'idle', 'stopped', 'crashed'];
+                  cards.sort((a, b) => {
+                    const an = (a.dataset.projectName || '').toLowerCase();
+                    const bn = (b.dataset.projectName || '').toLowerCase();
+                    if (m === 'az') return an.localeCompare(bn);
+                    if (m === 'za') return bn.localeCompare(an);
+                    const ai = statusOrder.indexOf(a.dataset.status);
+                    const bi = statusOrder.indexOf(b.dataset.status);
+                    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                  });
+                  const list = document.querySelector('.cr-list');
+                  if (!list) return;
+                  cards.forEach(c => list.appendChild(c.parentElement || c));
+                }
+              }"
+              x-init="apply()"
+              @click="next()"
+              :aria-label="'Sort: ' + mode"
+              :title="mode === 'az' ? 'Sort A→Z' : mode === 'za' ? 'Sort Z→A' : 'Sort by status'">
+        <span x-text="mode === 'az' ? 'A-Z' : mode === 'za' ? 'Z-A' : '●●'"></span>
+      </button>
+      <a href="/settings" class="cr-gear-link" aria-label="Settings" title="Settings">{{ gear(cls='cr-icon') }}</a>
     </div>
 
     {# Sync toast slot — HTMX swaps sync_summary.html fragment here #}
@@ -79,8 +109,8 @@
           @click.stop>
       <div class="cr-sheet-grab"></div>
       <div>
-        <div class="cr-sheet-title">Nuevo proyecto</div>
-        <div class="cr-sheet-sub">inicia una sesión tmux y conecta Claude Code</div>
+        <div class="cr-sheet-title">New project</div>
+        <div class="cr-sheet-sub">start a tmux session and connect Claude Code</div>
       </div>
 
       <div id="form-error" class="cr-field-error"></div>
@@ -101,7 +131,7 @@
       </div>
 
       <div class="cr-field">
-        <label class="cr-field-label">Nombre</label>
+        <label class="cr-field-label">Name</label>
         <input name="name"
                x-model="name"
                placeholder="ej. landing"
@@ -110,16 +140,16 @@
 
       <div class="cr-path-preview">
         <span>~/Projects/</span>
-        <span class="cr-path-leaf" x-text="domain || '&lt;dominio&gt;'" :class="{ 'cr-path-placeholder': !domain }"></span>
+        <span class="cr-path-leaf" x-text="domain || '&lt;domain&gt;'" :class="{ 'cr-path-placeholder': !domain }"></span>
         <span class="cr-path-arrow">/</span>
-        <span class="cr-path-leaf" x-text="name || '&lt;nombre&gt;'" :class="{ 'cr-path-placeholder': !name }"></span>
+        <span class="cr-path-leaf" x-text="name || '&lt;name&gt;'" :class="{ 'cr-path-placeholder': !name }"></span>
       </div>
 
       {# Filesystem creation checkboxes #}
       <div class="cr-field" x-data="{ createDir: false }">
         <label class="cr-field-checkbox">
           <input type="checkbox" name="create_dir" x-model="createDir">
-          Crear carpeta si no existe
+          Create folder if missing
         </label>
         <label class="cr-field-checkbox cr-indent">
           <input type="checkbox" name="git_init" :disabled="!createDir">
@@ -128,8 +158,8 @@
       </div>
 
       <div class="cr-sheet-actions">
-        <button type="button" class="cr-btn-cancel" @click="open = false">Cancelar</button>
-        <button type="submit" class="cr-btn-primary">Crear</button>
+        <button type="button" class="cr-btn-cancel" @click="open = false">Cancel</button>
+        <button type="submit" class="cr-btn-primary">Create</button>
       </div>
     </form>
   </div>
@@ -140,7 +170,7 @@
     <button class="cr-domain-chip"
             :data-on="filter === 'all' ? '1' : '0'"
             @click="filter = 'all'">
-      Todos <span class="cr-count">{{ total_projects }}</span>
+      All <span class="cr-count">{{ total_projects }}</span>
     </button>
     {% for domain, count in registered_domains %}
     <button class="cr-domain-chip"
@@ -166,11 +196,11 @@
     {% else %}
       <div class="cr-empty">
         <div class="cr-empty-glyph">∅</div>
-        <h3>No hay proyectos</h3>
-        <p>Creá uno para empezar una sesión remota de Claude.</p>
+        <h3>No projects yet</h3>
+        <p>Create one to start a remote Claude session.</p>
         <button class="cr-new-btn" style="flex: none; min-width: 180px;"
                 x-data @click="$dispatch('open-create-modal')">
-          {{ plus(cls='cr-icon') }} Nuevo proyecto
+          {{ plus(cls='cr-icon') }} New project
         </button>
       </div>
     {% endif %}

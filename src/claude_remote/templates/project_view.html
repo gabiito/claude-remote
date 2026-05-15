@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "icons/_macros.html" import gear, chevron_right, x_close, send as send_icon %}
+{% from "icons/_macros.html" import gear, chevron_right, x_close, send as send_icon, square_stop %}
 
 {% block title %}{% if primary_instance and primary_instance.live_status == 'needs_input' %}🔴 {% endif %}{{ project.domain }}/{{ project.name }} — claude-remote{% endblock %}
 
@@ -9,7 +9,7 @@
   <div class="cr-pv-header">
     <button class="cr-back"
             hx-get="/" hx-target="body" hx-swap="innerHTML" hx-push-url="true"
-            aria-label="Volver">{{ chevron_right(cls='cr-icon cr-flip') }}</button>
+            aria-label="Back">{{ chevron_right(cls='cr-icon cr-flip') }}</button>
     <div class="cr-pv-title">
       <span class="cr-proj-name">
         <span class="cr-domain">{{ project.domain }}</span>
@@ -25,47 +25,55 @@
         {% else %}
           <span class="cr-pill" data-variant="dot" data-status="stopped">
             <span class="cr-pill-mark"></span>
-            SIN SESIÓN
+            NO SESSION
           </span>
         {% endif %}
       </div>
     </div>
-    <a href="/settings" class="cr-gear-link" aria-label="Configuración" title="Configuración">{{ gear(cls='cr-icon') }}</a>
-    <button class="cr-pv-menu" aria-label="Menú">⋯</button>
+    <a href="/settings" class="cr-gear-link" aria-label="Settings" title="Settings">{{ gear(cls='cr-icon') }}</a>
+    {% if primary_instance and primary_instance.live_status not in ('stopped', 'crashed') %}
+    <button class="cr-pv-stop"
+            hx-post="/ui/instances/{{ primary_instance.instance.id }}/stop"
+            hx-target="closest .cr-shell" hx-swap="none"
+            aria-label="Stop instance" title="Stop instance">{{ square_stop(cls='cr-icon') }}</button>
+    {% endif %}
   </div>
 
   {# ── Session-ended banner ── #}
   {% if primary_instance and primary_instance.live_status in ('stopped', 'crashed') %}
   <div class="cr-banner">
     <span>●</span>
-    Sesión terminada · re-lanzá para continuar
+    Session ended · re-launch to continue
     <button style="margin-left: auto;"
             hx-post="/ui/projects/{{ project.id }}/launch"
             hx-target="body" hx-swap="innerHTML">
-      Re-lanzar
+      Re-launch
     </button>
   </div>
   {% elif not primary_instance %}
   <div class="cr-banner">
     <span>●</span>
-    No active instance — lanzá una nueva sesión para empezar
+    No active instance — launch a new session to start
     <button style="margin-left: auto;"
             hx-post="/ui/projects/{{ project.id }}/launch"
             hx-target="body" hx-swap="innerHTML">
-      Lanzar
+      Launch
     </button>
   </div>
   {% endif %}
 
-  {# ── Tab container (Terminal + Events) ── #}
-  <div class="cr-pv-tabs" x-data="{ tab: 'terminal' }" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+  {# ── Tab container (Terminal + Events) — tab state mirrored to URL hash ── #}
+  <div class="cr-pv-tabs"
+       x-data="{ tab: window.location.hash === '#events' ? 'events' : 'terminal' }"
+       x-init="window.addEventListener('hashchange', () => { tab = window.location.hash === '#events' ? 'events' : 'terminal' })"
+       style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
     <div style="display: flex; background: var(--bg-1); padding: 0 12px; border-bottom: 1px solid var(--line-0); flex: 0 0 auto;">
       <button class="cr-pv-tab" :data-on="tab === 'terminal' ? '1' : '0'"
-              @click="tab = 'terminal'">
+              @click="location.hash = 'terminal'">
         ▶ Terminal
       </button>
       <button class="cr-pv-tab" :data-on="tab === 'events' ? '1' : '0'"
-              @click="tab = 'events'">
+              @click="location.hash = 'events'">
         ≡ Events
         <span class="cr-tab-badge">{{ recent_events|length }}</span>
       </button>
@@ -80,10 +88,10 @@
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"
            hx-get="/ui/instances/{{ primary_instance.instance.id }}/output"
            hx-trigger="load, every 2s [document.visibilityState === 'visible' && !(window.getSelection().toString() && document.getElementById('output-content').contains(window.getSelection().anchorNode))]"
-           hx-swap="innerHTML"><div class="cr-skel" aria-busy="true" aria-label="Cargando salida"><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div></div></pre>
+           hx-swap="innerHTML"><div class="cr-skel" aria-busy="true" aria-label="Loading output"><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div></div></pre>
       {% else %}
       <pre class="cr-terminal cr-scroll" id="output-content" style="opacity: 0.5;">
-Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
+No active session. Launch a new one to see output.</pre>
       {% endif %}
     </div>
 
@@ -102,7 +110,7 @@ Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
         {% endfor %}
       {% else %}
         <div class="cr-empty" style="padding: 32px;">
-          <p>Sin eventos aún.</p>
+          <p>No events yet.</p>
         </div>
       {% endif %}
     </div>
@@ -135,13 +143,13 @@ Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
       <textarea name="text"
                 x-model="text"
                 rows="1"
-                placeholder="Escribí un mensaje…"
+                placeholder="Type a message…"
                 @keydown.ctrl.enter.prevent="$el.form.requestSubmit()"
                 @input="$el.style.height='auto'; $el.style.height=Math.min(120,$el.scrollHeight)+'px'"></textarea>
-      <span class="cr-input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> para enviar</span>
+      <span class="cr-input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send</span>
     </div>
     <input type="hidden" name="send_enter" value="true">
-    <button type="submit" class="cr-send" aria-label="Enviar"
+    <button type="submit" class="cr-send" aria-label="Send"
             x-data="{ flash: false }"
             :class="{ 'cr-send-flash': flash }"
             x-on:htmx:before-request="flash = true; setTimeout(() => flash = false, 280)">{{ send_icon(cls='cr-icon') }}</button>
@@ -149,7 +157,7 @@ Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
   {% else %}
   <div id="input-form" class="cr-input-dock cr-disabled">
     <div class="cr-input-wrap">
-      <textarea disabled placeholder="Sin sesión activa…"></textarea>
+      <textarea disabled placeholder="No active session…"></textarea>
     </div>
     <button class="cr-send" disabled>{{ send_icon(cls='cr-icon') }}</button>
   </div>

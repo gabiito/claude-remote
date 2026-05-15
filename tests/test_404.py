@@ -1,7 +1,7 @@
 """Tests for the custom 404 handler and page structure — WU-7 (red/green).
 
 Covers:
-  - GET /nonexistent-route → 404 status + HTML body containing "No encontrado"
+  - GET /nonexistent-route → 404 status + HTML body containing "Not found"
   - HTML body contains href="/" back-to-home link
   - HTML body does NOT contain FastAPI default plain-text "Not Found"
   - GET /openapi.json → 200 JSON (handler does not intercept valid API routes)
@@ -24,11 +24,11 @@ async def test_unknown_route_returns_404(async_client: AsyncClient) -> None:
 
 
 async def test_custom_404_contains_no_encontrado(async_client: AsyncClient) -> None:
-    """GET /nonexistent → 404 HTML body contains 'No encontrado'."""
+    """GET /nonexistent → 404 HTML body contains 'Not found'."""
     response = await async_client.get("/nonexistent-route-xyz")
     assert response.status_code == 404
     html = response.text
-    assert "No encontrado" in html
+    assert "Not found" in html
 
 
 async def test_custom_404_contains_back_link(async_client: AsyncClient) -> None:

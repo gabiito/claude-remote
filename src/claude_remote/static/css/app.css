@@ -1432,3 +1432,61 @@ body {
   transition: opacity 120ms;
   z-index: 998;
 }
+
+/* ── 38. Action toast (global, bottom-center, fired via HX-Trigger) ── */
+.cr-action-toast {
+  position: fixed;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--bg-2);
+  color: var(--fg-0);
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  padding: 10px 16px;
+  font-family: var(--fnt-ui);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+/* ── 39. Stop button in project view header ── */
+.cr-pv-stop {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: 9px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  color: var(--fg-0);
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.cr-pv-stop:hover {
+  background: var(--bg-3);
+  color: var(--st-needs);
+  border-color: var(--st-needs);
+}
+
+/* ── 40. Sort/filter button (cycles A-Z / Z-A / Status) ── */
+.cr-filter-btn {
+  width: 40px; height: 40px;
+  border-radius: 9px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font-family: var(--fnt-mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms, border-color 120ms;
+}
+.cr-filter-btn:hover { background: var(--bg-3); border-color: var(--accent); color: var(--accent); }

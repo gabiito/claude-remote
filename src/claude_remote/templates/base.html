@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -17,6 +17,9 @@
   <script src="https://unpkg.com/alpinejs@3.14.3" defer></script>
 </head>
 <body x-data="{
+  toastMessage: '',
+  toastVisible: false,
+  toastTimer: null,
   updateTitle(detail) {
     const needs = detail.needs;
     const domain = detail.domain;
@@ -26,9 +29,28 @@
     } else if (domain && name) {
       document.title = domain + '/' + name + ' — claude-remote';
     }
+  },
+  showToast(detail) {
+    this.toastMessage = (detail && detail.message) || '';
+    if (!this.toastMessage) return;
+    this.toastVisible = true;
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => { this.toastVisible = false }, 3000);
   }
-}" x-on:title-update.window="updateTitle($event.detail)">
+}" x-on:title-update.window="updateTitle($event.detail)"
+   x-on:action-toast.window="showToast($event.detail)">
   <div class="cr-htmx-indicator htmx-indicator" aria-hidden="true"></div>
+  <div class="cr-action-toast" role="status" aria-live="polite"
+       x-show="toastVisible"
+       x-transition:enter="cr-toast-enter"
+       x-transition:enter-start="cr-toast-enter-start"
+       x-transition:enter-end="cr-toast-enter-end"
+       x-transition:leave="cr-toast-leave"
+       x-transition:leave-start="cr-toast-leave-start"
+       x-transition:leave-end="cr-toast-leave-end"
+       x-cloak>
+    <span x-text="toastMessage"></span>
+  </div>
   {% block content %}{% endblock %}
   <script src="/static/js/app.js" defer></script>
   <script src="/static/js/pull-refresh.js" defer></script>

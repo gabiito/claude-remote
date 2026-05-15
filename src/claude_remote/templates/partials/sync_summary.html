@@ -9,11 +9,11 @@
      x-transition:leave-start="cr-toast-leave-start"
      x-transition:leave-end="cr-toast-leave-end">
   {% if summary.new == 0 and summary.stale == 0 and summary.unstale == 0 and not summary.errors %}
-    <span>Nada para sincronizar.</span>
+    <span>Nothing to sync.</span>
   {% else %}
-    {% if summary.new %}<span class="cr-toast-new">+{{ summary.new }} nuevos</span>{% endif %}
+    {% if summary.new %}<span class="cr-toast-new">+{{ summary.new }} new</span>{% endif %}
     {% if summary.stale %}<span class="cr-toast-stale">⚠ {{ summary.stale }} stale</span>{% endif %}
-    {% if summary.unstale %}<span class="cr-toast-unstale">↻ {{ summary.unstale }} reactivados</span>{% endif %}
-    {% if summary.errors %}<span class="cr-toast-err">{{ summary.errors|length }} errores</span>{% endif %}
+    {% if summary.unstale %}<span class="cr-toast-unstale">↻ {{ summary.unstale }} reactivated</span>{% endif %}
+    {% if summary.errors %}<span class="cr-toast-err">{{ summary.errors|length }} errors</span>{% endif %}
   {% endif %}
 </div>

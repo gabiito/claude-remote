@@ -164,7 +164,7 @@ async def test_post_settings_happy_path_returns_200_and_toast(
         },
     )
     assert response.status_code == 200
-    assert "Configuración guardada" in response.text
+    assert "Settings saved" in response.text
 
 
 async def test_post_settings_returns_hx_trigger_header(

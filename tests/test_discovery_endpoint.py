@@ -101,9 +101,9 @@ async def test_sync_empty_root_empty_db_returns_200(
 async def test_sync_empty_root_returns_nada_para_sincronizar(
     sync_client: AsyncClient,
 ) -> None:
-    """POST /ui/discovery/sync with empty root shows 'Nada para sincronizar'."""
+    """POST /ui/discovery/sync with empty root shows 'Nothing to sync'."""
     response = await sync_client.post("/ui/discovery/sync")
-    assert "Nada para sincronizar" in response.text
+    assert "Nothing to sync" in response.text
 
 
 async def test_sync_always_has_hx_trigger_header(

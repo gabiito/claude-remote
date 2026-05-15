@@ -245,7 +245,7 @@ async def get_project_card(
     project = projects_repo.get(project_id)
     if project is None:
         content = TEMPLATES.get_template("partials/error_message.html").render(  # type: ignore[attr-defined]
-            message=f"Proyecto '{project_id}' no encontrado."
+            message=f"Project '{project_id}' not found."
         )
         return HTMLResponse(
             content=content,
@@ -311,10 +311,10 @@ async def create_project_ui(
       git_init:   if True (and create_dir True), run git init in the new dir.
     """
     if not domain or not domain.strip():
-        return _error_fragment(request, "El campo 'domain' es obligatorio.")
+        return _error_fragment(request, "The 'domain' field is required.")
 
     if not name or not name.strip():
-        return _error_fragment(request, "El campo 'name' es obligatorio.")
+        return _error_fragment(request, "The 'name' field is required.")
 
     domain_clean = domain.strip()
     name_clean = name.strip()
@@ -394,7 +394,7 @@ async def launch_project_ui(
     except ProjectNotFoundError:
         return _error_fragment(
             request,
-            f"Proyecto '{project_id}' no encontrado.",
+            f"Project '{project_id}' not found.",
             status_code=404,
         )
     except InstanceAlreadyRunningError as exc:
@@ -412,7 +412,7 @@ async def launch_project_ui(
 
     project = projects_repo.get(project_id)
     if project is None:
-        return _error_fragment(request, "Proyecto no encontrado.", status_code=404)
+        return _error_fragment(request, "Project not found.", status_code=404)
 
     now = datetime.now(UTC)
     project_instances = instances_repo.list_by_project(project_id)
@@ -444,19 +444,26 @@ async def stop_instance_ui(
     instance_id: str,
     launcher: TmuxLauncher = Depends(get_tmux_launcher),  # noqa: B008
     events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
+    projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
 ) -> HTMLResponse:
     """Stop an instance and return the updated instance row with live_status.
 
     Note: live_status is computed AFTER the stop so the row reflects the
     post-stop state.  Stopped instances always return ``stopped`` via
     derive_live_status (terminal status wins — Rule 1).
+
+    Also emits an ``action-toast`` HX-Trigger so a global Alpine listener
+    can surface a transient confirmation — the card itself still flips to
+    the stopped pill, but the toast tells the user WHICH card it was.
     """
+    import json as _json  # noqa: PLC0415
+
     try:
         instance = await asyncio.to_thread(lambda: launcher.stop(instance_id))
     except InstanceNotFoundError:
         return _error_fragment(
             request,
-            f"Instancia '{instance_id}' no encontrada.",
+            f"Instance '{instance_id}' not found.",
             status_code=404,
         )
 
@@ -464,8 +471,24 @@ async def stop_instance_ui(
     recent_events = events_repo.list_for_instance(instance.id, limit=20)
     live_status = derive_live_status(instance, recent_events, now=now)
 
+    # Build the action-toast payload — best-effort: project lookup must not
+    # break the stop response.
+    headers: dict[str, str] = {}
+    try:
+        project = projects_repo.get(instance.project_id)
+        if project is not None:
+            payload = {
+                "action-toast": {
+                    "message": f"✓ {project.domain}/{project.name} stopped",
+                    "tone": "ok",
+                }
+            }
+            headers["HX-Trigger"] = _json.dumps(payload)
+    except Exception:  # noqa: BLE001 — toast is decoration, never block stop
+        pass
+
     content = _render_instance_row(request, instance, live_status=live_status)
-    return HTMLResponse(content=content, status_code=200)
+    return HTMLResponse(content=content, status_code=200, headers=headers)
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +509,7 @@ async def delete_project_ui(
     if not deleted:
         return _error_fragment(
             request,
-            f"Proyecto '{project_id}' no encontrado.",
+            f"Project '{project_id}' not found.",
             status_code=404,
         )
     return HTMLResponse(content="", status_code=200)
@@ -519,7 +542,7 @@ async def get_instance_output(
     instance = instances_repo.get(instance_id)
     if instance is None:
         content = TEMPLATES.get_template("partials/error_message.html").render(  # type: ignore[attr-defined]
-            message=f"Instancia '{instance_id}' no encontrada."
+            message=f"Instance '{instance_id}' not found."
         )
         return HTMLResponse(
             content=content,
@@ -532,7 +555,7 @@ async def get_instance_output(
         from claude_remote.services.ansi_html import convert_ansi  # noqa: PLC0415
         escaped = convert_ansi(raw)
     except TmuxOperationError:
-        escaped = "[Sesión no disponible]"
+        escaped = "[Session unavailable]"
 
     # Return ANSI-converted HTML fragment only — the <pre id="output-content"> wrapper is
     # owned by project_view.html and stays mounted (so Alpine smart-scroll
@@ -577,7 +600,7 @@ async def post_instance_input(
     if instance is None:
         return _error_fragment(
             request,
-            f"Instancia '{instance_id}' no encontrada.",
+            f"Instance '{instance_id}' not found.",
             status_code=404,
         )
 

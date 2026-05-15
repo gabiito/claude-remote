@@ -133,7 +133,7 @@ async def test_home_empty_state(home_client: AsyncClient) -> None:
     """Home page shows empty state message when no projects registered."""
     response = await home_client.get("/")
     assert response.status_code == 200
-    assert "No hay proyectos" in response.text
+    assert "No projects yet" in response.text
 
 
 async def test_home_empty_state_renders_project_list_container(

@@ -17,6 +17,7 @@
      data-status="{{ agg_status }}"
      {% if project.is_stale %}data-stale="1"{% endif %}
      hx-get="/ui/projects/{{ project.id }}/card"
+     data-project-name="{{ project.name }}"
      hx-trigger="every 5s [document.visibilityState === 'visible' && this.dataset.expanded !== '1']"
      hx-swap="outerHTML"
      x-data="{ expanded: false }"
@@ -46,7 +47,7 @@
     {% else %}
       <span class="cr-pill" data-variant="dot" data-status="stopped">
         <span class="cr-pill-mark"></span>
-        SIN SESIÓN
+        NO SESSION
       </span>
     {% endif %}
     <span class="cr-expand-chevron" :class="{ 'is-open': expanded }" aria-hidden="true">▸</span>
@@ -98,7 +99,7 @@
         hx-delete="/ui/projects/{{ project.id }}"
         hx-target="closest .cr-card"
         hx-swap="outerHTML"
-        hx-confirm="¿Borrar el proyecto?"
+        hx-confirm="Delete this project?"
         @click.stop>
         🗑 Delete
       </button>

@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% from "icons/_macros.html" import file_x, arrow_right %}
-{% block title %}No encontrado — claude-remote{% endblock %}
+{% block title %}Not found — claude-remote{% endblock %}
 {% block content %}
 <div class="cr-shell">
   <div class="cr-404">
     <div class="cr-empty-glyph cr-icon-xl">
       {{ file_x(cls='cr-icon-xl', size=64) }}
     </div>
-    <h3>No encontrado</h3>
-    <p>La página que buscás no existe o fue removida.</p>
+    <h3>Not found</h3>
+    <p>The page you're looking for doesn't exist or was removed.</p>
     <a href="/" class="cr-new-btn">
       {{ arrow_right(cls='cr-icon cr-flip') }}
-      Volver al inicio
+      Back to home
     </a>
   </div>
 </div>

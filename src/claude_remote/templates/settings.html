@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% from "icons/_macros.html" import chevron_right %}
-{% block title %}Configuración · claude-remote{% endblock %}
+{% block title %}Settings · claude-remote{% endblock %}
 {% block content %}
 <div class="cr-shell">
   {# ── Header ── #}
   <div class="cr-pv-header">
-    <a class="cr-back" href="/" aria-label="Volver">{{ chevron_right(cls='cr-icon cr-flip') }}</a>
+    <a class="cr-back" href="/" aria-label="Back">{{ chevron_right(cls='cr-icon cr-flip') }}</a>
     <div class="cr-pv-title">
       <span class="cr-proj-name">
-        <span class="cr-leaf">Configuración</span>
+        <span class="cr-leaf">Settings</span>
       </span>
     </div>
   </div>
@@ -18,36 +18,36 @@
           hx-target="#settings-toast"
           hx-swap="innerHTML">
 
-      {# ── Eventos ── #}
+      {# ── Events ── #}
       <section class="cr-settings-section">
-        <h2>Eventos</h2>
+        <h2>Events</h2>
         <label class="cr-toggle-row">
-          <span>Notificaciones (Claude pide algo)</span>
+          <span>Notification (Claude wants input)</span>
           <input type="checkbox" name="notify_on_notification"
                  {% if prefs.notify_on_notification %}checked{% endif %}>
         </label>
         <label class="cr-toggle-row">
-          <span>Stop (Claude se detiene)</span>
+          <span>Stop (Claude pauses)</span>
           <input type="checkbox" name="notify_on_stop"
                  {% if prefs.notify_on_stop %}checked{% endif %}>
         </label>
         <label class="cr-toggle-row">
-          <span>Fin de sesión (SessionEnd)</span>
+          <span>Session end</span>
           <input type="checkbox" name="notify_on_session_end"
                  {% if prefs.notify_on_session_end %}checked{% endif %}>
         </label>
         <label class="cr-toggle-row">
-          <span>Inicio de sesión (SessionStart)</span>
+          <span>Session start</span>
           <input type="checkbox" name="notify_on_session_start"
                  {% if prefs.notify_on_session_start %}checked{% endif %}>
         </label>
         <label class="cr-toggle-row">
-          <span>Pre-herramienta (PreToolUse)</span>
+          <span>Pre tool use</span>
           <input type="checkbox" name="notify_on_pre_tool_use"
                  {% if prefs.notify_on_pre_tool_use %}checked{% endif %}>
         </label>
         <label class="cr-toggle-row">
-          <span>Post-herramienta (PostToolUse)</span>
+          <span>Post tool use</span>
           <input type="checkbox" name="notify_on_post_tool_use"
                  {% if prefs.notify_on_post_tool_use %}checked{% endif %}>
         </label>
@@ -66,8 +66,8 @@
                  value="{{ prefs.quiet_hours_end or '' }}">
         </div>
         <p class="cr-helper">
-          Durante este rango los eventos se siguen guardando pero no recibís push.
-          Dejá ambos vacíos para desactivar.
+          Events are still recorded during this window but no push is sent.
+          Leave both empty to disable.
         </p>
       </section>
 
@@ -82,18 +82,18 @@
                  value="{{ prefs.ntfy_topic }}" id="ntfy-topic-field">
           <button type="button" class="cr-topic-copy"
                   @click="copy(document.getElementById('ntfy-topic-field').value)">
-            <span x-show="!copied">Copiar</span>
-            <span x-show="copied" x-cloak>✓ Copiado</span>
+            <span x-show="!copied">Copy</span>
+            <span x-show="copied" x-cloak>✓ Copied</span>
           </button>
         </div>
         <p class="cr-helper">
-          Suscribite a este topic en la app de ntfy en tu celu para recibir push.
+          Subscribe to this topic in the ntfy app on your phone to receive push.
           URL: <code>https://ntfy.sh/{{ prefs.ntfy_topic }}</code>
         </p>
       </section>
 
       <div class="cr-settings-actions">
-        <button type="submit" class="cr-btn-primary">Guardar</button>
+        <button type="submit" class="cr-btn-primary">Save</button>
       </div>
 
       <div id="settings-toast" aria-live="polite"></div>
