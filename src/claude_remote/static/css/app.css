@@ -839,6 +839,7 @@ body {
 }
 .cr-path-preview .cr-path-arrow { color: var(--fg-3); }
 .cr-path-preview .cr-path-leaf  { color: var(--accent); font-weight: 500; }
+.cr-path-preview .cr-path-placeholder { color: var(--fg-3); font-style: italic; font-weight: 400; }
 
 .cr-sheet-actions {
   display: flex;

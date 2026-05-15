@@ -54,8 +54,8 @@
 
   {# ── Create project modal (bottom sheet) ── #}
   <div
-    x-data="{ open: false }"
-    x-on:open-create-modal.window="open = true"
+    x-data="{ open: false, domain: '', name: '' }"
+    x-on:open-create-modal.window="open = true; domain = ''; name = ''"
     x-show="open"
     class="cr-overlay"
     style="display: none;"
@@ -65,7 +65,7 @@
           hx-post="/ui/projects"
           hx-target=".cr-list"
           hx-swap="afterbegin"
-          x-on:htmx:after-request="if (event.detail.successful) open = false"
+          x-on:htmx:after-request="if (event.detail.successful) { open = false; domain = ''; name = ''; }"
           @click.stop>
       <div class="cr-sheet-grab"></div>
       <div>
@@ -78,6 +78,7 @@
       <div class="cr-field">
         <label class="cr-field-label">Domain</label>
         <input name="domain"
+               x-model="domain"
                placeholder="ej. wooli"
                pattern="[a-z0-9-]+"
                list="domain-options"
@@ -92,14 +93,16 @@
       <div class="cr-field">
         <label class="cr-field-label">Nombre</label>
         <input name="name"
+               x-model="name"
                placeholder="ej. landing"
                pattern="[a-z0-9-_]+">
       </div>
 
       <div class="cr-path-preview">
         <span>~/Projects/</span>
+        <span class="cr-path-leaf" x-text="domain || '&lt;dominio&gt;'" :class="{ 'cr-path-placeholder': !domain }"></span>
         <span class="cr-path-arrow">/</span>
-        <span class="cr-path-leaf">{{ projects_root }}</span>
+        <span class="cr-path-leaf" x-text="name || '&lt;nombre&gt;'" :class="{ 'cr-path-placeholder': !name }"></span>
       </div>
 
       {# Filesystem creation checkboxes #}
