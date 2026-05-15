@@ -141,7 +141,10 @@ Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
       <span class="cr-input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> para enviar</span>
     </div>
     <input type="hidden" name="send_enter" value="true">
-    <button type="submit" class="cr-send" aria-label="Enviar">{{ send_icon(cls='cr-icon') }}</button>
+    <button type="submit" class="cr-send" aria-label="Enviar"
+            x-data="{ flash: false }"
+            :class="{ 'cr-send-flash': flash }"
+            x-on:htmx:before-request="flash = true; setTimeout(() => flash = false, 280)">{{ send_icon(cls='cr-icon') }}</button>
   </form>
   {% else %}
   <div id="input-form" class="cr-input-dock cr-disabled">

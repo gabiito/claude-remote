@@ -1,4 +1,13 @@
-<div class="cr-sync-toast" role="status">
+<div class="cr-sync-toast cr-toast" role="status"
+     x-data="{ visible: true }"
+     x-init="setTimeout(() => visible = false, 3000)"
+     x-show="visible"
+     x-transition:enter="cr-toast-enter"
+     x-transition:enter-start="cr-toast-enter-start"
+     x-transition:enter-end="cr-toast-enter-end"
+     x-transition:leave="cr-toast-leave"
+     x-transition:leave-start="cr-toast-leave-start"
+     x-transition:leave-end="cr-toast-leave-end">
   {% if summary.new == 0 and summary.stale == 0 and summary.unstale == 0 and not summary.errors %}
     <span>Nada para sincronizar.</span>
   {% else %}

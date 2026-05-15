@@ -28,7 +28,9 @@
     }
   }
 }" x-on:title-update.window="updateTitle($event.detail)">
+  <div class="cr-htmx-indicator htmx-indicator" aria-hidden="true"></div>
   {% block content %}{% endblock %}
   <script src="/static/js/app.js" defer></script>
+  <script src="/static/js/pull-refresh.js" defer></script>
 </body>
 </html>

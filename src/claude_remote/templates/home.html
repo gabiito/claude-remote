@@ -19,7 +19,11 @@
     {# Vitals strip #}
     {% set status_order = [('needs', 'needs'), ('active', 'active'), ('running', 'running'), ('idle', 'idle'), ('crashed', 'crashed'), ('stopped', 'stopped')] %}
     <div class="cr-vitals">
-      <span class="cr-vitals-stat">
+      <span class="cr-vitals-stat"
+            x-data="{ active: false }"
+            x-on:htmx:before-request.window="active = true"
+            x-on:htmx:after-request.window="setTimeout(() => active = false, 300)"
+            :class="{ 'cr-vitals-stat-active': active }">
         <span class="cr-vitals-led" style="background: var(--accent); color: var(--accent);"></span>
       </span>
       {% set ns = namespace(first=true) %}

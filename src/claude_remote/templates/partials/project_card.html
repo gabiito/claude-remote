@@ -57,7 +57,8 @@
   </div>
 
   {# Expanded section — events mini feed + actions #}
-  <div class="cr-card-expanded" x-show="expanded" x-cloak @click.stop>
+  {# CSS grid-template-rows: 0fr→1fr handles show/hide; x-show removed #}
+  <div class="cr-card-expanded" @click.stop><div>
     {% if recent_events %}
     <div class="cr-events-mini">
       {% for event in recent_events[:3] %}
@@ -102,5 +103,5 @@
         🗑 Delete
       </button>
     </div>
-  </div>
+  </div></div>
 </div>

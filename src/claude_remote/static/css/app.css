@@ -91,7 +91,7 @@ body {
 
 /* ── 5. Home header ── */
 .cr-header {
-  padding: 12px 16px 10px;
+  padding: calc(12px + env(safe-area-inset-top, 0)) 16px 10px;
   border-bottom: 1px solid var(--line-0);
   background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
   flex: 0 0 auto;
@@ -143,7 +143,7 @@ body {
   padding: 8px 10px;
   background: var(--bg-2);
   border: 1px solid var(--line-0);
-  border-radius: 8px;
+  border-radius: 9px;
   font-family: var(--fnt-mono);
   font-size: 10.5px;
   color: var(--fg-2);
@@ -229,7 +229,7 @@ body {
 .cr-domains::-webkit-scrollbar { display: none; }
 .cr-domain-chip {
   flex: 0 0 auto;
-  height: 28px;
+  height: 32px;
   padding: 0 12px;
   border-radius: 999px;
   border: 1px solid var(--line-0);
@@ -462,8 +462,8 @@ body {
 }
 .cr-card-actions button {
   flex: 1;
-  height: 34px;
-  border-radius: 7px;
+  height: 32px;
+  border-radius: 6px;
   border: 1px solid var(--line-0);
   background: var(--bg-2);
   color: var(--fg-1);
@@ -548,14 +548,14 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px 10px;
+  padding: calc(8px + env(safe-area-inset-top, 0)) 12px 10px;
   border-bottom: 1px solid var(--line-0);
   background: var(--bg-1);
   flex: 0 0 auto;
 }
 .cr-back, .cr-pv-menu {
-  width: 36px; height: 36px;
-  border-radius: 8px;
+  width: 32px; height: 32px;
+  border-radius: 6px;
   background: var(--bg-2);
   border: 1px solid var(--line-0);
   color: var(--fg-1);
@@ -707,7 +707,7 @@ body {
 .cr-chips::-webkit-scrollbar { display: none; }
 .cr-chip {
   flex: 0 0 auto;
-  height: 30px;
+  height: 32px;
   padding: 0 11px;
   border-radius: 999px;
   border: 1px solid var(--line-0);
@@ -809,7 +809,7 @@ body {
   border-top: 1px solid var(--line-1);
   border-radius: 18px 18px 0 0;
   width: 100%;
-  padding: 14px 16px 28px;
+  padding: 14px 16px calc(28px + env(safe-area-inset-bottom, 0));
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -847,10 +847,10 @@ body {
   color: var(--fg-3);
 }
 .cr-field input {
-  height: 44px;
+  height: 40px;
   background: var(--bg-input);
   border: 1px solid var(--line-1);
-  border-radius: 10px;
+  border-radius: 9px;
   color: var(--fg-0);
   font-family: var(--fnt-mono);
   font-size: 14px;
@@ -868,7 +868,7 @@ body {
 .cr-path-preview {
   background: var(--bg-0);
   border: 1px dashed var(--line-1);
-  border-radius: 8px;
+  border-radius: 9px;
   padding: 10px 12px;
   font-family: var(--fnt-mono);
   font-size: 11.5px;
@@ -888,8 +888,8 @@ body {
 }
 .cr-sheet-actions button {
   flex: 1;
-  height: 46px;
-  border-radius: 11px;
+  height: 40px;
+  border-radius: 12px;
   font-family: var(--fnt-ui);
   font-size: 14px;
   font-weight: 600;
@@ -979,13 +979,13 @@ body {
 .cr-empty h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--fg-0); }
 .cr-empty p  { margin: 0; font-size: 13px; line-height: 1.5; max-width: 26ch; }
 
-.cr-toast {
+.cr-toast-fixed {
   position: fixed;
   left: 16px; right: 16px;
   bottom: 90px;
   background: var(--bg-3);
   border: 1px solid var(--line-1);
-  border-radius: 10px;
+  border-radius: 9px;
   padding: 10px 14px;
   font-family: var(--fnt-mono);
   font-size: 11px;
@@ -1003,7 +1003,7 @@ body {
   padding: 10px 14px;
   background: rgba(243, 139, 168, 0.18);
   border: 1px solid rgba(243, 139, 168, 0.45);
-  border-radius: 8px;
+  border-radius: 9px;
   color: var(--st-needs);
   font-family: var(--fnt-mono);
   font-size: 11px;
@@ -1026,7 +1026,7 @@ body {
   margin: 8px 16px 0;
   background: var(--bg-2);
   border: 1px solid var(--line-0);
-  border-radius: 8px;
+  border-radius: 9px;
   font-family: var(--fnt-mono);
   font-size: 11px;
   color: var(--fg-1);
@@ -1250,7 +1250,7 @@ body {
   margin: 8px 0;
   background: var(--bg-2);
   border: 1px solid var(--st-active);
-  border-radius: 8px;
+  border-radius: 9px;
   color: var(--st-active);
   font-family: var(--fnt-mono);
   font-size: 12px;
@@ -1358,4 +1358,77 @@ body {
   padding: 48px 24px;
   text-align: center;
   gap: 16px;
+}
+
+/* ── 32. HTMX global request indicator bar — WU-4 ── */
+.cr-htmx-indicator {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 120ms;
+  z-index: 999;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cr-htmx-indicator.htmx-request,
+.htmx-request .cr-htmx-indicator {
+  opacity: 0.85;
+  animation: cr-indicator-slide 1.2s ease-in-out infinite;
+}
+@keyframes cr-indicator-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── 33. Send button flash — WU-4 ── */
+.cr-send { transition: filter 180ms ease; }
+.cr-send-flash { filter: brightness(1.35) saturate(1.1); }
+
+/* ── 34. Live polling dot active state — WU-4 ── */
+.cr-vitals-stat-active .cr-vitals-led {
+  animation: cr-pulse 0.6s ease-in-out;
+}
+
+/* ── 35. Toast slide-in / auto-dismiss transitions — WU-4 ── */
+.cr-toast-enter { transition: transform 220ms cubic-bezier(.2,.7,.3,1), opacity 220ms; }
+.cr-toast-enter-start { transform: translateY(-12px); opacity: 0; }
+.cr-toast-enter-end   { transform: translateY(0);     opacity: 1; }
+.cr-toast-leave       { transition: transform 200ms ease-in, opacity 200ms; }
+.cr-toast-leave-start { transform: translateY(0);     opacity: 1; }
+.cr-toast-leave-end   { transform: translateY(-12px); opacity: 0; }
+
+/* ── 36. Card expand grid transition — WU-5 ── */
+.cr-card-expanded {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows 220ms ease;
+}
+.cr-card-expanded > * { min-height: 0; overflow: hidden; }
+.cr-card[data-expanded="1"] .cr-card-expanded {
+  grid-template-rows: 1fr;
+}
+@supports not (grid-template-rows: 1fr) {
+  .cr-card-expanded { display: block; max-height: 0; transition: max-height 220ms ease; }
+  .cr-card[data-expanded="1"] .cr-card-expanded { max-height: 800px; }
+}
+
+/* ── 37. Pull-to-refresh hint — WU-5 ── */
+.cr-ptr-hint {
+  position: fixed;
+  top: 0; left: 50%;
+  transform: translate(-50%, -100%);
+  background: var(--bg-2);
+  color: var(--accent);
+  border: 1px solid var(--line-1);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-family: var(--fnt-mono);
+  font-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms;
+  z-index: 998;
 }
