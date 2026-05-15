@@ -14,9 +14,10 @@
      data-status="{{ agg_status }}"
      {% if project.is_stale %}data-stale="1"{% endif %}
      hx-get="/ui/projects/{{ project.id }}/card"
-     hx-trigger="every 5s [document.visibilityState === 'visible']"
+     hx-trigger="every 5s [document.visibilityState === 'visible' && this.dataset.expanded !== '1']"
      hx-swap="outerHTML"
      x-data="{ expanded: false }"
+     :data-expanded="expanded ? '1' : '0'"
      @click="expanded = !expanded">
 
   {# Status LED strip (left edge) #}
