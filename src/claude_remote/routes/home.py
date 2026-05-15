@@ -93,6 +93,12 @@ async def home(
             }
         )
 
+    # Domain filter strip — count registered projects per domain, ordered alphabetically.
+    domain_counts: dict[str, int] = {}
+    for project in projects:
+        domain_counts[project.domain] = domain_counts.get(project.domain, 0) + 1
+    registered_domains = sorted(domain_counts.items(), key=lambda kv: kv[0])
+
     return templates.TemplateResponse(  # type: ignore[return-value]
         request,
         "home.html",
@@ -100,5 +106,7 @@ async def home(
             "cards": cards,
             "existing_domains": _list_existing_domains(settings.projects_root),
             "projects_root": str(settings.projects_root),
+            "registered_domains": registered_domains,
+            "total_projects": len(projects),
         },
     )

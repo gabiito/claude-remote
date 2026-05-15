@@ -3,7 +3,7 @@
 {% block title %}claude-remote{% endblock %}
 
 {% block content %}
-<div class="cr-shell" x-data x-on:projects-synced.window="window.location.reload()">
+<div class="cr-shell" x-data="{ filter: 'all' }" x-on:projects-synced.window="window.location.reload()">
   {# ── Header ── #}
   <div class="cr-header">
     <div class="cr-brand-row">
@@ -124,6 +124,24 @@
     </form>
   </div>
 
+  {# ── Domain filter chips ── #}
+  {% if registered_domains %}
+  <div class="cr-domains cr-scroll">
+    <button class="cr-domain-chip"
+            :data-on="filter === 'all' ? '1' : '0'"
+            @click="filter = 'all'">
+      Todos <span class="cr-count">{{ total_projects }}</span>
+    </button>
+    {% for domain, count in registered_domains %}
+    <button class="cr-domain-chip"
+            :data-on="filter === '{{ domain }}' ? '1' : '0'"
+            @click="filter = '{{ domain }}'">
+      {{ domain }} <span class="cr-count">{{ count }}</span>
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {# ── Project list (always renders so HTMX form swaps have a target) ── #}
   <div class="cr-list cr-scroll">
     {% if cards %}
@@ -131,7 +149,9 @@
       {% set project = card.project %}
       {% set instance_views = card.instance_views %}
       {% set recent_events = card.recent_events %}
-      {% include "partials/project_card.html" %}
+      <div style="display: contents;" x-show="filter === 'all' || filter === '{{ project.domain }}'">
+        {% include "partials/project_card.html" %}
+      </div>
       {% endfor %}
     {% else %}
       <div class="cr-empty">
