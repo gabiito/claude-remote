@@ -364,7 +364,6 @@ async def test_project_view_title_needs_input_has_red_dot(
     """GET /projects/{id} when primary instance is needs_input → title has 🔴 prefix."""
     import json
 
-    from claude_remote.db.connection import get_connection_for
     from claude_remote.db.events import EventsRepository
 
     p_path = tmp_projects_root / "wooli" / "titleproj"
@@ -382,8 +381,6 @@ async def test_project_view_title_needs_input_has_red_dot(
     instance = instances[0]
 
     # Create events repo and add Notification → needs_input
-    from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
-
     events_repo = EventsRepository(
         connection_factory=instances_repo._factory  # type: ignore[attr-defined]
     )

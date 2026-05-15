@@ -642,9 +642,9 @@ async def test_home_card_expanded_has_no_x_show(home_client: AsyncClient) -> Non
     response = await home_client.get("/")
     assert response.status_code == 200
     html = response.text
-    # cr-card-expanded must exist (may be in a card if projects exist, or just static)
-    # The key assertion: x-cloak should not appear on cr-card-expanded
-    assert "cr-card-expanded" in html or True  # may not render if no projects
+    # cr-card-expanded renders when projects exist; without projects page still loads
+    # The key assertion: x-cloak must not appear on cr-card-expanded (CSS handles it)
+    assert "x-cloak" not in html or "cr-card-expanded" not in html
 
 
 # ---------------------------------------------------------------------------
