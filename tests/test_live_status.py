@@ -10,10 +10,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from claude_remote.services.live_status import derive_live_status
-from claude_remote.db.instances import Instance
 from claude_remote.db.events import Event
-
+from claude_remote.db.instances import Instance
+from claude_remote.services.live_status import derive_live_status
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -37,10 +36,7 @@ def _make_event(event_type: str, delta_seconds: float, naive: bool = False) -> E
     """Create an Event with received_at = now - delta_seconds."""
     NOW = datetime(2026, 5, 14, 22, 0, 0, tzinfo=UTC)
     ts = NOW - timedelta(seconds=delta_seconds)
-    if naive:
-        received_at = ts.replace(tzinfo=None).isoformat()
-    else:
-        received_at = ts.isoformat()
+    received_at = ts.replace(tzinfo=None).isoformat() if naive else ts.isoformat()
     return Event(
         id="event-1",
         instance_id="inst-1",

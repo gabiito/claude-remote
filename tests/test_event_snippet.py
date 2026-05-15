@@ -6,11 +6,8 @@ Tests FAIL until services/event_snippet.py is implemented.
 
 from __future__ import annotations
 
-import pytest
-
-from claude_remote.services.event_snippet import extract_snippet
 from claude_remote.db.events import Event
-
+from claude_remote.services.event_snippet import extract_snippet
 
 # ---------------------------------------------------------------------------
 # Helpers

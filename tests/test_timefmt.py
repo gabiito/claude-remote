@@ -12,7 +12,6 @@ import pytest
 
 from claude_remote.services.timefmt import format_relative
 
-
 # Fixed reference "now" for all parametrized tests
 NOW = datetime(2026, 5, 14, 22, 0, 0, tzinfo=UTC)
 

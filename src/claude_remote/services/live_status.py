@@ -105,17 +105,26 @@ def derive_live_status(
     for ts, ev in parsed:
         age = now - ts
 
-        if ev.event_type in TOOL_EVENT_TYPES and age <= active_window:
-            if most_recent_tool is None:
-                most_recent_tool = (ts, ev)
+        if (
+            ev.event_type in TOOL_EVENT_TYPES
+            and age <= active_window
+            and most_recent_tool is None
+        ):
+            most_recent_tool = (ts, ev)
 
-        if ev.event_type == "Notification" and age <= needs_input_window:
-            if most_recent_notification is None:
-                most_recent_notification = (ts, ev)
+        if (
+            ev.event_type == "Notification"
+            and age <= needs_input_window
+            and most_recent_notification is None
+        ):
+            most_recent_notification = (ts, ev)
 
-        if ev.event_type in TERMINAL_EVENT_TYPES and age <= needs_input_window:
-            if most_recent_terminal is None:
-                most_recent_terminal = (ts, ev)
+        if (
+            ev.event_type in TERMINAL_EVENT_TYPES
+            and age <= needs_input_window
+            and most_recent_terminal is None
+        ):
+            most_recent_terminal = (ts, ev)
 
     # Rule 2: Notification not superseded by a more-recent tool event.
     if most_recent_notification is not None:

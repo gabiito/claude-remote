@@ -117,7 +117,8 @@ class InstancesRepository:
             conn.execute(
                 """
                 INSERT INTO instances
-                    (id, project_id, tmux_session_name, pane_pid, status, created_at, stopped_at, hook_token)
+                    (id, project_id, tmux_session_name, pane_pid, status,
+                     created_at, stopped_at, hook_token)
                 VALUES (?, ?, ?, NULL, ?, ?, NULL, ?)
                 """,
                 (instance_id, project_id, tmux_session_name, status, created_at, hook_token),
