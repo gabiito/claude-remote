@@ -501,8 +501,6 @@ async def get_instance_output(
             (NEVER 5xx — keeps the 2s polling loop alive).
         404 + error fragment with ``HX-Reswap: innerHTML`` when instance missing.
     """
-    import html as _html  # noqa: PLC0415 — stdlib html.escape
-
     instance = instances_repo.get(instance_id)
     if instance is None:
         content = TEMPLATES.get_template("partials/error_message.html").render(  # type: ignore[attr-defined]
@@ -516,11 +514,12 @@ async def get_instance_output(
 
     try:
         raw = await asyncio.to_thread(adapter.capture_pane, instance.tmux_session_name)
-        escaped = _html.escape(raw)
+        from claude_remote.services.ansi_html import convert_ansi  # noqa: PLC0415
+        escaped = convert_ansi(raw)
     except TmuxOperationError:
         escaped = "[Sesión no disponible]"
 
-    # Return raw escaped text only — the <pre id="output-content"> wrapper is
+    # Return ANSI-converted HTML fragment only — the <pre id="output-content"> wrapper is
     # owned by project_view.html and stays mounted (so Alpine smart-scroll
     # state survives the HTMX innerHTML swap). Returning the wrapper here
     # would nest <pre> inside <pre>, hiding the outer cr-terminal styles.

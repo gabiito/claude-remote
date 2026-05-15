@@ -1278,3 +1278,84 @@ body {
     box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
   }
 }
+
+/* ── 28. ANSI palette (Catppuccin Mocha) — WU-1 ── */
+/* Text attributes */
+.cr-terminal .ansi1  { font-weight: 600; }
+.cr-terminal .ansi3  { font-style: italic; }
+.cr-terminal .ansi4  { text-decoration: underline; }
+/* Foreground 30–37 (normal) */
+.cr-terminal .ansi30 { color: #45475a; }              /* black → Surface1 */
+.cr-terminal .ansi31 { color: var(--st-needs); }      /* red   → Red (#f38ba8) */
+.cr-terminal .ansi32 { color: var(--st-active); }     /* green → Green (#a6e3a1) */
+.cr-terminal .ansi33 { color: var(--st-idle); }       /* yellow → Yellow (#f9e2af) */
+.cr-terminal .ansi34 { color: var(--st-run); }        /* blue  → Blue (#89b4fa) */
+.cr-terminal .ansi35 { color: #cba6f7; }              /* magenta → Mauve */
+.cr-terminal .ansi36 { color: var(--accent); }        /* cyan  → Teal (#94e2d5) */
+.cr-terminal .ansi37 { color: var(--fg-1); }          /* white → Subtext1 */
+/* Background 40–47 (low-alpha to avoid blinding white-on-white) */
+.cr-terminal .ansi40 { background: rgba(69, 71, 90, 0.40); }
+.cr-terminal .ansi41 { background: rgba(243, 139, 168, 0.18); }
+.cr-terminal .ansi42 { background: rgba(166, 227, 161, 0.18); }
+.cr-terminal .ansi43 { background: rgba(249, 226, 175, 0.18); }
+.cr-terminal .ansi44 { background: rgba(137, 180, 250, 0.18); }
+.cr-terminal .ansi45 { background: rgba(203, 166, 247, 0.18); }
+.cr-terminal .ansi46 { background: rgba(148, 226, 213, 0.18); }
+.cr-terminal .ansi47 { background: rgba(186, 194, 222, 0.18); }
+/* Bright foreground 90–97 */
+.cr-terminal .ansi90 { color: var(--fg-3); }
+.cr-terminal .ansi91 { color: #f38ba8; }
+.cr-terminal .ansi92 { color: #a6e3a1; }
+.cr-terminal .ansi93 { color: #f9e2af; }
+.cr-terminal .ansi94 { color: #89b4fa; }
+.cr-terminal .ansi95 { color: #cba6f7; }
+.cr-terminal .ansi96 { color: #94e2d5; }
+.cr-terminal .ansi97 { color: var(--fg-0); }
+
+/* ── 29. Terminal loading skeleton — WU-1 ── */
+.cr-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+.cr-skel-bar {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-0) 0%,
+    var(--bg-3) 50%,
+    var(--bg-0) 100%
+  );
+  background-size: 200% 100%;
+  animation: cr-skel-shimmer 1.4s ease-in-out infinite;
+  width: 100%;
+}
+.cr-skel-bar:nth-child(2) { width: 60%; }
+.cr-skel-bar:nth-child(3) { width: 80%; }
+.cr-skel-bar:nth-child(4) { width: 45%; }
+@keyframes cr-skel-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cr-skel-bar { animation: none; background: var(--bg-3); }
+}
+
+/* ── 30. SVG icon helpers — WU-2 ── */
+.cr-icon    { width: 1em; height: 1em; vertical-align: -2px; flex-shrink: 0; }
+.cr-icon-xl { color: var(--accent); }
+.cr-flip    { transform: rotate(180deg); }
+
+/* ── 31. 404 page layout — WU-7 ── */
+.cr-404 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 16px;
+}

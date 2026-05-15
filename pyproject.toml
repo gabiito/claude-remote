@@ -10,6 +10,7 @@ dependencies = [
     "python-multipart>=0.0.12,<0.1",
     "libtmux>=0.40,<0.41",
     "httpx>=0.27,<0.28",
+    "ansi2html>=1.9.2,<2",
 ]
 
 [project.optional-dependencies]

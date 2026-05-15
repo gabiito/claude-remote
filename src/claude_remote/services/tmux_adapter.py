@@ -350,9 +350,12 @@ class LibTmuxAdapter:
                 RuntimeError(f"session not found: {session_name}"),
             )
         pane = session.active_pane  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        # capture_pane(start="-") fetches complete scrollback history.
-        lines = pane.capture_pane(start="-")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        return "\n".join(lines)  # pyright: ignore[reportUnknownArgumentType]
+        # Use tmux capture-pane -S - -p -e to preserve ANSI escape sequences.
+        # libtmux 0.40 does not expose an `e=True` kwarg on capture_pane(), so
+        # we call the raw tmux command directly (ADR-V1 — libtmux kwarg fallback).
+        result = pane.cmd("capture-pane", "-S", "-", "-p", "-e")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        output: str = result.stdout if isinstance(result.stdout, str) else "\n".join(result.stdout or [])  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        return output
 
     def send_keys(self, session_name: str, text: str, *, send_enter: bool = True) -> None:
         """Deliver text to the active pane of the named session.

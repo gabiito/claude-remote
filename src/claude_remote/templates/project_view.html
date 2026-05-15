@@ -79,7 +79,7 @@
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"
            hx-get="/ui/instances/{{ primary_instance.instance.id }}/output"
            hx-trigger="load, every 2s [document.visibilityState === 'visible' && !(window.getSelection().toString() && document.getElementById('output-content').contains(window.getSelection().anchorNode))]"
-           hx-swap="innerHTML">Cargando…</pre>
+           hx-swap="innerHTML"><div class="cr-skel" aria-busy="true" aria-label="Cargando salida"><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div></div></pre>
       {% else %}
       <pre class="cr-terminal cr-scroll" id="output-content" style="opacity: 0.5;">
 Sin sesión activa. Lanzá una nueva para ver la salida.</pre>
