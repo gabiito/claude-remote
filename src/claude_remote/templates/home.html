@@ -100,26 +100,26 @@
     </form>
   </div>
 
-  {# ── Project list ── #}
-  {% if cards %}
-    <div class="cr-list cr-scroll">
+  {# ── Project list (always renders so HTMX form swaps have a target) ── #}
+  <div class="cr-list cr-scroll">
+    {% if cards %}
       {% for card in cards %}
       {% set project = card.project %}
       {% set instance_views = card.instance_views %}
       {% set recent_events = card.recent_events %}
       {% include "partials/project_card.html" %}
       {% endfor %}
-    </div>
-  {% else %}
-    <div class="cr-empty">
-      <div class="cr-empty-glyph">∅</div>
-      <h3>No hay proyectos</h3>
-      <p>Creá uno para empezar una sesión remota de Claude.</p>
-      <button class="cr-new-btn" style="flex: none; min-width: 180px;"
-              x-data @click="$dispatch('open-create-modal')">
-        + Nuevo proyecto
-      </button>
-    </div>
-  {% endif %}
+    {% else %}
+      <div class="cr-empty">
+        <div class="cr-empty-glyph">∅</div>
+        <h3>No hay proyectos</h3>
+        <p>Creá uno para empezar una sesión remota de Claude.</p>
+        <button class="cr-new-btn" style="flex: none; min-width: 180px;"
+                x-data @click="$dispatch('open-create-modal')">
+          + Nuevo proyecto
+        </button>
+      </div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

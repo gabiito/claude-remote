@@ -139,11 +139,16 @@ async def test_home_empty_state(home_client: AsyncClient) -> None:
 async def test_home_empty_state_renders_project_list_container(
     home_client: AsyncClient,
 ) -> None:
-    """Empty state still renders the project list area so HTMX form swaps work on first create."""
+    """Empty state still renders the .cr-list container so HTMX form swap on
+    POST /ui/projects (hx-target='.cr-list') has a target on first create.
+
+    Regression test for the 2026-05 bug where the empty state replaced .cr-list
+    entirely, causing htmx:targetError on the very first project create.
+    """
     response = await home_client.get("/")
     assert response.status_code == 200
-    # New design uses cr-empty or cr-shell; empty state is within the shell
-    assert "cr-shell" in response.text or "cr-empty" in response.text or "cr-list" in response.text
+    assert 'class="cr-list cr-scroll"' in response.text
+    assert "cr-empty" in response.text  # empty-state still shows inside the container
 
 
 async def test_home_lists_projects(
