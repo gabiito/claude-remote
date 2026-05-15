@@ -1,6 +1,7 @@
 """HTMX UI action routes — /ui/* prefix.
 
 Endpoints:
+  GET    /ui/projects/{id}/card         Render a single project card (HTMX polling target)
   POST   /ui/projects                   Create project (form-urlencoded) → project card fragment
   POST   /ui/projects/{id}/launch       Launch instance → updated project card
   POST   /ui/instances/{id}/stop        Stop instance → updated instance row
@@ -13,15 +14,19 @@ Errors return 4xx with HX-Reswap + HX-Retarget headers + error_message partial.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
+from typing import TypedDict
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from claude_remote.config import Settings, get_settings
+from claude_remote.db.events import Event, EventsRepository
 from claude_remote.db.instances import Instance, InstancesRepository
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
 from claude_remote.routes._templates import templates as TEMPLATES
 from claude_remote.routes.instances import (
+    get_events_repo,
     get_instances_repo,
     get_tmux_launcher,
 )
@@ -32,11 +37,24 @@ from claude_remote.services.exceptions import (
     ProjectNotFoundError,
     TmuxOperationError,
 )
+from claude_remote.services.live_status import derive_live_status
 from claude_remote.services.path_validation import PathValidationError, validate_project_path
 from claude_remote.services.slug import slugify
 from claude_remote.services.tmux_launcher import TmuxLauncher
 
 router = APIRouter(prefix="/ui", tags=["ui"])
+
+
+# ---------------------------------------------------------------------------
+# Render-time DTOs (ADR-2: never mutate Instance Pydantic model)
+# ---------------------------------------------------------------------------
+
+
+class InstanceView(TypedDict):
+    """Thin render-time DTO pairing an instance with its derived live status."""
+
+    instance: Instance
+    live_status: str
 
 
 # ---------------------------------------------------------------------------
@@ -62,20 +80,89 @@ def _error_fragment(request: Request, message: str, status_code: int = 400) -> H
 def _render_project_card(
     request: Request,
     project: object,
-    instances: list[Instance],
+    instance_views: list[InstanceView],
+    recent_events: list[Event],
 ) -> str:
-    """Render project_card partial to a string."""
+    """Render project_card partial to a string.
+
+    Args:
+        request: the current ASGI request (passed through for context).
+        project: the Project record.
+        instance_views: list of InstanceView dicts (instance + live_status).
+        recent_events: list of up to 5 project-level recent events for the feed.
+    """
     return TEMPLATES.get_template("partials/project_card.html").render(  # type: ignore[attr-defined, return-value]
         project=project,
-        instances=instances,
+        instance_views=instance_views,
+        recent_events=recent_events,
     )
 
 
-def _render_instance_row(request: Request, instance: Instance) -> str:
-    """Render instance_row partial to a string."""
+def _render_instance_row(request: Request, instance: Instance, live_status: str) -> str:
+    """Render instance_row partial to a string.
+
+    Args:
+        request: the current ASGI request.
+        instance: the Instance record.
+        live_status: derived live status string (MUST be passed explicitly;
+            never read from instance.status to avoid displaying stale DB value).
+    """
     return TEMPLATES.get_template("partials/instance_row.html").render(  # type: ignore[attr-defined, return-value]
         instance=instance,
+        live_status=live_status,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /ui/projects/{id}/card — Refresh single project card (HTMX poll target)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/projects/{project_id}/card", response_class=HTMLResponse)
+async def get_project_card(
+    request: Request,
+    project_id: str,
+    projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
+    instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
+) -> HTMLResponse:
+    """Render and return a single project card enriched with live_status + events.
+
+    HTMX polls this endpoint every 5s (visibility-gated) and replaces the
+    entire project card via ``hx-swap="outerHTML"``.
+
+    Returns:
+        200 + project card HTML on success.
+        404 + error fragment with ``HX-Reswap: outerHTML`` if project not found.
+    """
+    project = projects_repo.get(project_id)
+    if project is None:
+        content = TEMPLATES.get_template("partials/error_message.html").render(  # type: ignore[attr-defined]
+            message=f"Proyecto '{project_id}' no encontrado."
+        )
+        return HTMLResponse(
+            content=content,
+            status_code=404,
+            headers={"HX-Reswap": "outerHTML"},
+        )
+
+    now = datetime.now(UTC)
+    instances = instances_repo.list_by_project(project_id)
+    instance_views: list[InstanceView] = [
+        {
+            "instance": inst,
+            "live_status": derive_live_status(
+                inst,
+                events_repo.list_for_instance(inst.id, limit=20),
+                now=now,
+            ),
+        }
+        for inst in instances
+    ]
+    recent_events = events_repo.list_for_project(project_id, limit=5)
+
+    content = _render_project_card(request, project, instance_views, recent_events)
+    return HTMLResponse(content=content, status_code=200)
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +218,7 @@ async def create_project_ui(
             status_code=409,
         )
 
-    content = _render_project_card(request, project, instances=[])
+    content = _render_project_card(request, project, instance_views=[], recent_events=[])
     return HTMLResponse(content=content, status_code=200)
 
 
@@ -146,6 +233,7 @@ async def launch_project_ui(
     project_id: str,
     launcher: TmuxLauncher = Depends(get_tmux_launcher),  # noqa: B008
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
     projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
 ) -> HTMLResponse:
     """Launch an instance for a project and return the updated project card."""
@@ -174,10 +262,22 @@ async def launch_project_ui(
     if project is None:
         return _error_fragment(request, "Proyecto no encontrado.", status_code=404)
 
-    all_instances = instances_repo.list_all()
-    project_instances = [i for i in all_instances if i.project_id == project_id]
+    now = datetime.now(UTC)
+    project_instances = instances_repo.list_by_project(project_id)
+    instance_views: list[InstanceView] = [
+        {
+            "instance": inst,
+            "live_status": derive_live_status(
+                inst,
+                events_repo.list_for_instance(inst.id, limit=20),
+                now=now,
+            ),
+        }
+        for inst in project_instances
+    ]
+    recent_events = events_repo.list_for_project(project_id, limit=5)
 
-    content = _render_project_card(request, project, instances=project_instances)
+    content = _render_project_card(request, project, instance_views, recent_events)
     return HTMLResponse(content=content, status_code=200)
 
 
@@ -191,8 +291,14 @@ async def stop_instance_ui(
     request: Request,
     instance_id: str,
     launcher: TmuxLauncher = Depends(get_tmux_launcher),  # noqa: B008
+    events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
 ) -> HTMLResponse:
-    """Stop an instance and return the updated instance row."""
+    """Stop an instance and return the updated instance row with live_status.
+
+    Note: live_status is computed AFTER the stop so the row reflects the
+    post-stop state.  Stopped instances always return ``stopped`` via
+    derive_live_status (terminal status wins — Rule 1).
+    """
     try:
         instance = await asyncio.to_thread(lambda: launcher.stop(instance_id))
     except InstanceNotFoundError:
@@ -202,7 +308,11 @@ async def stop_instance_ui(
             status_code=404,
         )
 
-    content = _render_instance_row(request, instance)
+    now = datetime.now(UTC)
+    recent_events = events_repo.list_for_instance(instance.id, limit=20)
+    live_status = derive_live_status(instance, recent_events, now=now)
+
+    content = _render_instance_row(request, instance, live_status=live_status)
     return HTMLResponse(content=content, status_code=200)
 
 

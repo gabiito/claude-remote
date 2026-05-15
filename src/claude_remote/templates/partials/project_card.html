@@ -1,15 +1,37 @@
-<div class="project-card" data-project-id="{{ project.id }}">
+<div class="project-card"
+     data-project-id="{{ project.id }}"
+     hx-get="/ui/projects/{{ project.id }}/card"
+     hx-trigger="every 5s [document.visibilityState === 'visible']"
+     hx-swap="outerHTML">
   <div class="project-card-header">
     <h2 class="project-card-name">{{ project.name }}</h2>
   </div>
   <p class="project-card-meta">{{ project.domain }} / {{ project.slug }}</p>
 
-  {% if instances %}
+  {% if instance_views %}
   <div class="instance-list">
-    {% for instance in instances %}
+    {% for view in instance_views %}
+    {% set instance = view.instance %}
+    {% set live_status = view.live_status %}
     {% include "partials/instance_row.html" %}
     {% endfor %}
   </div>
+  {% endif %}
+
+  {% if recent_events %}
+  <details id="events-feed-{{ project.id }}" class="events-feed" hx-preserve="true">
+    <summary>{{ recent_events|length }} evento{{ '' if recent_events|length == 1 else 's' }}</summary>
+    <ul>
+      {% for event in recent_events %}
+      <li>
+        <span class="event-type-pill type-{{ event.event_type|lower }}">{{ event.event_type }}</span>
+        <span class="event-time">{{ event.received_at|format_relative }}</span>
+        {% set snippet = event|extract_snippet %}
+        {% if snippet %}<span class="event-snippet">{{ snippet }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
   {% endif %}
 
   <div class="project-card-actions">

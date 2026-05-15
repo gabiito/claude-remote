@@ -1,6 +1,12 @@
-<div class="instance-row" data-instance-id="{{ instance.id }}">
+<div class="instance-row"
+     data-instance-id="{{ instance.id }}"
+     data-db-status="{{ instance.status }}"
+     data-live-status="{{ live_status }}">
   <div class="instance-info">
-    <span class="status-pill status-{{ instance.status }}">{{ instance.status }}</span>
+    <span class="status-pill status-{{ live_status }}"
+          title="DB: {{ instance.status }} | Live: {{ live_status }}">
+      {{ live_status }}
+    </span>
     <span class="instance-id">{{ instance.id[:8] }}</span>
   </div>
   <div class="instance-actions">

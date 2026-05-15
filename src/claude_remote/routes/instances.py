@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from claude_remote.api.errors import error_response
 from claude_remote.config import Settings, get_settings
 from claude_remote.db.connection import get_connection_for
+from claude_remote.db.events import EventsRepository
 from claude_remote.db.instances import Instance, InstancesRepository
 from claude_remote.db.projects import ProjectsRepository
 from claude_remote.services.exceptions import InstanceNotFoundError
@@ -39,6 +40,15 @@ router = APIRouter(prefix="/instances", tags=["instances"])
 # ---------------------------------------------------------------------------
 # DI factories
 # ---------------------------------------------------------------------------
+
+
+def get_events_repo(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> EventsRepository:
+    """Dependency provider: EventsRepository pointing at settings.db_path."""
+    return EventsRepository(
+        connection_factory=lambda: get_connection_for(settings.db_path)
+    )
 
 
 def get_tmux_adapter() -> TmuxAdapter:
