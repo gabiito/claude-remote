@@ -98,7 +98,7 @@ window.subscribePush = subscribePush;
 window.unsubscribePush = unsubscribePush;
 window.isStandalonePWA = isStandalonePWA;
 
-window.pushSettings = function () {
+function pushSettingsComponent() {
   return {
     permission: 'default',
     subscribed: false,
@@ -168,4 +168,12 @@ window.pushSettings = function () {
       await this.loadDevices();
     },
   };
-};
+}
+
+// Register with Alpine before it initializes. This file must be loaded BEFORE
+// the Alpine core script (see base.html): with all scripts deferred, Alpine
+// auto-starts in a microtask that runs before later deferred scripts execute,
+// so a bare window global would not exist yet when x-data is evaluated.
+document.addEventListener('alpine:init', () => {
+  window.Alpine.data('pushSettings', pushSettingsComponent);
+});
