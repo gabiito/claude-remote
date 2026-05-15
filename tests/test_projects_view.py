@@ -268,3 +268,29 @@ async def test_project_view_events_feed_renders_up_to_50(
     event_row_count = html.count("cr-event-row")
     assert event_row_count <= 50
     assert event_row_count > 0
+
+
+# ---------------------------------------------------------------------------
+# WU-6 (mvp-notifications) — gear link on project deep view
+# ---------------------------------------------------------------------------
+
+
+async def test_project_view_contains_gear_link(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """GET /projects/{id} → deep view contains a gear link pointing to /settings."""
+    p_path = tmp_projects_root / "acme.com" / "gearproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="GearProj", slug="gearproj", path=p_path, domain="acme.com"
+        )
+    )
+    response = await pv_client.get(
+        f"/projects/{project.id}", headers={"Accept": "text/html"}
+    )
+    assert response.status_code == 200
+    assert 'href="/settings"' in response.text
+    assert "cr-gear-link" in response.text

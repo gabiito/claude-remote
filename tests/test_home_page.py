@@ -456,6 +456,30 @@ async def test_home_instance_row_has_data_db_and_live_status(
     assert "data-status=" in response.text
 
 
+# ---------------------------------------------------------------------------
+# WU-6 (mvp-notifications) — gear link to /settings
+# ---------------------------------------------------------------------------
+
+
+async def test_home_contains_gear_link(home_client: AsyncClient) -> None:
+    """GET / → home page contains a gear link pointing to /settings."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'href="/settings"' in response.text
+
+
+async def test_home_gear_link_has_settings_class(home_client: AsyncClient) -> None:
+    """GET / → gear link uses cr-gear-link class."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert "cr-gear-link" in response.text
+
+
+# ---------------------------------------------------------------------------
+# Pre-existing test (must stay at end)
+# ---------------------------------------------------------------------------
+
+
 async def test_home_events_feed_has_stable_id_and_hx_preserve(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,
