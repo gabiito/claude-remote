@@ -73,10 +73,18 @@
       <hr class="cr-divider">
 
       {# ── Ntfy topic ── #}
-      <section class="cr-settings-section">
+      <section class="cr-settings-section"
+               x-data="{ copied: false, copy(text){ navigator.clipboard.writeText(text).then(()=>{ this.copied=true; setTimeout(()=>{ this.copied=false }, 1500) }) } }">
         <h2>Ntfy</h2>
-        <input class="cr-topic-input" type="text" readonly
-               value="{{ prefs.ntfy_topic }}">
+        <div class="cr-topic-row">
+          <input class="cr-topic-input" type="text" readonly
+                 value="{{ prefs.ntfy_topic }}" id="ntfy-topic-field">
+          <button type="button" class="cr-topic-copy"
+                  @click="copy(document.getElementById('ntfy-topic-field').value)">
+            <span x-show="!copied">Copiar</span>
+            <span x-show="copied" x-cloak>✓ Copiado</span>
+          </button>
+        </div>
         <p class="cr-helper">
           Suscribite a este topic en la app de ntfy en tu celu para recibir push.
           URL: <code>https://ntfy.sh/{{ prefs.ntfy_topic }}</code>

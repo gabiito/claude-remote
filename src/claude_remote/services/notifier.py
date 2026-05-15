@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime, time
+from datetime import datetime, time
 from typing import TYPE_CHECKING
 
 import httpx
@@ -159,9 +159,8 @@ def should_notify(
     if prefs.quiet_hours_start and prefs.quiet_hours_end:
         start = _parse_time(prefs.quiet_hours_start)
         end = _parse_time(prefs.quiet_hours_end)
-        if start is not None and end is not None:
-            if _in_quiet_hours(now.time(), start, end):
-                return False
+        if start is not None and end is not None and _in_quiet_hours(now.time(), start, end):
+            return False
 
     return True
 
