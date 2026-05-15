@@ -326,7 +326,7 @@ async def test_post_ui_projects_with_create_dir_when_path_exists_proceeds_normal
     ui_client: AsyncClient,
     tmp_projects_root,
 ) -> None:
-    """POST /ui/projects with create_dir=true when path already exists — no error, project registered."""
+    """create_dir=true when path already exists — no error, project registered."""
     target = tmp_projects_root / "gabiito" / "pre-existing"
     target.mkdir(parents=True)
 

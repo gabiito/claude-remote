@@ -67,7 +67,7 @@ class SyncSummary:
     new: int = 0
     stale: int = 0
     unstale: int = 0
-    errors: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ class TestHappyPath:
     def test_creates_directory(self, tmp_path: Path) -> None:
         """create_project_directory creates the target directory."""
         create_project_directory, _, _ = _import_fs()
-        result = create_project_directory(tmp_path, "gabiito", "new-proj")
+        create_project_directory(tmp_path, "gabiito", "new-proj")
         assert (tmp_path / "gabiito" / "new-proj").is_dir()
 
     def test_returns_absolute_path(self, tmp_path: Path) -> None:
