@@ -9,7 +9,7 @@ from claude_remote.config import Settings, get_settings
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.notifications import NotificationsRepository
 from claude_remote.routes._templates import templates as TEMPLATES
-from claude_remote.services.notifier import _parse_time
+from claude_remote.services.notifier import _parse_time  # type: ignore[reportPrivateUsage]
 
 router = APIRouter(tags=["settings"])
 
@@ -49,7 +49,7 @@ async def update_settings(
 
     for label, value in (("inicio", qh_start), ("fin", qh_end)):
         if value is not None and _parse_time(value) is None:
-            content = TEMPLATES.get_template("partials/error_message.html").render(
+            content = TEMPLATES.get_template("partials/error_message.html").render(  # type: ignore[attr-defined]
                 message=f"Formato inválido en quiet hours ({label}); usá HH:MM."
             )
             return HTMLResponse(
@@ -69,7 +69,7 @@ async def update_settings(
         quiet_hours_end=qh_end,
     )
 
-    content = TEMPLATES.get_template("partials/settings_toast.html").render()
+    content = TEMPLATES.get_template("partials/settings_toast.html").render()  # type: ignore[attr-defined]
     return HTMLResponse(
         content=content,
         status_code=200,

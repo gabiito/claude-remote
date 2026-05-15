@@ -1085,7 +1085,140 @@ body {
   to   { transform: translateY(0); }
 }
 
-/* ── 24. Reduced-motion overrides ── */
+/* ── 24. Settings page ── */
+
+/* Gear icon link — icon-only sibling of cr-new-btn */
+.cr-gear-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-0);
+  border-radius: 8px;
+  color: var(--fg-1);
+  text-decoration: none;
+  font-size: 16px;
+  font-family: var(--fnt-ui);
+}
+.cr-gear-link:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Settings main column */
+.cr-settings-main {
+  flex: 1;
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+.cr-settings-section { padding: 12px 0; }
+.cr-settings-section h2 {
+  font-family: var(--fnt-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 12px 0;
+}
+
+/* Toggle row */
+.cr-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-family: var(--fnt-ui);
+  font-size: 14px;
+  color: var(--fg-1);
+  cursor: pointer;
+  min-height: 44px;
+}
+.cr-toggle-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Quiet-hours time range */
+.cr-time-range {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--fnt-mono);
+  font-size: 14px;
+}
+.cr-time-range input[type="time"] {
+  background: var(--bg-input);
+  border: 1px solid var(--line-0);
+  border-radius: 6px;
+  color: var(--fg-0);
+  padding: 8px 10px;
+  font-family: inherit;
+}
+
+/* Helper text */
+.cr-helper {
+  margin: 8px 0 0 0;
+  font-family: var(--fnt-ui);
+  font-size: 12px;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+.cr-helper code {
+  font-family: var(--fnt-mono);
+  background: var(--bg-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--accent);
+}
+
+/* Ntfy topic input — readonly */
+.cr-topic-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--line-0);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--fnt-mono);
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+/* Divider */
+.cr-divider {
+  border: 0;
+  border-top: 1px solid var(--line-0);
+  margin: 16px 0;
+}
+
+/* Settings actions row */
+.cr-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 0;
+}
+
+/* Generic toast — mirrors cr-sync-toast */
+.cr-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin: 8px 0;
+  background: var(--bg-2);
+  border: 1px solid var(--st-active);
+  border-radius: 8px;
+  color: var(--st-active);
+  font-family: var(--fnt-mono);
+  font-size: 12px;
+  animation: cr-fade-in 180ms ease-out;
+}
+
+/* ── 26. Reduced-motion overrides ── */
 @media (prefers-reduced-motion: reduce) {
   .cr-led[data-status="needs"]::before,
   .cr-led[data-status="needs"]::after,
@@ -1094,7 +1227,7 @@ body {
   .cr-pill[data-status="needs"] .cr-pill-mark { animation: none; }
 }
 
-/* ── 25. Desktop responsive wrapper ── */
+/* ── 27. Desktop responsive wrapper ── */
 @media (min-width: 720px) {
   body {
     align-items: center;
