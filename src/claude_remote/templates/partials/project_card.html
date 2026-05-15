@@ -22,33 +22,35 @@
   {# Status LED strip (left edge) #}
   <div class="cr-led" data-status="{{ agg_status }}"></div>
 
-  {# Card body link — navigates to deep view on click (action buttons use @click.stop) #}
-  <a href="/projects/{{ project.id }}" class="cr-card-link" @click.stop>
-    <div class="cr-card-row1">
-      <span class="cr-proj-name">
-        <span class="cr-domain">{{ project.domain }}</span>
-        <span class="cr-slash">/</span>
+  {# Body click = expand; the project name <a> is the only nav target (uses @click.stop). #}
+  <div class="cr-card-row1">
+    <span class="cr-proj-name">
+      <span class="cr-domain">{{ project.domain }}</span>
+      <span class="cr-slash">/</span>
+      <a href="/projects/{{ project.id }}" class="cr-name-link" @click.stop>
         <span class="cr-leaf">{{ project.name }}</span>
-        {% if project.is_stale %}<span class="cr-stale-badge">⚠ stale</span>{% endif %}
+        <span class="cr-name-arrow" aria-hidden="true">→</span>
+      </a>
+      {% if project.is_stale %}<span class="cr-stale-badge">⚠ stale</span>{% endif %}
+    </span>
+    {% if instance_views %}
+      {% set iv = instance_views[0] %}
+      <span class="cr-pill" data-variant="dot" data-status="{{ iv.live_status }}">
+        <span class="cr-pill-mark"></span>
+        {{ iv.live_status | upper }}
       </span>
-      {% if instance_views %}
-        {% set iv = instance_views[0] %}
-        <span class="cr-pill" data-variant="dot" data-status="{{ iv.live_status }}">
-          <span class="cr-pill-mark"></span>
-          {{ iv.live_status | upper }}
-        </span>
-      {% else %}
-        <span class="cr-pill" data-variant="dot" data-status="stopped">
-          <span class="cr-pill-mark"></span>
-          SIN SESIÓN
-        </span>
-      {% endif %}
-    </div>
+    {% else %}
+      <span class="cr-pill" data-variant="dot" data-status="stopped">
+        <span class="cr-pill-mark"></span>
+        SIN SESIÓN
+      </span>
+    {% endif %}
+    <span class="cr-expand-chevron" :class="{ 'is-open': expanded }" aria-hidden="true">▸</span>
+  </div>
 
-    <div class="cr-card-row2">
-      <span>{{ project.slug }}</span>
-    </div>
-  </a>
+  <div class="cr-card-row2">
+    <span>{{ project.slug }}</span>
+  </div>
 
   {# Expanded section — events mini feed + actions #}
   <div class="cr-card-expanded" x-show="expanded" x-cloak @click.stop>

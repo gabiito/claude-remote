@@ -361,6 +361,38 @@ body {
 .cr-proj-name .cr-slash  { color: var(--fg-4); padding: 0 1px; }
 .cr-proj-name .cr-leaf   { color: var(--fg-0); font-weight: 600; }
 
+/* Project name link — distinct affordance from the card's expand-on-click body */
+.cr-name-link {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent-dim);
+  padding-bottom: 1px;
+  transition: color 120ms, border-color 120ms;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.cr-name-link:hover { border-bottom-color: var(--accent); }
+.cr-name-link:hover .cr-name-arrow { transform: translateX(2px); opacity: 1; }
+.cr-name-link .cr-leaf { color: var(--accent); font-weight: 600; }
+.cr-name-arrow {
+  font-size: 11px;
+  color: var(--accent-dim);
+  opacity: 0.6;
+  transition: transform 140ms ease, opacity 140ms;
+  display: inline-block;
+}
+
+/* Expand/collapse chevron — rotates on open */
+.cr-expand-chevron {
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-left: 4px;
+  transition: transform 160ms ease;
+  flex: 0 0 auto;
+}
+.cr-expand-chevron.is-open { transform: rotate(90deg); color: var(--fg-1); }
+
 .cr-card-row2 {
   display: flex;
   align-items: center;
