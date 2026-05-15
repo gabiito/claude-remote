@@ -47,18 +47,18 @@
     </div>
   </div>
 
-  <!-- Project list -->
-  {% if projects %}
+  <!-- Project list (always rendered so HTMX form swaps have a target) -->
   <div class="project-list">
-    {% for project in projects %}
-    {% set instances = instances_by_project.get(project.id, []) %}
-    {% include "partials/project_card.html" %}
-    {% endfor %}
+    {% if projects %}
+      {% for project in projects %}
+      {% set instances = instances_by_project.get(project.id, []) %}
+      {% include "partials/project_card.html" %}
+      {% endfor %}
+    {% else %}
+    <div class="empty-state">
+      <p>No hay proyectos. Creá uno para empezar.</p>
+    </div>
+    {% endif %}
   </div>
-  {% else %}
-  <div class="empty-state">
-    <p>No hay proyectos. Creá uno para empezar.</p>
-  </div>
-  {% endif %}
 </div>
 {% endblock %}

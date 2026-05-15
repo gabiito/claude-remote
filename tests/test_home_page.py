@@ -109,6 +109,15 @@ async def test_home_empty_state(home_client: AsyncClient) -> None:
     assert "No hay proyectos" in response.text
 
 
+async def test_home_empty_state_renders_project_list_container(
+    home_client: AsyncClient,
+) -> None:
+    """Empty state still renders .project-list so HTMX form swaps work on first create."""
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert 'class="project-list"' in response.text
+
+
 async def test_home_lists_projects(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,
