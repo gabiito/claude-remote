@@ -326,6 +326,63 @@ class LibTmuxAdapter:
             # library-internal exception variant.  Contract: never raises.
             return None
 
+    def capture_pane(self, session_name: str) -> str:
+        """Return the full pane scrollback for the named session.
+
+        Calls ``tmux capture-pane -S - -p`` to retrieve the complete history.
+        Lines are joined with newlines into a single string.
+
+        Returns:
+            Single string with all pane content.
+
+        Raises:
+            TmuxOperationError: if the session does not exist (ADR #651 —
+            CONTRACT DIVERGENCE from kill_session / session_exists which
+            never raise on missing sessions).
+        """
+        server = self._get_server()
+        session = server.sessions.get(  # type: ignore[union-attr]
+            default=None, session_name=session_name
+        )
+        if session is None:
+            raise TmuxOperationError(
+                "capture_pane",
+                RuntimeError(f"session not found: {session_name}"),
+            )
+        pane = session.active_pane  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        # capture_pane(start="-") fetches complete scrollback history.
+        lines = pane.capture_pane(start="-")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        return "\n".join(lines)  # pyright: ignore[reportUnknownArgumentType]
+
+    def send_keys(self, session_name: str, text: str, *, send_enter: bool = True) -> None:
+        """Deliver text to the active pane of the named session.
+
+        Args:
+            session_name: target tmux session.
+            text: text to deliver verbatim.
+            send_enter: when True (default), appends an Enter keystroke.
+
+        MVP limitation: ``literal=True`` is used so special key codes like
+        ``C-c`` or ``ESC`` are NOT interpreted — they are sent as literal
+        strings.  This is intentional for safety.
+
+        Raises:
+            TmuxOperationError: if the session does not exist (ADR #651 —
+            CONTRACT DIVERGENCE from kill_session / session_exists which
+            never raise on missing sessions).
+        """
+        server = self._get_server()
+        session = server.sessions.get(  # type: ignore[union-attr]
+            default=None, session_name=session_name
+        )
+        if session is None:
+            raise TmuxOperationError(
+                "send_keys",
+                RuntimeError(f"session not found: {session_name}"),
+            )
+        pane = session.active_pane  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        pane.send_keys(text, enter=send_enter, literal=True)  # pyright: ignore[reportUnknownMemberType]
+
     @staticmethod
     def _read_pane_pid(session: object) -> int | None:
         """Extract pane PID from a libtmux Session object.
