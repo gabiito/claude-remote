@@ -87,21 +87,25 @@ def _render_instance_row(request: Request, instance: Instance) -> str:
 async def create_project_ui(
     request: Request,
     name: str | None = Form(default=None),
-    path: str | None = Form(default=None),
+    domain: str | None = Form(default=None),
     settings: Settings = Depends(get_settings),  # noqa: B008
     repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
 ) -> HTMLResponse:
-    """Create a project via HTMX form and return the project card fragment."""
-    # Validate required fields
-    if not path:
-        return _error_fragment(request, "El campo 'path' es obligatorio.")
+    """Create a project via HTMX form and return the project card fragment.
 
-    if not name:
+    Accepts `domain` + `name` from the form; composes the filesystem path as
+    `<projects_root>/<domain>/<name>` and runs the standard path validation.
+    """
+    if not domain or not domain.strip():
+        return _error_fragment(request, "El campo 'domain' es obligatorio.")
+
+    if not name or not name.strip():
         return _error_fragment(request, "El campo 'name' es obligatorio.")
 
-    # Validate filesystem path
+    composed_path = settings.projects_root / domain.strip() / name.strip()
+
     try:
-        validated = validate_project_path(path, settings.projects_root)
+        validated = validate_project_path(str(composed_path), settings.projects_root)
     except PathValidationError as exc:
         return _error_fragment(request, exc.message)
 

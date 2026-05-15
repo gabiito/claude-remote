@@ -145,6 +145,22 @@ async def test_home_lists_projects(
     assert "data-project-id=" in response.text
 
 
+async def test_home_renders_existing_domain_options(
+    home_client: AsyncClient,
+    tmp_projects_root,
+) -> None:
+    """Home page exposes existing top-level domain directories for the create form."""
+    (tmp_projects_root / "alpha-domain").mkdir()
+    (tmp_projects_root / "beta-domain").mkdir()
+    (tmp_projects_root / "not-a-dir.txt").touch()  # files should be ignored
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert "alpha-domain" in response.text
+    assert "beta-domain" in response.text
+    assert "not-a-dir.txt" not in response.text
+
+
 async def test_home_project_card_has_data_id(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,

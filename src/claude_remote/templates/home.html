@@ -31,13 +31,27 @@
         hx-swap="afterbegin"
         x-on:htmx:after-request="if (event.detail.successful) open = false"
       >
+        <p class="form-hint">Final path: <code>{{ projects_root }}/&lt;domain&gt;/&lt;name&gt;</code></p>
         <div class="form-group">
-          <label for="proj-name">Name</label>
-          <input type="text" id="proj-name" name="name" placeholder="My Project" required>
+          <label for="proj-domain">Domain</label>
+          <input
+            type="text"
+            id="proj-domain"
+            name="domain"
+            list="domain-options"
+            placeholder="gabiito"
+            required
+            autocomplete="off"
+          >
+          <datalist id="domain-options">
+            {% for d in existing_domains %}
+            <option value="{{ d }}"></option>
+            {% endfor %}
+          </datalist>
         </div>
         <div class="form-group">
-          <label for="proj-path">Path</label>
-          <input type="text" id="proj-path" name="path" placeholder="/projects/example.com/myproj" required>
+          <label for="proj-name">Name</label>
+          <input type="text" id="proj-name" name="name" placeholder="my-project" required>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" @click="open = false">Cancel</button>

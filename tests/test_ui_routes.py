@@ -119,12 +119,11 @@ async def test_post_ui_projects_happy_path(
     tmp_projects_root,
 ) -> None:
     """POST /ui/projects with valid form data returns 200 with project card HTML."""
-    path = tmp_projects_root / "example.com" / "newproj"
-    path.mkdir(parents=True)
+    (tmp_projects_root / "example.com" / "newproj").mkdir(parents=True)
 
     response = await ui_client.post(
         "/ui/projects",
-        data={"name": "New Project", "path": str(path)},
+        data={"name": "newproj", "domain": "example.com"},
     )
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
@@ -132,11 +131,11 @@ async def test_post_ui_projects_happy_path(
     assert "data-project-id=" in response.text
 
 
-async def test_post_ui_projects_missing_path(ui_client: AsyncClient) -> None:
-    """POST /ui/projects without a path returns 400 with error fragment and HX headers."""
+async def test_post_ui_projects_missing_domain(ui_client: AsyncClient) -> None:
+    """POST /ui/projects without a domain returns 400 with error fragment and HX headers."""
     response = await ui_client.post(
         "/ui/projects",
-        data={"name": "No Path Project"},
+        data={"name": "no-domain"},
     )
     assert response.status_code == 400
     assert "HX-Reswap" in response.headers
@@ -147,18 +146,28 @@ async def test_post_ui_projects_missing_path(ui_client: AsyncClient) -> None:
     assert 'class="error-message"' in response.text
 
 
-async def test_post_ui_projects_invalid_path(
-    ui_client: AsyncClient,
-    tmp_projects_root,
-) -> None:
-    """POST /ui/projects with a path outside projects_root returns 400 with error fragment."""
+async def test_post_ui_projects_missing_name(ui_client: AsyncClient) -> None:
+    """POST /ui/projects without a name returns 400 with error fragment."""
     response = await ui_client.post(
         "/ui/projects",
-        data={"name": "Bad Path", "path": "/tmp/not-under-root"},
+        data={"domain": "example.com"},
     )
     assert response.status_code == 400
     assert response.headers.get("HX-Reswap") == "innerHTML"
-    assert response.headers.get("HX-Retarget") == "#form-error"
+    assert 'class="error-message"' in response.text
+
+
+async def test_post_ui_projects_nonexistent_dir(
+    ui_client: AsyncClient,
+    tmp_projects_root,
+) -> None:
+    """POST /ui/projects with domain+name that doesn't exist on disk returns 400."""
+    response = await ui_client.post(
+        "/ui/projects",
+        data={"name": "ghost", "domain": "nowhere"},
+    )
+    assert response.status_code == 400
+    assert response.headers.get("HX-Reswap") == "innerHTML"
     assert 'class="error-message"' in response.text
 
 
