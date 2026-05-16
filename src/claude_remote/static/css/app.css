@@ -605,6 +605,7 @@ body {
   flex: 1;
   display: flex;
   min-height: 0;
+  min-width: 0;
 }
 .cr-rail {
   flex: 0 0 auto;
@@ -687,6 +688,7 @@ body {
   border-bottom: 1px solid var(--line-0);
   gap: 0;
   flex: 0 0 auto;
+  min-width: 0;
 }
 .cr-pv-tab {
   flex: 1;
@@ -731,6 +733,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
 /* ── 15. Terminal pane (output <pre>) ── */
