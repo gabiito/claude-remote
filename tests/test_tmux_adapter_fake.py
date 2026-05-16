@@ -268,3 +268,39 @@ def test_fake_sent_keys_accumulates_multiple_calls(
     adapter.send_keys("s", "a")
     adapter.send_keys("s", "b")
     assert len(adapter.sent_keys) == 2
+
+
+# ---------------------------------------------------------------------------
+# resize_window — fit-to-screen (roadmap: terminal width)
+# ---------------------------------------------------------------------------
+
+
+def test_fake_resize_window_records_call(
+    adapter: FakeTmuxAdapter, tmp_path: Path
+) -> None:
+    """resize_window records (session, cols, rows) for assertions."""
+    adapter.create_session("s", tmp_path, "bash")
+    adapter.resize_window("s", 52, 30)
+    assert adapter.resizes == [("s", 52, 30)]
+
+
+def test_fake_resize_window_unknown_session_raises(
+    adapter: FakeTmuxAdapter,
+) -> None:
+    """resize_window raises TmuxOperationError for an unknown session
+    (same contract divergence as capture_pane/send_keys, ADR #651)."""
+    import pytest
+
+    from claude_remote.services.exceptions import TmuxOperationError
+
+    with pytest.raises(TmuxOperationError) as exc_info:
+        adapter.resize_window("gone", 80, 24)
+    assert exc_info.value.operation == "resize_window"
+
+
+def test_libtmux_adapter_has_resize_window() -> None:
+    """LibTmuxAdapter and the Protocol expose resize_window."""
+    from claude_remote.services.tmux_adapter import LibTmuxAdapter, TmuxAdapter
+
+    assert hasattr(LibTmuxAdapter, "resize_window")
+    assert hasattr(TmuxAdapter, "resize_window")
