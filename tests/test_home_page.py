@@ -887,3 +887,25 @@ async def test_ui_launch_without_size_still_works(
     assert resp.status_code == 200
     create = [c for c in fake_adapter.calls if c[0] == "create_session"][-1][1]
     assert create["cols"] is None and create["rows"] is None
+
+
+async def test_card_launch_sends_estimated_size(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """The home card Launch button sends estimated cols/rows so the tmux
+    session is born at the device size (no resize-after / dup banner)."""
+    p = tmp_projects_root / "wooli" / "estsz"
+    p.mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(name="estsz", slug="estsz", path=p, domain="wooli")
+    )
+    resp = await home_client.get("/")
+    assert resp.status_code == 200
+    assert 'hx-post="/ui/projects/' in resp.text and "/launch" in resp.text
+    assert "crEstimateTermSize" in resp.text  # hx-vals js helper on Launch
+
+    js = await home_client.get("/static/js/app.js")
+    assert js.status_code == 200
+    assert "crEstimateTermSize" in js.text

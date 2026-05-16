@@ -522,7 +522,7 @@ async def test_deep_view_rail_collapsible(
     assert "cr-rail-open" in html  # localStorage key
 
 
-async def test_deep_view_fit_hardening_markers(
+async def test_deep_view_no_auto_fit_manual_only(
     pv_client: AsyncClient,
     projects_repo: ProjectsRepository,
     tmp_projects_root,
@@ -543,11 +543,10 @@ async def test_deep_view_fit_hardening_markers(
             f"/projects/{proj.id}", headers={"Accept": "text/html"}
         )
     ).text
-    # Wait for fonts before measuring (probe char-width is wrong otherwise).
-    assert "document.fonts" in html
-    # Resize only on open + real orientation change — each tmux resize makes
-    # Claude reprint its banner (dup), so minimize triggers.
-    assert "orientationchange" in html
-    assert "$watch('tab'" not in html        # no tab-switch re-fit
-    assert "cr-rail-toggled" not in html     # no rail-toggle re-fit
-    assert "addEventListener('resize'" not in html  # no generic resize re-fit
+    # Session is sized at launch now → deep view does NOT auto-fit at all
+    # (that resize was the last duplicate-banner source). fit/raw is manual.
+    assert "cr-fit-toggle" in html              # manual toggle stays
+    assert "document.fonts" not in html         # no fonts-gated auto-fit
+    assert "orientationchange" not in html      # no auto re-fit
+    assert "$watch('tab'" not in html
+    assert "cr-rail-toggled" not in html
