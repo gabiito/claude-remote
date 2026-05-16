@@ -1,6 +1,6 @@
 {
-  "name": "claude-remote",
-  "short_name": "claude-remote",
+  "name": "Claudio-RC",
+  "short_name": "Claudio-RC",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

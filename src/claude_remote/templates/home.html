@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "icons/_macros.html" import gear, sync, plus %}
 
-{% block title %}claude-remote{% if needs_count %} ({{ needs_count }}){% endif %}{% endblock %}
+{% block title %}Claudio-RC{% if needs_count %} ({{ needs_count }}){% endif %}{% endblock %}
 
 {% block content %}
 <div class="cr-shell"
@@ -17,7 +17,7 @@
     <div class="cr-brand-row">
       <div class="cr-brand">
         <span class="cr-prompt">~/</span>
-        <span>claude-remote</span>
+        <span>Claudio-RC</span>
         <span class="cr-cursor"></span>
       </div>
       <div class="cr-brand-meta">{{ app_version() }} · py</div>

@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#1e1e2e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>{% block title %}claude-remote{% endblock %}</title>
+  <title>{% block title %}Claudio-RC{% endblock %}</title>
   <link rel="manifest" href="{{ asset_url('manifest.json') }}">
   <link rel="icon" href="{{ asset_url('favicon.svg') }}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{{ asset_url('favicon.svg') }}" type="image/svg+xml">
@@ -28,9 +28,9 @@
     const domain = detail.domain;
     const name = detail.name;
     if (needs && domain && name) {
-      document.title = '🔴 ' + domain + '/' + name + ' — claude-remote';
+      document.title = '🔴 ' + domain + '/' + name + ' — Claudio-RC';
     } else if (domain && name) {
-      document.title = domain + '/' + name + ' — claude-remote';
+      document.title = domain + '/' + name + ' — Claudio-RC';
     }
   },
   showToast(detail) {
