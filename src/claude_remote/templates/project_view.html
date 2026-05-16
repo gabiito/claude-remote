@@ -82,10 +82,10 @@
 
   {# ── Tab container (Terminal + Events) — tab state mirrored to URL hash ── #}
   <div class="cr-pv-tabs"
-       x-data="{ tab: window.location.hash === '#events' ? 'events' : 'terminal' }"
+       x-data="{ tab: window.location.hash === '#events' ? 'events' : 'terminal', wrap: localStorage.getItem('cr-wrap') !== '0' }"
        x-init="window.addEventListener('hashchange', () => { tab = window.location.hash === '#events' ? 'events' : 'terminal' })"
        style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-    <div style="display: flex; background: var(--bg-1); padding: 0 12px; border-bottom: 1px solid var(--line-0); flex: 0 0 auto;">
+    <div style="display: flex; align-items: center; background: var(--bg-1); padding: 0 12px; border-bottom: 1px solid var(--line-0); flex: 0 0 auto;">
       <button class="cr-pv-tab" :data-on="tab === 'terminal' ? '1' : '0'"
               @click="location.hash = 'terminal'">
         {{ play(cls='cr-icon', size=14) }} Terminal
@@ -95,12 +95,21 @@
         {{ list_icon(cls='cr-icon', size=14) }} Events
         <span class="cr-tab-badge">{{ recent_events|length }}</span>
       </button>
+      <button class="cr-wrap-toggle" type="button"
+              x-show="tab === 'terminal'"
+              :data-on="wrap ? '1' : '0'"
+              @click="wrap = !wrap; localStorage.setItem('cr-wrap', wrap ? '1' : '0')"
+              :title="wrap ? 'Wrap on — tap for faithful (scroll) mode' : 'Wrap off — tap to wrap lines'"
+              :aria-pressed="wrap ? 'true' : 'false'">
+        <span x-text="wrap ? 'wrap' : 'no-wrap'"></span>
+      </button>
     </div>
 
     {# ── Output panel ── #}
     <div class="cr-tab-panel" x-show="tab === 'terminal'">
       {% if primary_instance %}
       <pre class="cr-terminal cr-scroll" id="output-content"
+           :class="{ 'cr-wrap': wrap }"
            x-data="{ smartScroll: true }"
            @scroll="smartScroll = (Math.abs($el.scrollTop + $el.clientHeight - $el.scrollHeight) < 50)"
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"

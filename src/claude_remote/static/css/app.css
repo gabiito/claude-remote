@@ -734,12 +734,31 @@ body {
   color: var(--fg-1);
   min-height: 0;
   margin: 0;
-  /* Terminal output is fixed-width (boxes, indentation, code). pre-wrap +
-     word-break mangled alignment on narrow phones; keep lines intact and
-     scroll horizontally instead (overflow-x: auto above). */
+  /* Default = faithful: fixed-width preserved, scroll horizontally (no-wrap).
+     .cr-wrap (user toggle, default ON) soft-wraps so no content is lost on a
+     narrow phone. No word-break: break-word — that mangled words ("roto"). */
   white-space: pre;
   overscroll-behavior-x: contain;
 }
+.cr-terminal.cr-wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cr-wrap-toggle {
+  margin-left: auto;
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-0);
+  background: var(--bg-2);
+  color: var(--fg-3);
+  font-family: var(--fnt-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.cr-wrap-toggle[data-on="1"] { color: var(--accent); border-color: var(--accent-dim); }
 
 /* ── 16. Events pane ── */
 .cr-events-pane {
