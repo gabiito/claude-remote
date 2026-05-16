@@ -2,15 +2,19 @@
 {# Determine the aggregate status for the card LED from instance_views.
    derive_live_status returns 'needs_input' (spec) but CSS uses 'needs' (design).
    Compare against the service value, emit the CSS token. #}
-{% set agg_status = 'stopped' %}
+{# Jinja {% set %} inside a {% for %} is loop-scoped and does NOT leak out;
+   use a namespace so the aggregate survives the loop (prev bug: every card
+   rendered data-status="stopped" regardless of real instance status). #}
+{% set ns = namespace(agg='stopped') %}
 {% for iv in instance_views %}
-  {% if iv.live_status == 'needs_input' %}{% set agg_status = 'needs' %}
-  {% elif iv.live_status == 'active' and agg_status not in ('needs',) %}{% set agg_status = 'active' %}
-  {% elif iv.live_status == 'idle' and agg_status not in ('needs', 'active') %}{% set agg_status = 'idle' %}
-  {% elif iv.live_status == 'running' and agg_status not in ('needs', 'active', 'idle') %}{% set agg_status = 'running' %}
-  {% elif iv.live_status == 'crashed' and agg_status not in ('needs', 'active', 'idle', 'running') %}{% set agg_status = 'crashed' %}
+  {% if iv.live_status == 'needs_input' %}{% set ns.agg = 'needs' %}
+  {% elif iv.live_status == 'active' and ns.agg not in ('needs',) %}{% set ns.agg = 'active' %}
+  {% elif iv.live_status == 'idle' and ns.agg not in ('needs', 'active') %}{% set ns.agg = 'idle' %}
+  {% elif iv.live_status == 'running' and ns.agg not in ('needs', 'active', 'idle') %}{% set ns.agg = 'running' %}
+  {% elif iv.live_status == 'crashed' and ns.agg not in ('needs', 'active', 'idle', 'running') %}{% set ns.agg = 'crashed' %}
   {% endif %}
 {% endfor %}
+{% set agg_status = ns.agg %}
 
 <div class="cr-card"
      data-project-id="{{ project.id }}"
