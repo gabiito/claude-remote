@@ -50,6 +50,23 @@ EVENT_TYPE_TO_BODY_TEMPLATE: dict[str, str] = {
 
 _MAX_BODY = 1000
 
+# AskUserQuestion arrives as a PreToolUse event but is semantically an
+# input-needed moment (Claude is blocked waiting on the user), identical in
+# intent to a Notification. It rides the notify_on_notification toggle.
+_ASK_TOOL_NAME = "AskUserQuestion"
+
+
+def _is_ask_user_question(event: Event) -> bool:
+    """True when the event is a PreToolUse for the AskUserQuestion tool.
+
+    Reuses extract_snippet, which for PreToolUse returns the tool name and
+    never raises on malformed payloads.
+    """
+    return (
+        event.event_type == "PreToolUse"
+        and extract_snippet(event, max_length=64) == _ASK_TOOL_NAME
+    )
+
 
 # ---------------------------------------------------------------------------
 # Quiet hours helpers (pure, never raise)
@@ -118,7 +135,10 @@ def should_notify(
 
     This function is pure: no I/O, no side effects. Quiet hours errors fail open.
     """
-    toggle_field = EVENT_TYPE_TO_TOGGLE.get(event.event_type)
+    if _is_ask_user_question(event):
+        toggle_field: str | None = "notify_on_notification"
+    else:
+        toggle_field = EVENT_TYPE_TO_TOGGLE.get(event.event_type)
     if toggle_field is None:
         return False
 
@@ -151,6 +171,9 @@ def _build_body(event: Event, project: Project) -> str:
     Never raises.
     """
     et = event.event_type
+
+    if _is_ask_user_question(event):
+        return f"Claude is asking you a question on {project.domain}/{project.name}"
 
     if et == "Notification":
         body = extract_snippet(event, max_length=_MAX_BODY)
