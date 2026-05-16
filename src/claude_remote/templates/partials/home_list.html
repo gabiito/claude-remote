@@ -1,6 +1,7 @@
 {# Inner content of .cr-list — rendered inline on full page load AND returned
-   standalone by GET /ui/home/list for the whole-list poll (WU-1b). Polling at
-   the list level (not per-card) is what lets cards re-group live. #}
+   standalone by GET /ui/home/list for the whole-list poll (WU-1b). Cards are
+   already filtered by domain server-side (WU-1c) — no per-card x-show wrapper,
+   which broke under the innerHTML swap. #}
 {% from "icons/_macros.html" import plus %}
 {% if cards %}
   {% if grouped.active %}
@@ -13,9 +14,7 @@
   {% set project = card.project %}
   {% set instance_views = card.instance_views %}
   {% set recent_events = card.recent_events %}
-  <div style="display: contents;" x-show="filter === 'all' || filter === '{{ project.domain }}'">
-    {% include "partials/project_card.html" %}
-  </div>
+  {% include "partials/project_card.html" %}
   {% endfor %}
   {% endif %}
 
@@ -29,9 +28,7 @@
   {% set project = card.project %}
   {% set instance_views = card.instance_views %}
   {% set recent_events = card.recent_events %}
-  <div style="display: contents;" x-show="filter === 'all' || filter === '{{ project.domain }}'">
-    {% include "partials/project_card.html" %}
-  </div>
+  {% include "partials/project_card.html" %}
   {% endfor %}
   {% endif %}
 {% else %}

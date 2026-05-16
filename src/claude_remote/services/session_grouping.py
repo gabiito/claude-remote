@@ -26,6 +26,19 @@ _PRIORITY_INDEX = {s: i for i, s in enumerate(_PRIORITY)}
 ACTIVE_STATUSES: frozenset[str] = frozenset({"needs_input", "active", "running", "idle"})
 
 
+def filter_cards_by_domain(
+    cards: list[dict[str, Any]], domain: str
+) -> list[dict[str, Any]]:
+    """Return only cards in ``domain``. ``"all"`` / empty → unchanged.
+
+    Server-side filtering replaces the old per-card Alpine x-show wrappers,
+    which broke under the whole-list innerHTML poll swap.
+    """
+    if not domain or domain == "all":
+        return list(cards)
+    return [c for c in cards if c["project"].domain == domain]
+
+
 def aggregate_status(instance_views: list[dict[str, Any]]) -> str:
     """Return the most attention-worthy live_status across a project's instances.
 
