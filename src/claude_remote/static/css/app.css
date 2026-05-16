@@ -1410,11 +1410,11 @@ body {
 
 /* ── 28. ANSI palette (Catppuccin Mocha) — WU-1 ── */
 /* Text attributes */
-.cr-terminal .ansi1  { font-weight: 600; }
+.cr-terminal .ansi1  { font-weight: 600; filter: brightness(1.15); }
 .cr-terminal .ansi3  { font-style: italic; }
 .cr-terminal .ansi4  { text-decoration: underline; }
 /* Foreground 30–37 (normal) */
-.cr-terminal .ansi30 { color: #45475a; }              /* black → Surface1 */
+.cr-terminal .ansi30 { color: var(--fg-4); }           /* black → dim-but-legible (was #45475a, invisible) */
 .cr-terminal .ansi31 { color: var(--st-needs); }      /* red   → Red (#f38ba8) */
 .cr-terminal .ansi32 { color: var(--st-active); }     /* green → Green (#a6e3a1) */
 .cr-terminal .ansi33 { color: var(--st-idle); }       /* yellow → Yellow (#f9e2af) */
