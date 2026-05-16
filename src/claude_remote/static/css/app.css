@@ -627,7 +627,8 @@ body {
   border-left: 2px solid transparent;
   transition: background 120ms, color 120ms;
 }
-.cr-rail-item:hover { background: var(--bg-2); color: var(--fg-1); }
+/* Hover is a distinct, lighter transient cue — NOT the active surface. */
+.cr-rail-item:hover { background: var(--bg-3); color: var(--fg-1); }
 .cr-rail-item[data-current="1"] {
   color: var(--fg-0);
   background: var(--bg-2);
@@ -655,6 +656,10 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Domain dimmed so the project name reads first; name inherits the item
+   color (fg-3 default / fg-0 current). */
+.cr-rail-domain { color: var(--fg-4); }
+.cr-rail-leaf { color: inherit; }
 
 .cr-pv-tabs {
   display: flex;

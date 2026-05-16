@@ -74,7 +74,7 @@
        {% if s.is_current %}data-current="1" aria-current="page"{% endif %}
        title="{{ s.domain }}/{{ s.name }} — {{ s.status }}">
       <span class="cr-rail-dot"></span>
-      <span class="cr-rail-name">{{ s.domain }}/{{ s.name }}</span>
+      <span class="cr-rail-name"><span class="cr-rail-domain">{{ s.domain }}/</span><span class="cr-rail-leaf">{{ s.name }}</span></span>
     </a>
     {% endfor %}
   </nav>
