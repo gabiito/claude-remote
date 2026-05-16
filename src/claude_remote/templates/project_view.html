@@ -70,7 +70,7 @@
        x-data="{ railOpen: localStorage.getItem('cr-rail-open') !== '0' }"
        :data-collapsed="railOpen ? '0' : '1'">
     <button class="cr-rail-toggle" type="button"
-            @click="railOpen = !railOpen; localStorage.setItem('cr-rail-open', railOpen ? '1' : '0')"
+            @click="railOpen = !railOpen; localStorage.setItem('cr-rail-open', railOpen ? '1' : '0'); window.dispatchEvent(new CustomEvent('cr-rail-toggled'))"
             :aria-expanded="railOpen ? 'true' : 'false'"
             :title="railOpen ? 'Collapse rail' : 'Expand rail'">
       {{ chevron_right(cls='cr-icon') }}
@@ -94,16 +94,20 @@
          tab: window.location.hash === '#events' ? 'events' : 'terminal',
          fit: localStorage.getItem('cr-fit') !== '0',
          _resizeUrl: {% if primary_instance %}'/ui/instances/{{ primary_instance.instance.id }}/resize'{% else %}null{% endif %},
+         _fitTries: 0,
          _measure() {
            const pre = document.getElementById('output-content');
            if (!pre) return null;
+           // Hidden panel (Events tab) → clientWidth 0 → garbage. Skip.
+           if (pre.offsetParent === null || pre.clientWidth === 0) return null;
            const probe = document.createElement('span');
            probe.style.cssText = 'visibility:hidden;position:absolute;white-space:pre;font:inherit';
            probe.textContent = '0'.repeat(50);
            pre.appendChild(probe);
            const cw = probe.getBoundingClientRect().width / 50;
            pre.removeChild(probe);
-           if (!cw) return null;
+           // Implausible char width → web font not loaded yet. Skip (retry).
+           if (!cw || cw < 4) return null;
            const cs = getComputedStyle(pre);
            const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
            const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
@@ -122,22 +126,35 @@
            }).catch(() => {});
          },
          applyFit() {
-           if (this.fit) { const m = this._measure(); if (m) this._send(m.cols, m.rows); }
-           else { this._send(80, 24); }
+           if (!this.fit) { this._send(80, 24); return; }
+           const m = this._measure();
+           if (m) { this._fitTries = 0; this._send(m.cols, m.rows); return; }
+           // Measure failed (fonts loading / panel hidden) — bounded retry.
+           if (this._fitTries < 8) {
+             this._fitTries += 1;
+             setTimeout(() => this.applyFit(), 300);
+           }
          },
          toggleFit() {
            this.fit = !this.fit;
            localStorage.setItem('cr-fit', this.fit ? '1' : '0');
+           this._fitTries = 0;
            this.applyFit();
          },
        }"
        x-init="
          window.addEventListener('hashchange', () => { tab = window.location.hash === '#events' ? 'events' : 'terminal' });
          {% if primary_instance %}
-         let _rt; const _deb = () => { clearTimeout(_rt); _rt = setTimeout(() => applyFit(), 250); };
+         let _rt; const _deb = () => { clearTimeout(_rt); _rt = setTimeout(() => { _fitTries = 0; applyFit(); }, 250); };
          window.addEventListener('resize', _deb);
          window.addEventListener('orientationchange', _deb);
-         setTimeout(() => applyFit(), 150);
+         window.addEventListener('cr-rail-toggled', _deb);
+         $watch('tab', (v) => { if (v === 'terminal') { _fitTries = 0; applyFit(); } });
+         if (window.document.fonts && document.fonts.ready) {
+           document.fonts.ready.then(() => applyFit());
+         } else {
+           setTimeout(() => applyFit(), 400);
+         }
          {% endif %}
        "
        style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
