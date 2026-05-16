@@ -47,6 +47,7 @@
     Session ended · re-launch to continue
     <button style="margin-left: auto;"
             hx-post="/ui/projects/{{ project.id }}/launch"
+            hx-vals="js:window.crEstimateTermSize()"
             hx-target="body" hx-swap="innerHTML">
       Re-launch
     </button>
@@ -57,6 +58,7 @@
     No active instance — launch a new session to start
     <button style="margin-left: auto;"
             hx-post="/ui/projects/{{ project.id }}/launch"
+            hx-vals="js:window.crEstimateTermSize()"
             hx-target="body" hx-swap="innerHTML">
       Launch
     </button>
@@ -144,20 +146,6 @@
        }"
        x-init="
          window.addEventListener('hashchange', () => { tab = window.location.hash === '#events' ? 'events' : 'terminal' });
-         {% if primary_instance %}
-         // Each tmux resize → SIGWINCH → Claude reprints its banner (dup with
-         // -S -). So resize as RARELY as possible: once on open + on a real
-         // orientation change only. No tab/rail/generic-resize re-fits. The
-         // bounded retry does NOT add resizes (it only waits for one valid
-         // measurement, then sends a single resize).
-         let _rt; const _deb = () => { clearTimeout(_rt); _rt = setTimeout(() => { _fitTries = 0; applyFit(); }, 300); };
-         window.addEventListener('orientationchange', _deb);
-         if (window.document.fonts && document.fonts.ready) {
-           document.fonts.ready.then(() => applyFit());
-         } else {
-           setTimeout(() => applyFit(), 400);
-         }
-         {% endif %}
        "
        style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
     <div style="display: flex; align-items: center; background: var(--bg-1); padding: 0 12px; border-bottom: 1px solid var(--line-0); flex: 0 0 auto;">
