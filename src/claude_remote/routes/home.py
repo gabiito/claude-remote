@@ -26,6 +26,7 @@ from claude_remote.routes._views import InstanceView
 from claude_remote.routes.instances import get_events_repo, get_instances_repo
 from claude_remote.routes.projects import get_projects_repo
 from claude_remote.services.live_status import derive_live_status
+from claude_remote.services.session_grouping import group_and_sort_cards
 from claude_remote.services.sparkline import compute_sparkline
 
 router = APIRouter(tags=["ui"])
@@ -121,6 +122,9 @@ async def home(
         "home.html",
         {
             "cards": cards,
+            # ProjectCardContext is a TypedDict (read-only-compatible with the
+            # helper's dict[str, Any] param); pyright flags the list invariance.
+            "grouped": group_and_sort_cards(cards),  # pyright: ignore[reportArgumentType]
             "existing_domains": _list_existing_domains(settings.projects_root),
             "projects_root": str(settings.projects_root),
             "registered_domains": registered_domains,

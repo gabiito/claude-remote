@@ -188,7 +188,13 @@
   {# ── Project list (always renders so HTMX form swaps have a target) ── #}
   <div class="cr-list cr-scroll">
     {% if cards %}
-      {% for card in cards %}
+      {% if grouped.active %}
+      <div class="cr-section-head">
+        <span>ACTIVE SESSIONS</span>
+        <span class="cr-section-count">{{ grouped.active|length }}</span>
+        <span class="cr-section-rule"></span>
+      </div>
+      {% for card in grouped.active %}
       {% set project = card.project %}
       {% set instance_views = card.instance_views %}
       {% set recent_events = card.recent_events %}
@@ -196,6 +202,23 @@
         {% include "partials/project_card.html" %}
       </div>
       {% endfor %}
+      {% endif %}
+
+      {% if grouped.projects %}
+      <div class="cr-section-head">
+        <span>PROJECTS</span>
+        <span class="cr-section-count">{{ grouped.projects|length }}</span>
+        <span class="cr-section-rule"></span>
+      </div>
+      {% for card in grouped.projects %}
+      {% set project = card.project %}
+      {% set instance_views = card.instance_views %}
+      {% set recent_events = card.recent_events %}
+      <div style="display: contents;" x-show="filter === 'all' || filter === '{{ project.domain }}'">
+        {% include "partials/project_card.html" %}
+      </div>
+      {% endfor %}
+      {% endif %}
     {% else %}
       <div class="cr-empty">
         <div class="cr-empty-glyph">∅</div>

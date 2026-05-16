@@ -42,8 +42,10 @@ class TestAggregateStatus:
     def test_crashed_over_stopped_but_below_live(self) -> None:
         from claude_remote.services.session_grouping import aggregate_status
 
-        assert aggregate_status([{"live_status": "stopped"}, {"live_status": "crashed"}]) == "crashed"
-        assert aggregate_status([{"live_status": "crashed"}, {"live_status": "idle"}]) == "idle"
+        crashed_over_stopped = [{"live_status": "stopped"}, {"live_status": "crashed"}]
+        assert aggregate_status(crashed_over_stopped) == "crashed"
+        live_over_crashed = [{"live_status": "crashed"}, {"live_status": "idle"}]
+        assert aggregate_status(live_over_crashed) == "idle"
 
 
 # ---------------------------------------------------------------------------

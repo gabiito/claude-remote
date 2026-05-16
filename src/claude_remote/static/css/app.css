@@ -260,6 +260,29 @@ body {
   gap: 8px;
 }
 
+.cr-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 2px 2px;
+  font-family: var(--fnt-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--fg-3);
+  flex: 0 0 auto;
+}
+.cr-section-head:first-child { margin-top: 4px; }
+.cr-section-count {
+  color: var(--fg-4);
+  font-weight: 700;
+}
+.cr-section-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line-0);
+}
+
 .cr-card {
   position: relative;
   background: var(--bg-1);
