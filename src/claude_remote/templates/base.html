@@ -14,9 +14,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="{{ asset_url('css/app.css') }}">
   <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
-  <script src="/static/js/push-subscribe.js" defer></script>
+  <script src="{{ asset_url('js/push-subscribe.js') }}" defer></script>
   <script src="https://unpkg.com/alpinejs@3.14.3" defer></script>
 </head>
 <body x-data="{
@@ -55,7 +55,7 @@
     <span x-text="toastMessage"></span>
   </div>
   {% block content %}{% endblock %}
-  <script src="/static/js/app.js" defer></script>
-  <script src="/static/js/pull-refresh.js" defer></script>
+  <script src="{{ asset_url('js/app.js') }}" defer></script>
+  <script src="{{ asset_url('js/pull-refresh.js') }}" defer></script>
 </body>
 </html>

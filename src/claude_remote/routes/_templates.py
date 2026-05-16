@@ -30,9 +30,27 @@ def status_token(live_status: str) -> str:
 
 
 _PACKAGE_ROOT = Path(__file__).parent.parent
+_STATIC_ROOT = _PACKAGE_ROOT / "static"
 templates = Jinja2Templates(directory=_PACKAGE_ROOT / "templates")
+
+
+def asset_url(rel_path: str) -> str:
+    """Return ``/static/<rel_path>?v=<mtime>`` for cache-busting.
+
+    The token is the asset's integer mtime, so any edit forces browsers and
+    installed PWAs to refetch (Android PWAs cache static files aggressively and
+    offer no hard-refresh). Re-stats every render — cheap, and picks up dev
+    edits immediately. A missing file falls back to ``?v=0`` (never raises).
+    """
+    try:
+        version = int((_STATIC_ROOT / rel_path).stat().st_mtime)
+    except OSError:
+        version = 0
+    return f"/static/{rel_path}?v={version}"
+
 
 # Register display helpers as Jinja2 filters so templates can call them inline.
 templates.env.filters["format_relative"] = format_relative
 templates.env.filters["extract_snippet"] = extract_snippet
 templates.env.filters["status_token"] = status_token
+templates.env.globals["asset_url"] = asset_url
