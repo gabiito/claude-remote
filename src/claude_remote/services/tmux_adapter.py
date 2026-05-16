@@ -352,10 +352,13 @@ class LibTmuxAdapter:
             return None
 
     def capture_pane(self, session_name: str) -> str:
-        """Return the full pane scrollback for the named session.
+        """Return the VISIBLE pane screen for the named session.
 
-        Calls ``tmux capture-pane -S - -p`` to retrieve the complete history.
-        Lines are joined with newlines into a single string.
+        Calls ``tmux capture-pane -p -e`` (no ``-S -``). Claude is a
+        full-screen TUI that repaints on every turn/resize; capturing the
+        full scrollback concatenated every stale frame and showed duplicated
+        content (worse after a fit-resize). The live view wants the current
+        screen only.
 
         Returns:
             Single string with all pane content.
@@ -375,10 +378,10 @@ class LibTmuxAdapter:
                 RuntimeError(f"session not found: {session_name}"),
             )
         pane = session.active_pane  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        # Use tmux capture-pane -S - -p -e to preserve ANSI escape sequences.
-        # libtmux 0.40 does not expose an `e=True` kwarg on capture_pane(), so
-        # we call the raw tmux command directly (ADR-V1 — libtmux kwarg fallback).
-        result = pane.cmd("capture-pane", "-S", "-", "-p", "-e")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        # -p print, -e keep ANSI. NO -S - : the full scrollback of a redrawing
+        # TUI duplicates every past frame. libtmux 0.40 lacks an `e=True`
+        # kwarg so call the raw tmux command (ADR-V1 — libtmux kwarg fallback).
+        result = pane.cmd("capture-pane", "-p", "-e")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
         raw = result.stdout  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
         output: str = raw if isinstance(raw, str) else "\n".join(raw or [])
         return output
