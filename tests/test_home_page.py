@@ -108,7 +108,7 @@ async def test_home_returns_200(home_client: AsyncClient) -> None:
 async def test_home_contains_header(home_client: AsyncClient) -> None:
     """Home page contains the 'claude-remote' header."""
     response = await home_client.get("/")
-    assert "claude-remote" in response.text
+    assert "Claudio-RC" in response.text
 
 
 async def test_home_contains_stylesheet_link(home_client: AsyncClient) -> None:
@@ -568,7 +568,7 @@ async def test_home_title_no_needs_count(home_client: AsyncClient) -> None:
     response = await home_client.get("/")
     assert response.status_code == 200
     # No parenthetical when count is zero
-    assert "<title>claude-remote</title>" in response.text
+    assert "<title>Claudio-RC</title>" in response.text
 
 
 async def test_home_title_with_needs_count(
@@ -603,7 +603,7 @@ async def test_home_title_with_needs_count(
     response = await home_client.get("/")
     assert response.status_code == 200
     # Title must contain the count in parentheses
-    assert "claude-remote (1)" in response.text
+    assert "Claudio-RC (1)" in response.text
 
 
 async def test_home_vitals_breakdown_shows_nonzero_counts(

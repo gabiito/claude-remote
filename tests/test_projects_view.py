@@ -323,7 +323,7 @@ async def test_project_view_title_normal_status(
     assert "wooli" in html
     assert "landing" in html
     # Should contain "claude-remote" in title
-    assert "claude-remote" in html
+    assert "Claudio-RC" in html
 
 
 async def test_project_view_send_button_has_alpine_pulse(
