@@ -1,0 +1,47 @@
+{# Inner content of .cr-list — rendered inline on full page load AND returned
+   standalone by GET /ui/home/list for the whole-list poll (WU-1b). Polling at
+   the list level (not per-card) is what lets cards re-group live. #}
+{% from "icons/_macros.html" import plus %}
+{% if cards %}
+  {% if grouped.active %}
+  <div class="cr-section-head">
+    <span>ACTIVE SESSIONS</span>
+    <span class="cr-section-count">{{ grouped.active|length }}</span>
+    <span class="cr-section-rule"></span>
+  </div>
+  {% for card in grouped.active %}
+  {% set project = card.project %}
+  {% set instance_views = card.instance_views %}
+  {% set recent_events = card.recent_events %}
+  <div style="display: contents;" x-show="filter === 'all' || filter === '{{ project.domain }}'">
+    {% include "partials/project_card.html" %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if grouped.projects %}
+  <div class="cr-section-head">
+    <span>PROJECTS</span>
+    <span class="cr-section-count">{{ grouped.projects|length }}</span>
+    <span class="cr-section-rule"></span>
+  </div>
+  {% for card in grouped.projects %}
+  {% set project = card.project %}
+  {% set instance_views = card.instance_views %}
+  {% set recent_events = card.recent_events %}
+  <div style="display: contents;" x-show="filter === 'all' || filter === '{{ project.domain }}'">
+    {% include "partials/project_card.html" %}
+  </div>
+  {% endfor %}
+  {% endif %}
+{% else %}
+  <div class="cr-empty">
+    <div class="cr-empty-glyph">∅</div>
+    <h3>No projects yet</h3>
+    <p>Create one to start a remote Claude session.</p>
+    <button class="cr-new-btn" style="flex: none; min-width: 180px;"
+            x-data @click="$dispatch('open-create-modal')">
+      {{ plus(cls='cr-icon') }} New project
+    </button>
+  </div>
+{% endif %}

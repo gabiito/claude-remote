@@ -236,15 +236,16 @@ async def test_card_events_feed_hidden_when_no_events(
     assert 'cr-events-mini' not in response.text
 
 
-async def test_card_has_htmx_polling_attrs(
+async def test_card_does_not_self_poll(
     card_client: AsyncClient,
     existing_project,
 ) -> None:
-    """Card response includes HTMX polling attributes (hx-trigger)."""
+    """Polling moved to the whole .cr-list (WU-1b); the card no longer
+    self-polls (otherwise it could never re-group between sections)."""
     response = await card_client.get(f"/ui/projects/{existing_project.id}/card")
     assert response.status_code == 200
-    assert "hx-trigger" in response.text
-    assert "every 5s" in response.text
+    assert "every 5s" not in response.text
+    assert f'hx-get="/ui/projects/{existing_project.id}/card"' not in response.text
 
 
 async def test_card_has_hx_preserve_on_details(

@@ -16,14 +16,14 @@
 {% endfor %}
 {% set agg_status = ns.agg %}
 
+{# Polling moved to the whole .cr-list (WU-1b) so cards re-group live; the
+   card no longer self-polls. /ui/projects/{id}/card is still used by the
+   Launch/Stop/Delete buttons (hx-target="closest .cr-card"). #}
 <div class="cr-card"
      data-project-id="{{ project.id }}"
      data-status="{{ agg_status }}"
      {% if project.is_stale %}data-stale="1"{% endif %}
-     hx-get="/ui/projects/{{ project.id }}/card"
      data-project-name="{{ project.name }}"
-     hx-trigger="every 5s [document.visibilityState === 'visible' && this.dataset.expanded !== '1']"
-     hx-swap="outerHTML"
      x-data="{ expanded: false }"
      :data-expanded="expanded ? '1' : '0'"
      @click="expanded = !expanded">

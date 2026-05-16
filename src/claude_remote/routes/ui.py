@@ -28,6 +28,7 @@ from claude_remote.db.instances import Instance, InstancesRepository
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
 from claude_remote.routes._templates import templates as TEMPLATES
 from claude_remote.routes._views import InstanceView
+from claude_remote.routes.home import build_home_cards
 from claude_remote.routes.instances import (
     get_events_repo,
     get_instances_repo,
@@ -49,6 +50,7 @@ from claude_remote.services.project_filesystem import (
     InvalidIdentifierError,
     create_project_directory,
 )
+from claude_remote.services.session_grouping import group_and_sort_cards
 from claude_remote.services.slug import slugify
 from claude_remote.services.tmux_adapter import TmuxAdapter
 from claude_remote.services.tmux_launcher import TmuxLauncher
@@ -284,6 +286,34 @@ async def get_project_card(
 
     content = _render_project_card(request, project, instance_views, recent_events)
     return HTMLResponse(content=content, status_code=200, headers=extra_headers)
+
+
+# ---------------------------------------------------------------------------
+# GET /ui/home/list — Whole-list poll fragment (re-groups cards live, WU-1b)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/home/list", response_class=HTMLResponse)
+async def get_home_list(
+    request: Request,
+    projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
+    instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
+) -> HTMLResponse:
+    """Render just the grouped ACTIVE SESSIONS / PROJECTS sections.
+
+    The .cr-list element polls this every 5s (paused while a card is expanded
+    or the tab is hidden) and swaps innerHTML, so a project that changes state
+    re-groups into the right section without a full page reload.
+    """
+    now = datetime.now(UTC)
+    cards = build_home_cards(projects_repo, instances_repo, events_repo, now)
+    content: str = TEMPLATES.get_template("partials/home_list.html").render(  # type: ignore[attr-defined]
+        request=request,
+        cards=cards,
+        grouped=group_and_sort_cards(cards),  # pyright: ignore[reportArgumentType]
+    )
+    return HTMLResponse(content=content, status_code=200)
 
 
 # ---------------------------------------------------------------------------

@@ -57,6 +57,38 @@ def _list_existing_domains(projects_root) -> list[str]:
     return sorted(p.name for p in projects_root.iterdir() if p.is_dir())
 
 
+def build_home_cards(
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
+    now: datetime,
+) -> list[ProjectCardContext]:
+    """Build the per-project card contexts (project + instance live_status +
+    recent events). Shared by the full-page home route and the /ui/home/list
+    poll fragment so both group identically.
+    """
+    projects = projects_repo.list_all()
+    all_instances = instances_repo.list_all()
+
+    cards: list[ProjectCardContext] = []
+    for project in projects:
+        project_instances = [i for i in all_instances if i.project_id == project.id]
+        instance_views: list[InstanceView] = []
+        for inst in project_instances:
+            events = events_repo.list_for_instance(inst.id, limit=20)
+            instance_views.append(
+                {"instance": inst, "live_status": derive_live_status(inst, events, now=now)}
+            )
+        cards.append(
+            {
+                "project": project,
+                "instance_views": instance_views,
+                "recent_events": events_repo.list_for_project(project.id, limit=5),
+            }
+        )
+    return cards
+
+
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
@@ -73,27 +105,7 @@ async def home(
     """Render the home page with projects enriched with live_status and events feed."""
     now = datetime.now(UTC)
     projects = projects_repo.list_all()
-    all_instances = instances_repo.list_all()
-
-    cards: list[ProjectCardContext] = []
-    for project in projects:
-        project_instances = [i for i in all_instances if i.project_id == project.id]
-
-        instance_views: list[InstanceView] = []
-        for inst in project_instances:
-            events = events_repo.list_for_instance(inst.id, limit=20)
-            live = derive_live_status(inst, events, now=now)
-            instance_views.append({"instance": inst, "live_status": live})
-
-        recent_events = events_repo.list_for_project(project.id, limit=5)
-
-        cards.append(
-            {
-                "project": project,
-                "instance_views": instance_views,
-                "recent_events": recent_events,
-            }
-        )
+    cards = build_home_cards(projects_repo, instances_repo, events_repo, now)
 
     # Domain filter strip — count registered projects per domain, ordered alphabetically.
     domain_counts: dict[str, int] = {}
