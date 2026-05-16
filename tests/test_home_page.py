@@ -684,6 +684,30 @@ async def test_home_renders_two_section_headers(
     assert "cr-section-head" in response.text
 
 
+async def test_home_active_card_led_reflects_running_not_stopped(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """A launched project's card LED/border must show its real status, not the
+    always-'stopped' value the loop-scoped Jinja {% set %} produced."""
+    p = tmp_projects_root / "wooli" / "live1"
+    p.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="live1", slug="live1", path=p, domain="wooli"
+        )
+    )
+    launch = await home_client.post(f"/ui/projects/{proj.id}/launch")
+    assert launch.status_code == 200
+
+    html = (await home_client.get("/")).text
+    # The cr-led for a running instance must not be data-status="stopped".
+    assert '<div class="cr-led" data-status="running">' in html
+    assert '<div class="cr-led" data-status="stopped">' not in html
+
+
 async def test_home_active_section_absent_when_no_live_sessions(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,
