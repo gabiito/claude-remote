@@ -545,7 +545,9 @@ async def test_deep_view_fit_hardening_markers(
     ).text
     # Wait for fonts before measuring (probe char-width is wrong otherwise).
     assert "document.fonts" in html
-    # Re-fit when the terminal tab becomes visible (hidden pre => clientWidth 0).
-    assert "$watch" in html and "'tab'" in html
-    # Rail collapse/expand changes the <pre> width → re-fit.
-    assert "cr-rail-toggled" in html
+    # Resize only on open + real orientation change — each tmux resize makes
+    # Claude reprint its banner (dup), so minimize triggers.
+    assert "orientationchange" in html
+    assert "$watch('tab'" not in html        # no tab-switch re-fit
+    assert "cr-rail-toggled" not in html     # no rail-toggle re-fit
+    assert "addEventListener('resize'" not in html  # no generic resize re-fit
