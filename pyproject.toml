@@ -13,6 +13,7 @@ dependencies = [
     "ansi2html>=1.9.2,<2",
     "pywebpush>=1.14",
     "py-vapid>=1.9",
+    "psutil>=6,<8",
 ]
 
 [project.optional-dependencies]
