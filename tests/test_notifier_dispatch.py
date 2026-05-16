@@ -296,3 +296,42 @@ async def test_dispatch_never_raises_on_internal_error() -> None:
         )
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# dispatch — AskUserQuestion body is clear (rides notify_on_notification)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_dispatch_ask_user_question_clear_body() -> None:
+    """A PreToolUse/AskUserQuestion event pushes with a clear, dedicated body
+    (not the generic "Claude is using AskUserQuestion"), gated by the
+    notify_on_notification toggle."""
+    from claude_remote.services import notifier
+
+    prefs = _make_prefs(notify_on_notification=True)
+    event = _make_event("PreToolUse", payload='{"tool_name": "AskUserQuestion"}')
+    project = _make_project()
+    subs_repo = _make_subs_repo()
+    vapid_repo = _make_vapid_repo()
+
+    send_to_all_mock = AsyncMock(return_value=[])
+    with patch("claude_remote.services.web_push.send_to_all", send_to_all_mock):
+        await notifier.dispatch(
+            event, project, prefs,
+            subscriptions_repo=subs_repo,
+            vapid_repo=vapid_repo,
+        )
+        await asyncio.sleep(0)
+
+    call = send_to_all_mock.call_args
+    assert call is not None
+    body = call.kwargs.get("body")
+    assert body, "AskUserQuestion must produce a non-empty body"
+    assert "using AskUserQuestion" not in body, (
+        "body must not be the generic PreToolUse template"
+    )
+    assert "question" in body.lower(), (
+        f"body should clearly say Claude is asking a question, got: {body!r}"
+    )

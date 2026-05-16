@@ -293,3 +293,38 @@ class TestEdgeCases:
         event = _make_event("Notification")
         result = should_notify(event, prefs, now=_now_at(12))
         assert isinstance(result, bool)
+
+
+# ---------------------------------------------------------------------------
+# AskUserQuestion special-case (PreToolUse + tool_name=="AskUserQuestion")
+# rides the notify_on_notification toggle, not notify_on_pre_tool_use.
+# ---------------------------------------------------------------------------
+
+
+class TestAskUserQuestionGating:
+    def _auq_event(self) -> Event:
+        return _make_event("PreToolUse", payload='{"tool_name": "AskUserQuestion"}')
+
+    def test_auq_notifies_via_notification_toggle(self) -> None:
+        """AskUserQuestion notifies when notify_on_notification is on, even if
+        notify_on_pre_tool_use is OFF (it is semantically an input-needed event)."""
+        should_notify = _get_should_notify()
+        prefs = _make_prefs(notify_on_notification=True, notify_on_pre_tool_use=False)
+        assert should_notify(self._auq_event(), prefs, now=_now_at(12)) is True
+
+    def test_auq_suppressed_when_notification_toggle_off(self) -> None:
+        """AskUserQuestion does NOT notify when notify_on_notification is off,
+        even if notify_on_pre_tool_use is ON (gated by the notification toggle)."""
+        should_notify = _get_should_notify()
+        prefs = _make_prefs(notify_on_notification=False, notify_on_pre_tool_use=True)
+        assert should_notify(self._auq_event(), prefs, now=_now_at(12)) is False
+
+    def test_regular_pretooluse_still_uses_pre_tool_use_toggle(self) -> None:
+        """A non-AskUserQuestion PreToolUse is unaffected: still gated by
+        notify_on_pre_tool_use, independent of notify_on_notification."""
+        should_notify = _get_should_notify()
+        ev = _make_event("PreToolUse", payload='{"tool_name": "Bash"}')
+        on = _make_prefs(notify_on_notification=False, notify_on_pre_tool_use=True)
+        off = _make_prefs(notify_on_notification=True, notify_on_pre_tool_use=False)
+        assert should_notify(ev, on, now=_now_at(12)) is True
+        assert should_notify(ev, off, now=_now_at(12)) is False
