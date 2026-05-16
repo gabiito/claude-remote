@@ -438,6 +438,11 @@ class LibTmuxAdapter:
             session.cmd(  # pyright: ignore[reportUnknownMemberType]
                 "resize-window", "-x", str(cols), "-y", str(rows)
             )
+            # SIGWINCH makes Claude reprint its banner into the normal buffer;
+            # with capture-pane -S - those copies stack ("duplicado"). Drop the
+            # pre/at-resize scrollback so only post-resize output accumulates
+            # (scroll is preserved going forward).
+            session.cmd("clear-history")  # pyright: ignore[reportUnknownMemberType]
         except libtmux.exc.LibTmuxException as exc:
             raise TmuxOperationError("resize_window", exc) from exc
 
