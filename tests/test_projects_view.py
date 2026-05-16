@@ -467,3 +467,30 @@ async def test_deep_view_rail_absent_when_no_active(
     )
     assert resp.status_code == 200
     assert "cr-rail" not in resp.text
+
+
+async def test_deep_view_has_wrap_toggle(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Terminal has a user wrap toggle (no single global wrap choice fits a
+    phone: wrap loses formatting, no-wrap loses content — let the user pick)."""
+    (tmp_projects_root / "wooli" / "wrp").mkdir(parents=True)
+    p = projects_repo.create(
+        project_create=ProjectCreate(
+            name="wrp", slug="wrp",
+            path=tmp_projects_root / "wooli" / "wrp", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{p.id}/launch")
+    resp = await pv_client.get(
+        f"/projects/{p.id}", headers={"Accept": "text/html"}
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "cr-wrap-toggle" in html
+    # State persisted + bound to the <pre> via Alpine class binding.
+    assert "cr-wrap" in html
+    assert "localStorage" in html and "cr-wrap" in html
