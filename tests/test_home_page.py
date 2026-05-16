@@ -909,3 +909,28 @@ async def test_card_launch_sends_estimated_size(
     js = await home_client.get("/static/js/app.js")
     assert js.status_code == 200
     assert "crEstimateTermSize" in js.text
+
+
+async def test_sort_button_appends_card_not_wrapper(home_client: AsyncClient) -> None:
+    """WU-1c removed the x-show wrappers; the sort apply() must append the
+    card itself, not c.parentElement (now .cr-list → appendChild(self) crash)."""
+    html = (await home_client.get("/")).text
+    assert "c.parentElement" not in html
+    assert "appendChild(c)" in html
+
+
+async def test_launch_hx_vals_is_object_literal(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """hx-vals js: must be an object literal (htmx wraps it); a bare
+    crEstimateTermSize() call → '{window.fn()}' SyntaxError, launch fails."""
+    p = tmp_projects_root / "wooli" / "hv"
+    p.mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(name="hv", slug="hv", path=p, domain="wooli")
+    )
+    html = (await home_client.get("/")).text
+    assert "js:{...window.crEstimateTermSize()}" in html
+    assert 'hx-vals="js:window.crEstimateTermSize()"' not in html
