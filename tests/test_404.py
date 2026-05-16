@@ -66,3 +66,30 @@ async def test_static_css_still_served(async_client: AsyncClient) -> None:
     """GET /static/css/app.css → 200 (static assets not broken by 404 handler)."""
     response = await async_client.get("/static/css/app.css")
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Non-404 HTTP exceptions must NOT be re-raised (re-raising inside a Starlette
+# exception handler escalates to a spurious 500). Matters especially for the
+# auth milestone (#7) which will produce many 401/403 responses.
+# ---------------------------------------------------------------------------
+
+
+async def test_head_root_returns_405_not_500(async_client: AsyncClient) -> None:
+    """HEAD / → 405 Method Not Allowed, NOT 500."""
+    response = await async_client.head("/")
+    assert response.status_code == 405
+
+
+async def test_405_preserves_allow_header(async_client: AsyncClient) -> None:
+    """A 405 must keep its Allow header (HTTP correctness)."""
+    response = await async_client.head("/")
+    assert response.status_code == 405
+    assert "allow" in {k.lower() for k in response.headers}
+
+
+async def test_405_does_not_leak_generic_500(async_client: AsyncClient) -> None:
+    """The 405 response must not be the generic 'Internal Server Error' body."""
+    response = await async_client.head("/")
+    assert response.status_code == 405
+    assert "Internal Server Error" not in response.text
