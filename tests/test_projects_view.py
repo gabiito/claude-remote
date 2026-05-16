@@ -469,31 +469,32 @@ async def test_deep_view_rail_absent_when_no_active(
     assert "cr-rail" not in resp.text
 
 
-async def test_deep_view_has_wrap_toggle(
+async def test_deep_view_has_fit_toggle(
     pv_client: AsyncClient,
     projects_repo: ProjectsRepository,
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Terminal has a user wrap toggle (no single global wrap choice fits a
-    phone: wrap loses formatting, no-wrap loses content — let the user pick)."""
+    """Terminal has a fit/raw toggle that drives the server-side tmux resize
+    (replaces the old CSS wrap band-aid)."""
     (tmp_projects_root / "wooli" / "wrp").mkdir(parents=True)
-    p = projects_repo.create(
+    proj = projects_repo.create(
         project_create=ProjectCreate(
             name="wrp", slug="wrp",
             path=tmp_projects_root / "wooli" / "wrp", domain="wooli",
         )
     )
-    await pv_client.post(f"/ui/projects/{p.id}/launch")
+    await pv_client.post(f"/ui/projects/{proj.id}/launch")
     resp = await pv_client.get(
-        f"/projects/{p.id}", headers={"Accept": "text/html"}
+        f"/projects/{proj.id}", headers={"Accept": "text/html"}
     )
     assert resp.status_code == 200
     html = resp.text
-    assert "cr-wrap-toggle" in html
-    # State persisted + bound to the <pre> via Alpine class binding.
-    assert "cr-wrap" in html
-    assert "localStorage" in html and "cr-wrap" in html
+    assert "cr-fit-toggle" in html
+    assert "cr-fit" in html            # localStorage key
+    assert "/resize" in html           # posts to the resize endpoint
+    assert "cr-wrap-toggle" not in html
+    assert "'cr-wrap'" not in html
 
 
 async def test_deep_view_rail_collapsible(
