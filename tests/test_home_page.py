@@ -242,6 +242,59 @@ async def test_home_list_polls_at_list_level_not_per_card(
     assert response.text.count("every 5s") == 1
 
 
+async def test_home_list_filters_by_domain_server_side(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """GET /ui/home/list?domain=wooli renders only wooli cards (no client
+    x-show wrappers — that combo broke under innerHTML swaps)."""
+    (tmp_projects_root / "wooli" / "w1").mkdir(parents=True)
+    (tmp_projects_root / "sandbox" / "s1").mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="w1", slug="w1", path=tmp_projects_root / "wooli" / "w1", domain="wooli"
+        )
+    )
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="s1", slug="s1", path=tmp_projects_root / "sandbox" / "s1", domain="sandbox"
+        )
+    )
+
+    resp = await home_client.get("/ui/home/list?domain=wooli")
+    assert resp.status_code == 200
+    assert 'data-project-name="w1"' in resp.text
+    assert 'data-project-name="s1"' not in resp.text
+    # No per-card Alpine show wrappers anymore (server filtered).
+    assert 'x-show="filter' not in resp.text
+
+
+async def test_home_page_filters_by_domain_query(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """GET /?domain=wooli full page renders only wooli cards."""
+    (tmp_projects_root / "wooli" / "w2").mkdir(parents=True)
+    (tmp_projects_root / "gabiito" / "g2").mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="w2", slug="w2", path=tmp_projects_root / "wooli" / "w2", domain="wooli"
+        )
+    )
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="g2", slug="g2", path=tmp_projects_root / "gabiito" / "g2", domain="gabiito"
+        )
+    )
+
+    resp = await home_client.get("/?domain=wooli")
+    assert resp.status_code == 200
+    assert 'data-project-name="w2"' in resp.text
+    assert 'data-project-name="g2"' not in resp.text
+
+
 async def test_home_list_fragment_endpoint(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,

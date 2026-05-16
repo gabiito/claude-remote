@@ -53,6 +53,32 @@ class TestAggregateStatus:
 # ---------------------------------------------------------------------------
 
 
+class TestFilterByDomain:
+    def test_all_returns_everything(self) -> None:
+        from claude_remote.services.session_grouping import filter_cards_by_domain
+
+        cards = [_card("wooli", "a", ["active"]), _card("sandbox", "b", ["stopped"])]
+        assert len(filter_cards_by_domain(cards, "all")) == 2
+        assert len(filter_cards_by_domain(cards, "")) == 2
+
+    def test_specific_domain_filters(self) -> None:
+        from claude_remote.services.session_grouping import filter_cards_by_domain
+
+        cards = [
+            _card("wooli", "a", ["active"]),
+            _card("wooli", "b", ["stopped"]),
+            _card("sandbox", "c", ["idle"]),
+        ]
+        out = filter_cards_by_domain(cards, "wooli")
+        assert {c["project"].name for c in out} == {"a", "b"}
+
+    def test_unknown_domain_empty(self) -> None:
+        from claude_remote.services.session_grouping import filter_cards_by_domain
+
+        cards = [_card("wooli", "a", ["active"])]
+        assert filter_cards_by_domain(cards, "nope") == []
+
+
 class TestGroupAndSort:
     def test_split_active_vs_projects(self) -> None:
         from claude_remote.services.session_grouping import group_and_sort_cards
