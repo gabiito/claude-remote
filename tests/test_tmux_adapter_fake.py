@@ -304,3 +304,29 @@ def test_libtmux_adapter_has_resize_window() -> None:
 
     assert hasattr(LibTmuxAdapter, "resize_window")
     assert hasattr(TmuxAdapter, "resize_window")
+
+
+# ---------------------------------------------------------------------------
+# create_session cols/rows — size session at launch (no banner reprint)
+# ---------------------------------------------------------------------------
+
+
+def test_fake_create_session_records_cols_rows(
+    adapter: FakeTmuxAdapter, tmp_path: Path
+) -> None:
+    """create_session(cols=, rows=) records the requested size."""
+    adapter.create_session("s", tmp_path, "claude", cols=52, rows=30)
+    name, kw = adapter.calls[-1]
+    assert name == "create_session"
+    assert kw["cols"] == 52
+    assert kw["rows"] == 30
+
+
+def test_fake_create_session_cols_rows_optional(
+    adapter: FakeTmuxAdapter, tmp_path: Path
+) -> None:
+    """Omitting cols/rows still works (backward compatible, None recorded)."""
+    pid = adapter.create_session("s2", tmp_path, "bash")
+    assert isinstance(pid, int)
+    _, kw = adapter.calls[-1]
+    assert kw.get("cols") is None and kw.get("rows") is None
