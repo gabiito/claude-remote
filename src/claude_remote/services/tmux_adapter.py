@@ -352,13 +352,12 @@ class LibTmuxAdapter:
             return None
 
     def capture_pane(self, session_name: str) -> str:
-        """Return the VISIBLE pane screen for the named session.
+        """Return the pane scrollback for the named session.
 
-        Calls ``tmux capture-pane -p -e`` (no ``-S -``). Claude is a
-        full-screen TUI that repaints on every turn/resize; capturing the
-        full scrollback concatenated every stale frame and showed duplicated
-        content (worse after a fit-resize). The live view wants the current
-        screen only.
+        Calls ``tmux capture-pane -S - -p -e`` — full history so the viewer
+        can scroll back through Claude's output. (An earlier visible-only
+        variant fixed duplicate frames but killed scrolling; the duplication
+        was really caused by un-hardened fit resize storms, now fixed.)
 
         Returns:
             Single string with all pane content.
@@ -378,10 +377,10 @@ class LibTmuxAdapter:
                 RuntimeError(f"session not found: {session_name}"),
             )
         pane = session.active_pane  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        # -p print, -e keep ANSI. NO -S - : the full scrollback of a redrawing
-        # TUI duplicates every past frame. libtmux 0.40 lacks an `e=True`
-        # kwarg so call the raw tmux command (ADR-V1 — libtmux kwarg fallback).
-        result = pane.cmd("capture-pane", "-p", "-e")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        # -S - full scrollback (scrollable history), -p print, -e keep ANSI.
+        # libtmux 0.40 lacks an `e=True` kwarg so call the raw tmux command
+        # (ADR-V1 — libtmux kwarg fallback).
+        result = pane.cmd("capture-pane", "-S", "-", "-p", "-e")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
         raw = result.stdout  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
         output: str = raw if isinstance(raw, str) else "\n".join(raw or [])
         return output
