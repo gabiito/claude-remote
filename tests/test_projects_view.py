@@ -494,3 +494,28 @@ async def test_deep_view_has_wrap_toggle(
     # State persisted + bound to the <pre> via Alpine class binding.
     assert "cr-wrap" in html
     assert "localStorage" in html and "cr-wrap" in html
+
+
+async def test_deep_view_rail_collapsible(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Rail has a collapse handle; collapsed state persists in localStorage."""
+    (tmp_projects_root / "wooli" / "rc1").mkdir(parents=True)
+    p = projects_repo.create(
+        project_create=ProjectCreate(
+            name="rc1", slug="rc1",
+            path=tmp_projects_root / "wooli" / "rc1", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{p.id}/launch")
+    resp = await pv_client.get(
+        f"/projects/{p.id}", headers={"Accept": "text/html"}
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "cr-rail-toggle" in html
+    assert "data-collapsed" in html
+    assert "cr-rail-open" in html  # localStorage key
