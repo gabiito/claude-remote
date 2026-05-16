@@ -734,8 +734,11 @@ body {
   color: var(--fg-1);
   min-height: 0;
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
+  /* Terminal output is fixed-width (boxes, indentation, code). pre-wrap +
+     word-break mangled alignment on narrow phones; keep lines intact and
+     scroll horizontally instead (overflow-x: auto above). */
+  white-space: pre;
+  overscroll-behavior-x: contain;
 }
 
 /* ── 16. Events pane ── */
