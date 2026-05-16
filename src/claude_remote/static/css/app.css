@@ -756,17 +756,14 @@ body {
   color: var(--fg-1);
   min-height: 0;
   margin: 0;
-  /* Default = faithful: fixed-width preserved, scroll horizontally (no-wrap).
-     .cr-wrap (user toggle, default ON) soft-wraps so no content is lost on a
-     narrow phone. No word-break: break-word — that mangled words ("roto"). */
+  /* Always fixed-width. "Fit" sizes the tmux window server-side so output
+     already fits the device; horizontal scroll stays as a safety net. No
+     CSS soft-wrap (it mangled the fixed-width art). */
   white-space: pre;
   overscroll-behavior-x: contain;
 }
-.cr-terminal.cr-wrap {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.cr-wrap-toggle {
+/* fit/raw is server-side (tmux resize) — no CSS wrap class needed. */
+.cr-fit-toggle {
   margin-left: auto;
   flex: 0 0 auto;
   height: 24px;
@@ -780,7 +777,7 @@ body {
   letter-spacing: 0.03em;
   cursor: pointer;
 }
-.cr-wrap-toggle[data-on="1"] { color: var(--accent); border-color: var(--accent-dim); }
+.cr-fit-toggle[data-on="1"] { color: var(--accent); border-color: var(--accent-dim); }
 
 /* ── 16. Events pane ── */
 .cr-events-pane {

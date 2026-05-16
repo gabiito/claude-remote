@@ -90,8 +90,56 @@
 
   {# ── Tab container (Terminal + Events) — tab state mirrored to URL hash ── #}
   <div class="cr-pv-tabs"
-       x-data="{ tab: window.location.hash === '#events' ? 'events' : 'terminal', wrap: localStorage.getItem('cr-wrap') !== '0' }"
-       x-init="window.addEventListener('hashchange', () => { tab = window.location.hash === '#events' ? 'events' : 'terminal' })"
+       x-data="{
+         tab: window.location.hash === '#events' ? 'events' : 'terminal',
+         fit: localStorage.getItem('cr-fit') !== '0',
+         _resizeUrl: {% if primary_instance %}'/ui/instances/{{ primary_instance.instance.id }}/resize'{% else %}null{% endif %},
+         _measure() {
+           const pre = document.getElementById('output-content');
+           if (!pre) return null;
+           const probe = document.createElement('span');
+           probe.style.cssText = 'visibility:hidden;position:absolute;white-space:pre;font:inherit';
+           probe.textContent = '0'.repeat(50);
+           pre.appendChild(probe);
+           const cw = probe.getBoundingClientRect().width / 50;
+           pre.removeChild(probe);
+           if (!cw) return null;
+           const cs = getComputedStyle(pre);
+           const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+           const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+           const lh = parseFloat(cs.lineHeight) || 18;
+           return {
+             cols: Math.max(20, Math.floor((pre.clientWidth - padX) / cw)),
+             rows: Math.max(5, Math.floor((pre.clientHeight - padY) / lh)),
+           };
+         },
+         _send(cols, rows) {
+           if (!this._resizeUrl) return;
+           fetch(this._resizeUrl, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+             body: new URLSearchParams({ cols, rows }),
+           }).catch(() => {});
+         },
+         applyFit() {
+           if (this.fit) { const m = this._measure(); if (m) this._send(m.cols, m.rows); }
+           else { this._send(80, 24); }
+         },
+         toggleFit() {
+           this.fit = !this.fit;
+           localStorage.setItem('cr-fit', this.fit ? '1' : '0');
+           this.applyFit();
+         },
+       }"
+       x-init="
+         window.addEventListener('hashchange', () => { tab = window.location.hash === '#events' ? 'events' : 'terminal' });
+         {% if primary_instance %}
+         let _rt; const _deb = () => { clearTimeout(_rt); _rt = setTimeout(() => applyFit(), 250); };
+         window.addEventListener('resize', _deb);
+         window.addEventListener('orientationchange', _deb);
+         setTimeout(() => applyFit(), 150);
+         {% endif %}
+       "
        style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
     <div style="display: flex; align-items: center; background: var(--bg-1); padding: 0 12px; border-bottom: 1px solid var(--line-0); flex: 0 0 auto;">
       <button class="cr-pv-tab" :data-on="tab === 'terminal' ? '1' : '0'"
@@ -103,21 +151,22 @@
         {{ list_icon(cls='cr-icon', size=14) }} Events
         <span class="cr-tab-badge">{{ recent_events|length }}</span>
       </button>
-      <button class="cr-wrap-toggle" type="button"
+      {% if primary_instance %}
+      <button class="cr-fit-toggle" type="button"
               x-show="tab === 'terminal'"
-              :data-on="wrap ? '1' : '0'"
-              @click="wrap = !wrap; localStorage.setItem('cr-wrap', wrap ? '1' : '0')"
-              :title="wrap ? 'Wrap on — tap for faithful (scroll) mode' : 'Wrap off — tap to wrap lines'"
-              :aria-pressed="wrap ? 'true' : 'false'">
-        <span x-text="wrap ? 'wrap' : 'no-wrap'"></span>
+              :data-on="fit ? '1' : '0'"
+              @click="toggleFit()"
+              :title="fit ? 'Fit to screen — tap for raw 80-col' : 'Raw 80-col — tap to fit screen'"
+              :aria-pressed="fit ? 'true' : 'false'">
+        <span x-text="fit ? 'fit' : 'raw'"></span>
       </button>
+      {% endif %}
     </div>
 
     {# ── Output panel ── #}
     <div class="cr-tab-panel" x-show="tab === 'terminal'">
       {% if primary_instance %}
       <pre class="cr-terminal cr-scroll" id="output-content"
-           :class="{ 'cr-wrap': wrap }"
            x-data="{ smartScroll: true }"
            @scroll="smartScroll = (Math.abs($el.scrollTop + $el.clientHeight - $el.scrollHeight) < 50)"
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"
