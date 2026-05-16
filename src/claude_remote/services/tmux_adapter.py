@@ -438,11 +438,10 @@ class LibTmuxAdapter:
             session.cmd(  # pyright: ignore[reportUnknownMemberType]
                 "resize-window", "-x", str(cols), "-y", str(rows)
             )
-            # SIGWINCH makes Claude reprint its banner into the normal buffer;
-            # with capture-pane -S - those copies stack ("duplicado"). Drop the
-            # pre/at-resize scrollback so only post-resize output accumulates
-            # (scroll is preserved going forward).
-            session.cmd("clear-history")  # pyright: ignore[reportUnknownMemberType]
+            # NOTE: deliberately NO clear-history. It wiped the scrollback the
+            # user needs to scroll. The duplicate banner from SIGWINCH reprints
+            # is the accepted lesser evil (cosmetic, top of buffer). Scraping
+            # tmux can't give both; true dedupe needs a transcript view.
         except libtmux.exc.LibTmuxException as exc:
             raise TmuxOperationError("resize_window", exc) from exc
 
