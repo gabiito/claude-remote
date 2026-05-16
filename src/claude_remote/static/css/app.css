@@ -725,7 +725,10 @@ body {
 
 /* ── 18. Input dock ── */
 .cr-input-dock {
-  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+  /* Android Chrome (browser tab) reports env(safe-area-inset-bottom)=0, so the
+     dock slid under the system nav/gesture bar. max() enforces a floor that
+     clears the gesture bar; on iOS the real inset exceeds it (no double pad). */
+  padding: 10px 12px max(28px, calc(14px + env(safe-area-inset-bottom)));
   background: var(--bg-1);
   border-top: 1px solid var(--line-0);
   flex: 0 0 auto;
