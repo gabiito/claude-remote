@@ -211,7 +211,7 @@ def test_launch_adapter_failure_marks_starting_row(
 ) -> None:
     """When adapter.create_session raises, the 'starting' row stays (for audit trail)."""
     # Patch the adapter to always fail
-    def _always_fail(name: str, cwd: Path, command: str) -> int | None:
+    def _always_fail(name: str, cwd: Path, command: str, **kwargs: object) -> int | None:
         # Record the call then raise
         fake_adapter.calls.append(
             ("create_session", {"name": name, "cwd": cwd, "command": command})
@@ -463,9 +463,9 @@ def test_launch_writes_settings_json_before_session_created(
 
     original_create = fake_adapter.create_session
 
-    def _recording_create(name, cwd, command):
+    def _recording_create(name, cwd, command, **kwargs):
         settings_existed_before_create.append(settings_path.exists())
-        return original_create(name, cwd, command)
+        return original_create(name, cwd, command, **kwargs)
 
     fake_adapter.create_session = _recording_create  # type: ignore[method-assign]
 

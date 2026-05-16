@@ -253,7 +253,7 @@ async def test_launch_adapter_error_500(
     # Make next create_session fail
     original_create = fake_tmux_adapter.create_session
 
-    def _failing_create(name, cwd, command):
+    def _failing_create(name, cwd, command, **kwargs):
         raise TmuxOperationError("create_session", RuntimeError("tmux died"))
 
     fake_tmux_adapter.create_session = _failing_create  # type: ignore[method-assign]
