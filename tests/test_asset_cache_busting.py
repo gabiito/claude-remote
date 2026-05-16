@@ -64,6 +64,18 @@ async def test_app_css_link_is_cache_busted(client: AsyncClient) -> None:
     assert int(m.group(1)) > 0
 
 
+async def test_favicon_link_is_cache_busted(client: AsyncClient) -> None:
+    """favicon + apple-touch-icon must carry ?v= so icon changes are picked up
+    (favicons are the most aggressively cached resource in browsers/PWAs)."""
+    resp = await client.get("/settings")
+    assert resp.status_code == 200
+    matches = re.findall(r'/static/favicon\.svg\?v=\d+', resp.text)
+    # Both <link rel="icon"> and <link rel="apple-touch-icon"> must be busted.
+    assert len(matches) >= 2, (
+        f"favicon links must carry ?v=<mtime>; found {len(matches)} busted refs"
+    )
+
+
 async def test_push_subscribe_js_is_cache_busted(client: AsyncClient) -> None:
     """push-subscribe.js must be referenced with a ?v= version query."""
     resp = await client.get("/settings")
