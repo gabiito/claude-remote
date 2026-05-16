@@ -63,6 +63,23 @@
   </div>
   {% endif %}
 
+  {# ── Body: vertical session rail + tab content ── #}
+  <div class="cr-pv-body">
+  {% if active_sessions %}
+  <nav class="cr-rail cr-scroll" aria-label="Active sessions">
+    {% for s in active_sessions %}
+    <a class="cr-rail-item"
+       href="/projects/{{ s.project_id }}"
+       data-status="{{ s.status | status_token }}"
+       {% if s.is_current %}data-current="1" aria-current="page"{% endif %}
+       title="{{ s.domain }}/{{ s.name }} — {{ s.status }}">
+      <span class="cr-rail-dot"></span>
+      <span class="cr-rail-name">{{ s.domain }}/{{ s.name }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
   {# ── Tab container (Terminal + Events) — tab state mirrored to URL hash ── #}
   <div class="cr-pv-tabs"
        x-data="{ tab: window.location.hash === '#events' ? 'events' : 'terminal' }"
@@ -116,6 +133,7 @@ No active session. Launch a new one to see output.</pre>
       {% endif %}
     </div>
   </div>
+  </div>{# /.cr-pv-body #}
 
   {# ── Quick action chips ── #}
   <div class="cr-chips cr-scroll">

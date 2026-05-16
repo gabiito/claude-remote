@@ -54,6 +54,36 @@ def aggregate_status(instance_views: list[dict[str, Any]]) -> str:
     return best
 
 
+def build_active_sessions(
+    cards: list[dict[str, Any]], current_project_id: str
+) -> list[dict[str, Any]]:
+    """Rail entries for every project with a live console (roadmap #2 WU-2).
+
+    One entry per ACTIVE_STATUSES project, sorted by attention priority then
+    domain/name. ``status`` is the service value (e.g. ``needs_input``); the
+    template maps it to the CSS token via the ``status_token`` filter.
+    """
+    entries: list[dict[str, Any]] = []
+    for card in cards:
+        status = aggregate_status(card.get("instance_views", []))
+        if status not in ACTIVE_STATUSES:
+            continue
+        project = card["project"]
+        entries.append(
+            {
+                "project_id": project.id,
+                "domain": project.domain,
+                "name": project.name,
+                "status": status,
+                "is_current": project.id == current_project_id,
+            }
+        )
+    entries.sort(
+        key=lambda e: (_PRIORITY_INDEX.get(e["status"], 99), e["domain"], e["name"])
+    )
+    return entries
+
+
 def _latest_event_iso(card: dict[str, Any]) -> str:
     """Newest event timestamp (ISO 8601 sorts lexicographically). "" if none."""
     times = [

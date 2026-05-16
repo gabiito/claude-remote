@@ -26,9 +26,11 @@ from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.projects import ProjectsRepository
 from claude_remote.routes._templates import templates as TEMPLATES
 from claude_remote.routes._views import InstanceView
+from claude_remote.routes.home import build_home_cards
 from claude_remote.routes.instances import get_events_repo, get_instances_repo
 from claude_remote.routes.projects import get_projects_repo
 from claude_remote.services.live_status import derive_live_status
+from claude_remote.services.session_grouping import build_active_sessions
 
 router = APIRouter(tags=["projects-view"])
 
@@ -115,6 +117,12 @@ async def get_project_view(
 
     recent_events = events_repo.list_for_project(project_id, limit=50)
 
+    # Vertical session-switcher rail: every project with a live console.
+    active_sessions = build_active_sessions(
+        build_home_cards(projects_repo, instances_repo, events_repo, now),  # pyright: ignore[reportArgumentType]
+        current_project_id=project_id,
+    )
+
     return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
         request,
         "project_view.html",
@@ -124,5 +132,6 @@ async def get_project_view(
             "primary_instance": primary_instance,
             "recent_events": recent_events,
             "quick_actions": QUICK_ACTIONS,
+            "active_sessions": active_sessions,
         },
     )
