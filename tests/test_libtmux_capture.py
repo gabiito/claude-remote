@@ -25,9 +25,10 @@ def test_capture_pane_does_not_read_full_scrollback() -> None:
 
     args = pane.cmd.call_args.args
     assert args[0] == "capture-pane"
-    # No full-scrollback flag — that duplicated the TUI on every repaint.
-    assert "-S" not in args
-    # Still print + keep ANSI escapes.
+    # Scrollback is restored so the terminal can scroll Claude's history.
+    # (The duplicate-frame problem was caused by un-hardened fit resize
+    # storms, now fixed — no need to drop scrollback.)
+    assert "-S" in args and "-" in args
     assert "-p" in args
     assert "-e" in args
     assert out == "visible screen"
