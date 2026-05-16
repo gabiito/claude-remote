@@ -847,3 +847,43 @@ async def test_home_events_feed_has_stable_id_and_hx_preserve(
     assert response.status_code == 200
     # New design: events feed appears in the card-expanded section
     assert "cr-events-mini" in response.text or "cr-event-mini" in response.text
+
+
+async def test_ui_launch_passes_cols_rows_to_adapter(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """POST /ui/projects/{id}/launch with cols/rows sizes the session at
+    creation (clamped) — Claude renders right from the first paint."""
+    p = tmp_projects_root / "wooli" / "sz"
+    p.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(name="sz", slug="sz", path=p, domain="wooli")
+    )
+    resp = await home_client.post(
+        f"/ui/projects/{proj.id}/launch", data={"cols": "48", "rows": "5000"}
+    )
+    assert resp.status_code == 200
+    create = [c for c in fake_adapter.calls if c[0] == "create_session"][-1][1]
+    assert create["cols"] == 48
+    assert create["rows"] == 400  # clamped to max
+
+
+async def test_ui_launch_without_size_still_works(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """No cols/rows → session created with None (tmux default), unchanged."""
+    p = tmp_projects_root / "wooli" / "nosz"
+    p.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(name="nosz", slug="nosz", path=p, domain="wooli")
+    )
+    resp = await home_client.post(f"/ui/projects/{proj.id}/launch")
+    assert resp.status_code == 200
+    create = [c for c in fake_adapter.calls if c[0] == "create_session"][-1][1]
+    assert create["cols"] is None and create["rows"] is None
