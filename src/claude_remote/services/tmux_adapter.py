@@ -104,6 +104,17 @@ class TmuxAdapter(Protocol):
         """
         ...
 
+    def resize_window(self, session_name: str, cols: int, rows: int) -> None:
+        """Resize the named session's window to ``cols`` x ``rows``.
+
+        Makes the program in the pane (Claude) re-render at that width so the
+        captured output fits the viewing device ("fit to screen").
+
+        Raises:
+            TmuxOperationError: if the session does not exist.
+        """
+        ...
+
 
 # ---------------------------------------------------------------------------
 # FakeTmuxAdapter — in-memory test double
@@ -144,6 +155,7 @@ class FakeTmuxAdapter:
         # capture_pane / send_keys state (mvp-project-view, REQ-T1..T3)
         self._pane_contents: dict[str, str] = {}
         self.sent_keys: list[tuple[str, str, bool]] = []
+        self.resizes: list[tuple[str, int, int]] = []
 
     def create_session(self, name: str, cwd: Path, command: str) -> int | None:
         self.calls.append(("create_session", {"name": name, "cwd": cwd, "command": command}))
@@ -230,6 +242,19 @@ class FakeTmuxAdapter:
         self._pane_contents[session_name] = (
             self._pane_contents.get(session_name, "") + text + suffix
         )
+
+    def resize_window(self, session_name: str, cols: int, rows: int) -> None:
+        """Record a resize_window call.
+
+        Raises:
+            TmuxOperationError: if session_name is not in the active sessions.
+        """
+        if session_name not in self._sessions:
+            raise TmuxOperationError(
+                "resize_window",
+                RuntimeError(f"session not found: {session_name}"),
+            )
+        self.resizes.append((session_name, cols, rows))
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +411,33 @@ class LibTmuxAdapter:
             )
         pane = session.active_pane  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
         pane.send_keys(text, enter=send_enter, literal=True)  # pyright: ignore[reportUnknownMemberType]
+
+    def resize_window(self, session_name: str, cols: int, rows: int) -> None:
+        """Resize the named session's window so the pane program re-renders at
+        ``cols`` x ``rows``. ``window-size`` is forced to ``manual`` so an
+        unattached session honors ``resize-window`` (tmux >= 2.9).
+
+        Raises:
+            TmuxOperationError: if the session does not exist or tmux errors.
+        """
+        import libtmux.exc  # local import — REQ-14 isolation
+
+        server = self._get_server()
+        session = server.sessions.get(  # type: ignore[union-attr]
+            default=None, session_name=session_name
+        )
+        if session is None:
+            raise TmuxOperationError(
+                "resize_window",
+                RuntimeError(f"session not found: {session_name}"),
+            )
+        try:
+            session.set_option("window-size", "manual")  # pyright: ignore[reportUnknownMemberType]
+            session.cmd(  # pyright: ignore[reportUnknownMemberType]
+                "resize-window", "-x", str(cols), "-y", str(rows)
+            )
+        except libtmux.exc.LibTmuxException as exc:
+            raise TmuxOperationError("resize_window", exc) from exc
 
     @staticmethod
     def _read_pane_pid(session: object) -> int | None:
