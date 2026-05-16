@@ -520,3 +520,32 @@ async def test_deep_view_rail_collapsible(
     assert "cr-rail-toggle" in html
     assert "data-collapsed" in html
     assert "cr-rail-open" in html  # localStorage key
+
+
+async def test_deep_view_fit_hardening_markers(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """fit measurement is hardened: waits for web fonts, re-fits on tab
+    switch to terminal, and re-fits when the rail collapses/expands."""
+    (tmp_projects_root / "wooli" / "hd").mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="hd", slug="hd",
+            path=tmp_projects_root / "wooli" / "hd", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{proj.id}/launch")
+    html = (
+        await pv_client.get(
+            f"/projects/{proj.id}", headers={"Accept": "text/html"}
+        )
+    ).text
+    # Wait for fonts before measuring (probe char-width is wrong otherwise).
+    assert "document.fonts" in html
+    # Re-fit when the terminal tab becomes visible (hidden pre => clientWidth 0).
+    assert "$watch" in html and "'tab'" in html
+    # Rail collapse/expand changes the <pre> width → re-fit.
+    assert "cr-rail-toggled" in html
