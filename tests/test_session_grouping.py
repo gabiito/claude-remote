@@ -1,0 +1,100 @@
+"""Session grouping for the home list (roadmap #2, WU-1).
+
+Pure helpers: aggregate a project's instance statuses, then split cards into
+the ACTIVE SESSIONS group (a live console) vs the PROJECTS group (inert).
+"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+
+def _card(domain: str, name: str, statuses: list[str], event_times: list[str] | None = None):
+    return {
+        "project": SimpleNamespace(domain=domain, name=name, id=f"{domain}-{name}"),
+        "instance_views": [{"live_status": s} for s in statuses],
+        "recent_events": [SimpleNamespace(received_at=t) for t in (event_times or [])],
+    }
+
+
+# ---------------------------------------------------------------------------
+# aggregate_status
+# ---------------------------------------------------------------------------
+
+
+class TestAggregateStatus:
+    def test_empty_instances_is_stopped(self) -> None:
+        from claude_remote.services.session_grouping import aggregate_status
+
+        assert aggregate_status([]) == "stopped"
+
+    def test_needs_input_wins_over_everything(self) -> None:
+        from claude_remote.services.session_grouping import aggregate_status
+
+        ivs = [{"live_status": "idle"}, {"live_status": "needs_input"}, {"live_status": "active"}]
+        assert aggregate_status(ivs) == "needs_input"
+
+    def test_active_over_running_idle(self) -> None:
+        from claude_remote.services.session_grouping import aggregate_status
+
+        assert aggregate_status([{"live_status": "running"}, {"live_status": "active"}]) == "active"
+
+    def test_crashed_over_stopped_but_below_live(self) -> None:
+        from claude_remote.services.session_grouping import aggregate_status
+
+        assert aggregate_status([{"live_status": "stopped"}, {"live_status": "crashed"}]) == "crashed"
+        assert aggregate_status([{"live_status": "crashed"}, {"live_status": "idle"}]) == "idle"
+
+
+# ---------------------------------------------------------------------------
+# group_and_sort_cards
+# ---------------------------------------------------------------------------
+
+
+class TestGroupAndSort:
+    def test_split_active_vs_projects(self) -> None:
+        from claude_remote.services.session_grouping import group_and_sort_cards
+
+        cards = [
+            _card("wooli", "landing", ["needs_input"]),
+            _card("wooli", "migrations", ["crashed"]),
+            _card("sandbox", "scratch", ["idle"]),
+            _card("sandbox", "exp", []),  # no session → projects
+        ]
+        g = group_and_sort_cards(cards)
+        active_names = [c["project"].name for c in g["active"]]
+        proj_names = [c["project"].name for c in g["projects"]]
+        assert set(active_names) == {"landing", "scratch"}
+        assert set(proj_names) == {"migrations", "exp"}
+
+    def test_active_sorted_by_attention_priority(self) -> None:
+        from claude_remote.services.session_grouping import group_and_sort_cards
+
+        cards = [
+            _card("d", "idle1", ["idle"]),
+            _card("d", "run1", ["running"]),
+            _card("d", "need1", ["needs_input"]),
+            _card("d", "act1", ["active"]),
+        ]
+        g = group_and_sort_cards(cards)
+        assert [c["project"].name for c in g["active"]] == ["need1", "act1", "run1", "idle1"]
+
+    def test_projects_sorted_recent_first(self) -> None:
+        from claude_remote.services.session_grouping import group_and_sort_cards
+
+        cards = [
+            _card("d", "old", ["stopped"], ["2026-05-01T10:00:00+00:00"]),
+            _card("d", "new", ["crashed"], ["2026-05-16T10:00:00+00:00"]),
+            _card("d", "noev", ["stopped"], []),
+        ]
+        g = group_and_sort_cards(cards)
+        names = [c["project"].name for c in g["projects"]]
+        assert names.index("new") < names.index("old") < names.index("noev")
+
+    def test_counts_match_lengths(self) -> None:
+        from claude_remote.services.session_grouping import group_and_sort_cards
+
+        cards = [_card("d", "a", ["active"]), _card("d", "b", ["stopped"])]
+        g = group_and_sort_cards(cards)
+        assert len(g["active"]) == 1
+        assert len(g["projects"]) == 1
