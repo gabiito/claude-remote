@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -53,8 +53,14 @@ def create_app() -> FastAPI:
     @app.exception_handler(StarletteHTTPException)
     async def _http_exception_handler(  # pyright: ignore[reportUnusedFunction]
         request: Request, exc: StarletteHTTPException
-    ) -> HTMLResponse:
-        """Custom 404 handler. Excludes API docs and static assets from HTML override."""
+    ) -> Response:
+        """Custom 404 page; structured envelope for every other HTTP error.
+
+        NOTE: re-raising `exc` here does NOT fall through to Starlette's
+        default handler — inside a registered exception handler it propagates
+        as an unhandled error and the ServerErrorMiddleware turns it into a
+        spurious 500. So non-404 statuses (405/401/403/…) must be RETURNED.
+        """
         if exc.status_code == 404:
             path = request.url.path
             # Let API docs, openapi schema, and static assets pass through to defaults.
@@ -64,8 +70,17 @@ def create_app() -> FastAPI:
                 from claude_remote.routes._templates import templates as TEMPLATES  # noqa: PLC0415
                 content: str = TEMPLATES.get_template("404.html").render(request=request)  # type: ignore[attr-defined]
                 return HTMLResponse(content=content, status_code=404)
-        # Fall through to Starlette's default HTTP exception handler for all other cases.
-        raise exc  # re-raise to let Starlette handle it
+
+        # All other HTTP errors → structured envelope with the real status,
+        # preserving exc.headers (e.g. the Allow header on a 405).
+        response = error_response(
+            code="http_error",
+            message=str(exc.detail),
+            status_code=exc.status_code,
+        )
+        if exc.headers:
+            response.headers.update(exc.headers)
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def _validation_exception_handler(  # pyright: ignore[reportUnusedFunction]

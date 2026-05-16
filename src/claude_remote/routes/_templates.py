@@ -85,9 +85,11 @@ def app_version() -> str:
         return "dev"
 
 
-# Register display helpers as Jinja2 filters so templates can call them inline.
-templates.env.filters["format_relative"] = format_relative
-templates.env.filters["extract_snippet"] = extract_snippet
-templates.env.filters["status_token"] = status_token
-templates.env.globals["asset_url"] = asset_url
-templates.env.globals["app_version"] = app_version
+# Register display helpers as Jinja2 filters/globals so templates call them
+# inline. Jinja2Templates.env is untyped in the FastAPI stubs; the localized
+# pyright suppressions keep that third-party noise out of the error baseline.
+templates.env.filters["format_relative"] = format_relative  # pyright: ignore[reportUnknownMemberType]
+templates.env.filters["extract_snippet"] = extract_snippet  # pyright: ignore[reportUnknownMemberType]
+templates.env.filters["status_token"] = status_token  # pyright: ignore[reportUnknownMemberType]
+templates.env.globals["asset_url"] = asset_url  # pyright: ignore[reportUnknownMemberType]
+templates.env.globals["app_version"] = app_version  # pyright: ignore[reportUnknownMemberType]
