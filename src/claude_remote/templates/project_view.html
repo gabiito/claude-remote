@@ -66,7 +66,15 @@
   {# ── Body: vertical session rail + tab content ── #}
   <div class="cr-pv-body">
   {% if active_sessions %}
-  <nav class="cr-rail cr-scroll" aria-label="Active sessions">
+  <nav class="cr-rail cr-scroll" aria-label="Active sessions"
+       x-data="{ railOpen: localStorage.getItem('cr-rail-open') !== '0' }"
+       :data-collapsed="railOpen ? '0' : '1'">
+    <button class="cr-rail-toggle" type="button"
+            @click="railOpen = !railOpen; localStorage.setItem('cr-rail-open', railOpen ? '1' : '0')"
+            :aria-expanded="railOpen ? 'true' : 'false'"
+            :title="railOpen ? 'Collapse rail' : 'Expand rail'">
+      {{ chevron_right(cls='cr-icon') }}
+    </button>
     {% for s in active_sessions %}
     <a class="cr-rail-item"
        href="/projects/{{ s.project_id }}"
