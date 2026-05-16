@@ -92,7 +92,7 @@
       <button
         class="cr-act-primary"
         hx-post="/ui/projects/{{ project.id }}/launch"
-        hx-vals="js:window.crEstimateTermSize()"
+        hx-vals="js:{...window.crEstimateTermSize()}"
         hx-target="closest .cr-card"
         hx-swap="outerHTML"
         @click.stop>

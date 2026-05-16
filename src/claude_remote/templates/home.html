@@ -83,7 +83,7 @@
                   });
                   const list = document.querySelector('.cr-list');
                   if (!list) return;
-                  cards.forEach(c => list.appendChild(c.parentElement || c));
+                  cards.forEach(c => list.appendChild(c));
                 }
               }"
               x-init="apply()"

@@ -47,7 +47,7 @@
     Session ended · re-launch to continue
     <button style="margin-left: auto;"
             hx-post="/ui/projects/{{ project.id }}/launch"
-            hx-vals="js:window.crEstimateTermSize()"
+            hx-vals="js:{...window.crEstimateTermSize()}"
             hx-target="body" hx-swap="innerHTML">
       Re-launch
     </button>
@@ -58,7 +58,7 @@
     No active instance — launch a new session to start
     <button style="margin-left: auto;"
             hx-post="/ui/projects/{{ project.id }}/launch"
-            hx-vals="js:window.crEstimateTermSize()"
+            hx-vals="js:{...window.crEstimateTermSize()}"
             hx-target="body" hx-swap="innerHTML">
       Launch
     </button>
