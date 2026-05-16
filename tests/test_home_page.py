@@ -216,12 +216,13 @@ async def test_home_project_card_has_data_id(
 # ---------------------------------------------------------------------------
 
 
-async def test_home_card_has_htmx_polling_attrs(
+async def test_home_list_polls_at_list_level_not_per_card(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,
     tmp_projects_root,
 ) -> None:
-    """GET / renders project cards with hx-get polling attribute pointing to /card endpoint."""
+    """Polling moved from per-card to the whole .cr-list so cards re-group
+    live. The list polls GET /ui/home/list; cards no longer self-poll."""
     p_path = tmp_projects_root / "acme.com" / "pollproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -232,9 +233,37 @@ async def test_home_card_has_htmx_polling_attrs(
 
     response = await home_client.get("/")
     assert response.status_code == 200
-    assert f'hx-get="/ui/projects/{project.id}/card"' in response.text
+    # List-level poll exists.
+    assert 'hx-get="/ui/home/list"' in response.text
     assert "every 5s" in response.text
-    assert 'hx-swap="outerHTML"' in response.text
+    # The card root no longer self-polls its /card endpoint.
+    assert f'hx-get="/ui/projects/{project.id}/card"' not in response.text
+    # Exactly one polling trigger (the list), not one per card.
+    assert response.text.count("every 5s") == 1
+
+
+async def test_home_list_fragment_endpoint(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET /ui/home/list returns the grouped sections as a fragment (no <html>)."""
+    live = tmp_projects_root / "wooli" / "landing"
+    live.mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="landing", slug="landing", path=live, domain="wooli"
+        )
+    )
+    await home_client.post(f"/ui/projects/{proj.id}/launch")
+
+    resp = await home_client.get("/ui/home/list")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "<html" not in body  # fragment, not a full page
+    assert "ACTIVE SESSIONS" in body
+    assert 'data-project-id=' in body
 
 
 async def test_home_live_status_pill_running_when_no_events(
