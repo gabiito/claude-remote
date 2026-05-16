@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,6 +58,8 @@ from claude_remote.services.session_grouping import (
 from claude_remote.services.slug import slugify
 from claude_remote.services.tmux_adapter import TmuxAdapter
 from claude_remote.services.tmux_launcher import TmuxLauncher
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 
@@ -657,3 +660,48 @@ async def post_instance_input(
         status_code=200,
         headers={"HX-Trigger": "input-sent"},
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /ui/instances/{id}/resize — Fit tmux window to the viewing device
+# ---------------------------------------------------------------------------
+
+
+def _clamp(value: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, value))
+
+
+@router.post("/instances/{instance_id}/resize", response_class=HTMLResponse)
+async def post_instance_resize(
+    request: Request,
+    instance_id: str,
+    cols: int = Form(default=80),
+    rows: int = Form(default=24),
+    instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
+) -> HTMLResponse:
+    """Resize the instance's tmux window so the pane re-renders fit-to-screen.
+
+    Called fire-and-forget by the deep view when 'fit' is on (on load and on
+    viewport/orientation change). cols/rows are clamped to sane tmux bounds.
+
+    Returns:
+        200 + empty body on success OR adapter error (cosmetic, never 5xx).
+        404 + error fragment when the instance is not found.
+    """
+    instance = instances_repo.get(instance_id)
+    if instance is None:
+        return _error_fragment(
+            request, f"Instance '{instance_id}' not found.", status_code=404
+        )
+
+    safe_cols = _clamp(cols, 20, 500)
+    safe_rows = _clamp(rows, 5, 400)
+    try:
+        await asyncio.to_thread(
+            adapter.resize_window, instance.tmux_session_name, safe_cols, safe_rows
+        )
+    except Exception as exc:  # noqa: BLE001 — fire-and-forget; never break the UI
+        logger.warning("resize_window failed for %s: %s", instance_id, exc)
+
+    return HTMLResponse(content="", status_code=200)
