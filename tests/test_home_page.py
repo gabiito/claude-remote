@@ -648,6 +648,62 @@ async def test_home_card_expanded_has_no_x_show(home_client: AsyncClient) -> Non
 
 
 # ---------------------------------------------------------------------------
+# Roadmap #2 WU-1 — ACTIVE SESSIONS / PROJECTS grouped sections
+# ---------------------------------------------------------------------------
+
+
+async def test_home_renders_two_section_headers(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """A launched project (live → ACTIVE SESSIONS) and an idle-registered one
+    (no session → PROJECTS) make both section headers render."""
+    live_path = tmp_projects_root / "wooli" / "landing"
+    live_path.mkdir(parents=True)
+    live = projects_repo.create(
+        project_create=ProjectCreate(
+            name="landing", slug="landing", path=live_path, domain="wooli"
+        )
+    )
+    dead_path = tmp_projects_root / "sandbox" / "exp"
+    dead_path.mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="exp", slug="exp", path=dead_path, domain="sandbox"
+        )
+    )
+    launch = await home_client.post(f"/ui/projects/{live.id}/launch")
+    assert launch.status_code == 200
+
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert "ACTIVE SESSIONS" in response.text
+    assert "PROJECTS" in response.text
+    assert "cr-section-head" in response.text
+
+
+async def test_home_active_section_absent_when_no_live_sessions(
+    home_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """With only inert projects there is no ACTIVE SESSIONS header."""
+    p = tmp_projects_root / "sandbox" / "only"
+    p.mkdir(parents=True)
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="only", slug="only", path=p, domain="sandbox"
+        )
+    )
+    response = await home_client.get("/")
+    assert response.status_code == 200
+    assert "ACTIVE SESSIONS" not in response.text
+    assert "PROJECTS" in response.text
+
+
+# ---------------------------------------------------------------------------
 # Pre-existing test (must stay at end)
 # ---------------------------------------------------------------------------
 
