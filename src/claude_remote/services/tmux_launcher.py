@@ -67,7 +67,14 @@ class TmuxLauncher:
     # Public API
     # ------------------------------------------------------------------
 
-    def launch(self, project_id: str, *, command: str | None = None) -> Instance:
+    def launch(
+        self,
+        project_id: str,
+        *,
+        command: str | None = None,
+        cols: int | None = None,
+        rows: int | None = None,
+    ) -> Instance:
         """Launch a new Claude instance for the given project.
 
         Steps:
@@ -144,7 +151,9 @@ class TmuxLauncher:
 
         # Delegate to adapter — let TmuxOperationError bubble up.
         # The 'starting' row stays as audit trail; next reconcile → 'crashed'.
-        pane_pid = self._adapter.create_session(session_name, Path(project.path), cmd)
+        pane_pid = self._adapter.create_session(
+            session_name, Path(project.path), cmd, cols=cols, rows=rows
+        )
 
         return self._instances.update_status(
             instance.id,

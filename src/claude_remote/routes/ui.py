@@ -422,14 +422,25 @@ async def create_project_ui(
 async def launch_project_ui(
     request: Request,
     project_id: str,
+    cols: int | None = Form(default=None),
+    rows: int | None = Form(default=None),
     launcher: TmuxLauncher = Depends(get_tmux_launcher),  # noqa: B008
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
     events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
     projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
 ) -> HTMLResponse:
-    """Launch an instance for a project and return the updated project card."""
+    """Launch an instance for a project and return the updated project card.
+
+    cols/rows (sent by the home from the device viewport) size the tmux
+    window at creation so Claude renders at the right width from the first
+    paint — no resize-after-the-fact, no duplicate banner. Clamped.
+    """
+    safe_cols = _clamp(cols, 20, 500) if cols is not None else None
+    safe_rows = _clamp(rows, 5, 400) if rows is not None else None
     try:
-        await asyncio.to_thread(lambda: launcher.launch(project_id))
+        await asyncio.to_thread(
+            lambda: launcher.launch(project_id, cols=safe_cols, rows=safe_rows)
+        )
     except ProjectNotFoundError:
         return _error_fragment(
             request,
