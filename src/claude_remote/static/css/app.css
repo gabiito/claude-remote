@@ -725,10 +725,11 @@ body {
 
 /* ── 18. Input dock ── */
 .cr-input-dock {
-  /* Android Chrome (browser tab) reports env(safe-area-inset-bottom)=0, so the
-     dock slid under the system nav/gesture bar. max() enforces a floor that
-     clears the gesture bar; on iOS the real inset exceeds it (no double pad). */
-  padding: 10px 12px max(28px, calc(14px + env(safe-area-inset-bottom)));
+  /* Android 3-button nav (~48dp) is not reported via env(safe-area-inset-bottom)
+     even in an installed PWA, so the dock slid under it. max() enforces a 48px
+     floor that clears 3-button nav; where the real inset is reported (notched
+     iOS) calc() exceeds the floor and wins, so there is no double padding. */
+  padding: 10px 12px max(48px, calc(14px + env(safe-area-inset-bottom)));
   background: var(--bg-1);
   border-top: 1px solid var(--line-0);
   flex: 0 0 auto;
