@@ -34,11 +34,11 @@ def test_capture_pane_does_not_read_full_scrollback() -> None:
     assert out == "visible screen"
 
 
-def test_resize_window_clears_history_to_drop_duplicate_banner() -> None:
-    """Each resize makes Claude reprint its banner into scrollback; with
-    -S - that stacked duplicates. resize_window must clear-history after
-    resize-window so old (duplicate) scrollback is dropped — scroll is kept
-    for output produced AFTER the resize."""
+def test_resize_window_does_not_clear_history() -> None:
+    """resize_window must NOT clear-history: that wiped the scrollback the
+    user needs to scroll Claude's output. The duplicate-banner artifact is
+    accepted as the lesser evil (cosmetic, top of buffer) — scrolling wins.
+    Scraping tmux cannot give both; real dedupe needs a transcript view."""
     adapter = LibTmuxAdapter()
     session = MagicMock()
     server = MagicMock()
@@ -49,6 +49,4 @@ def test_resize_window_clears_history_to_drop_duplicate_banner() -> None:
 
     cmds = [c.args[0] for c in session.cmd.call_args_list]
     assert "resize-window" in cmds
-    assert "clear-history" in cmds
-    # clear-history must come AFTER resize-window (drop the post-resize dupes).
-    assert cmds.index("clear-history") > cmds.index("resize-window")
+    assert "clear-history" not in cmds
