@@ -70,7 +70,7 @@
        x-data="{ railOpen: localStorage.getItem('cr-rail-open') !== '0' }"
        :data-collapsed="railOpen ? '0' : '1'">
     <button class="cr-rail-toggle" type="button"
-            @click="railOpen = !railOpen; localStorage.setItem('cr-rail-open', railOpen ? '1' : '0'); window.dispatchEvent(new CustomEvent('cr-rail-toggled'))"
+            @click="railOpen = !railOpen; localStorage.setItem('cr-rail-open', railOpen ? '1' : '0')"
             :aria-expanded="railOpen ? 'true' : 'false'"
             :title="railOpen ? 'Collapse rail' : 'Expand rail'">
       {{ chevron_right(cls='cr-icon') }}
@@ -145,11 +145,13 @@
        x-init="
          window.addEventListener('hashchange', () => { tab = window.location.hash === '#events' ? 'events' : 'terminal' });
          {% if primary_instance %}
-         let _rt; const _deb = () => { clearTimeout(_rt); _rt = setTimeout(() => { _fitTries = 0; applyFit(); }, 250); };
-         window.addEventListener('resize', _deb);
+         // Each tmux resize → SIGWINCH → Claude reprints its banner (dup with
+         // -S -). So resize as RARELY as possible: once on open + on a real
+         // orientation change only. No tab/rail/generic-resize re-fits. The
+         // bounded retry does NOT add resizes (it only waits for one valid
+         // measurement, then sends a single resize).
+         let _rt; const _deb = () => { clearTimeout(_rt); _rt = setTimeout(() => { _fitTries = 0; applyFit(); }, 300); };
          window.addEventListener('orientationchange', _deb);
-         window.addEventListener('cr-rail-toggled', _deb);
-         $watch('tab', (v) => { if (v === 'terminal') { _fitTries = 0; applyFit(); } });
          if (window.document.fonts && document.fonts.ready) {
            document.fonts.ready.then(() => applyFit());
          } else {
