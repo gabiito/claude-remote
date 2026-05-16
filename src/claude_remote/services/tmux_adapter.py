@@ -45,8 +45,22 @@ class TmuxAdapter(Protocol):
       See ADR #651 (decisions/tmux-adapter-raise-on-missing-session).
     """
 
-    def create_session(self, name: str, cwd: Path, command: str) -> int | None:
+    def create_session(
+        self,
+        name: str,
+        cwd: Path,
+        command: str,
+        *,
+        cols: int | None = None,
+        rows: int | None = None,
+    ) -> int | None:
         """Create a tmux session running command in cwd.
+
+        Args:
+            cols/rows: optional initial window size. Sizing the window at
+                creation means the pane program (Claude) renders at that
+                width from the start — no SIGWINCH reprint / duplicate banner.
+                None → tmux default (80x24).
 
         Returns:
             The pane PID (int) if captured; None if the session was created
@@ -157,8 +171,21 @@ class FakeTmuxAdapter:
         self.sent_keys: list[tuple[str, str, bool]] = []
         self.resizes: list[tuple[str, int, int]] = []
 
-    def create_session(self, name: str, cwd: Path, command: str) -> int | None:
-        self.calls.append(("create_session", {"name": name, "cwd": cwd, "command": command}))
+    def create_session(
+        self,
+        name: str,
+        cwd: Path,
+        command: str,
+        *,
+        cols: int | None = None,
+        rows: int | None = None,
+    ) -> int | None:
+        self.calls.append(
+            (
+                "create_session",
+                {"name": name, "cwd": cwd, "command": command, "cols": cols, "rows": rows},
+            )
+        )
         if name in self._sessions:
             raise TmuxOperationError(
                 "create_session", RuntimeError(f"Session '{name}' already exists")
@@ -284,13 +311,24 @@ class LibTmuxAdapter:
             self._server = libtmux.Server()
         return self._server
 
-    def create_session(self, name: str, cwd: Path, command: str) -> int | None:
+    def create_session(
+        self,
+        name: str,
+        cwd: Path,
+        command: str,
+        *,
+        cols: int | None = None,
+        rows: int | None = None,
+    ) -> int | None:
         """Create a tmux session and return the inner pane PID.
 
         Args:
             name: unique session name (globally unique across this tmux server).
             cwd: working directory for the session's initial window.
             command: shell command to run in the new window.
+            cols/rows: optional initial window size (tmux new-session -x/-y).
+                Born at this size so Claude renders correctly from the first
+                paint — no SIGWINCH reprint / duplicate banner. None → 80x24.
 
         Returns:
             pane_pid as int; None when PID capture fails (session still created).
@@ -301,13 +339,20 @@ class LibTmuxAdapter:
         import libtmux.exc  # local import — REQ-14 isolation
 
         server = self._get_server()
+        new_kwargs: dict[str, object] = {
+            "session_name": name,
+            "start_directory": str(cwd),
+            "window_command": command,
+            "detach": True,
+        }
+        if cols is not None and rows is not None:
+            new_kwargs["x"] = cols
+            new_kwargs["y"] = rows
         try:
-            session = server.new_session(  # type: ignore[union-attr]
-                session_name=name,
-                start_directory=str(cwd),
-                window_command=command,
-                detach=True,
-            )
+            session = server.new_session(**new_kwargs)  # type: ignore[union-attr]
+            if cols is not None and rows is not None:
+                # Keep the size on a detached (clientless) session.
+                session.set_option("window-size", "manual")  # pyright: ignore[reportUnknownMemberType]
         except libtmux.exc.LibTmuxException as exc:
             raise TmuxOperationError("create_session", exc) from exc
         return self._read_pane_pid(session)  # pyright: ignore[reportUnknownArgumentType]
