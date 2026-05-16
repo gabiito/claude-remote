@@ -398,3 +398,72 @@ async def test_project_view_title_needs_input_has_red_dot(
     html = response.text
     # Title must contain the red dot when needs_input
     assert "🔴" in html
+
+
+# ---------------------------------------------------------------------------
+# WU-2 — vertical active-sessions rail
+# ---------------------------------------------------------------------------
+
+
+async def test_deep_view_rail_lists_active_sessions(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Deep view shows a rail with every active session; current is flagged,
+    a stopped project is excluded."""
+    (tmp_projects_root / "wooli" / "landing").mkdir(parents=True)
+    (tmp_projects_root / "wooli" / "api").mkdir(parents=True)
+    (tmp_projects_root / "wooli" / "dead").mkdir(parents=True)
+    cur = projects_repo.create(
+        project_create=ProjectCreate(
+            name="landing", slug="landing",
+            path=tmp_projects_root / "wooli" / "landing", domain="wooli",
+        )
+    )
+    other = projects_repo.create(
+        project_create=ProjectCreate(
+            name="api", slug="api",
+            path=tmp_projects_root / "wooli" / "api", domain="wooli",
+        )
+    )
+    projects_repo.create(
+        project_create=ProjectCreate(
+            name="dead", slug="dead",
+            path=tmp_projects_root / "wooli" / "dead", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{cur.id}/launch")
+    await pv_client.post(f"/ui/projects/{other.id}/launch")
+
+    resp = await pv_client.get(
+        f"/projects/{cur.id}", headers={"Accept": "text/html"}
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "cr-rail" in html
+    assert f'href="/projects/{cur.id}"' in html
+    assert f'href="/projects/{other.id}"' in html
+    assert 'data-current="1"' in html
+    assert "dead" not in html.split("cr-rail")[1].split("cr-pv-tabs")[0]
+
+
+async def test_deep_view_rail_absent_when_no_active(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+) -> None:
+    """No active sessions anywhere → no rail rendered."""
+    (tmp_projects_root / "wooli" / "solo").mkdir(parents=True)
+    p = projects_repo.create(
+        project_create=ProjectCreate(
+            name="solo", slug="solo",
+            path=tmp_projects_root / "wooli" / "solo", domain="wooli",
+        )
+    )
+    resp = await pv_client.get(
+        f"/projects/{p.id}", headers={"Accept": "text/html"}
+    )
+    assert resp.status_code == 200
+    assert "cr-rail" not in resp.text

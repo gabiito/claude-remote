@@ -79,6 +79,51 @@ class TestFilterByDomain:
         assert filter_cards_by_domain(cards, "nope") == []
 
 
+class TestBuildActiveSessions:
+    def test_only_active_included(self) -> None:
+        from claude_remote.services.session_grouping import build_active_sessions
+
+        cards = [
+            _card("wooli", "landing", ["running"]),
+            _card("wooli", "migrations", ["crashed"]),
+            _card("sandbox", "exp", []),  # no session
+        ]
+        out = build_active_sessions(cards, current_project_id="x")
+        assert {s["name"] for s in out} == {"landing"}
+
+    def test_is_current_flag(self) -> None:
+        from claude_remote.services.session_grouping import build_active_sessions
+
+        cards = [_card("wooli", "a", ["active"]), _card("wooli", "b", ["running"])]
+        out = build_active_sessions(cards, current_project_id="wooli-a")
+        cur = {s["name"]: s["is_current"] for s in out}
+        assert cur == {"a": True, "b": False}
+
+    def test_sorted_by_attention_priority(self) -> None:
+        from claude_remote.services.session_grouping import build_active_sessions
+
+        cards = [
+            _card("d", "i", ["idle"]),
+            _card("d", "n", ["needs_input"]),
+            _card("d", "r", ["running"]),
+        ]
+        out = build_active_sessions(cards, current_project_id="")
+        assert [s["name"] for s in out] == ["n", "r", "i"]
+
+    def test_entry_shape(self) -> None:
+        from claude_remote.services.session_grouping import build_active_sessions
+
+        out = build_active_sessions(
+            [_card("wooli", "landing", ["needs_input"])], current_project_id="wooli-landing"
+        )
+        s = out[0]
+        assert s["project_id"] == "wooli-landing"
+        assert s["domain"] == "wooli"
+        assert s["name"] == "landing"
+        assert s["status"] == "needs_input"
+        assert s["is_current"] is True
+
+
 class TestGroupAndSort:
     def test_split_active_vs_projects(self) -> None:
         from claude_remote.services.session_grouping import group_and_sort_cards
