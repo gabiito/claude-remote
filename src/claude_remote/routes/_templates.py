@@ -9,6 +9,8 @@ Custom Jinja2 filters registered here (ADR-3):
   - ``status_token``     → maps derive_live_status() output to CSS [data-status] token
 """
 
+import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -49,8 +51,43 @@ def asset_url(rel_path: str) -> str:
     return f"/static/{rel_path}?v={version}"
 
 
+@lru_cache(maxsize=1)
+def app_version() -> str:
+    """Return the running version, derived from git so a tag is the source of truth.
+
+    `git describe --tags --always --dirty`:
+      - tagged commit            → the tag (e.g. v0.1.0)
+      - commits after a tag      → v0.1.0-3-gabc1234
+      - uncommitted changes      → ...-dirty
+      - no tags yet              → short SHA (honest: untagged commit)
+
+    Falls back to the packaged metadata version, then "dev". Cached for the
+    process (restart to pick up a new tag) and never raises.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "describe", "--tags", "--always", "--dirty"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=2,
+            cwd=_PACKAGE_ROOT,
+        ).stdout.strip()
+        if out:
+            return out
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        from importlib.metadata import version
+
+        return version("claude-remote")
+    except Exception:  # noqa: BLE001
+        return "dev"
+
+
 # Register display helpers as Jinja2 filters so templates can call them inline.
 templates.env.filters["format_relative"] = format_relative
 templates.env.filters["extract_snippet"] = extract_snippet
 templates.env.filters["status_token"] = status_token
 templates.env.globals["asset_url"] = asset_url
+templates.env.globals["app_version"] = app_version
