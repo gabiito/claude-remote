@@ -7,12 +7,10 @@ from httpx import ASGITransport, AsyncClient
 
 from claude_remote.app import create_app
 from claude_remote.config import Settings, get_settings
-from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
-from claude_remote.services.tmux_adapter import FakeTmuxAdapter
-
-
 from claude_remote.db.app_settings import AppSettings, AppSettingsRepository
+from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.services.auth import hash_password, sign_session
+from claude_remote.services.tmux_adapter import FakeTmuxAdapter
 
 # Auth gate (#7) is global. The gate's own behaviour (block/allow) is fully
 # covered by tests/test_auth_gate.py + test_auth_session.py + test_auth.py —
