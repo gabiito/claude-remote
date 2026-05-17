@@ -19,10 +19,7 @@
             aria-label="Refresh now" title="Refresh now">{{ sync(cls='cr-icon') }}</button>
   </div>
 
-  <div id="cr-metrics-body" class="cr-metrics cr-scroll"
-       hx-get="/metrics/poll"
-       hx-trigger="every 5s [document.visibilityState === 'visible']"
-       hx-swap="innerHTML">
+  <div id="cr-metrics-body" class="cr-metrics cr-scroll">
     {% include "partials/metrics_body.html" %}
   </div>
 </div>

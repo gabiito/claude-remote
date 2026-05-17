@@ -7,9 +7,7 @@
 <div class="cr-shell"
      x-data="{ filter: window.location.hash.slice(1) || 'all' }"
      x-init="
-       const loadList = () => window.htmx.ajax('GET', '/ui/home/list?domain=' + filter, { target: '.cr-list', swap: 'innerHTML' });
-       window.addEventListener('hashchange', () => { filter = window.location.hash.slice(1) || 'all'; loadList(); });
-       if (filter !== 'all') loadList();
+       window.addEventListener('hashchange', () => { filter = window.location.hash.slice(1) || 'all'; });
      "
      x-on:projects-synced.window="window.location.reload()">
   {# ── Header ── #}
@@ -190,13 +188,10 @@
   </div>
   {% endif %}
 
-  {# ── Project list — whole-list poll re-groups cards live (WU-1b).
-       Paused while any card is expanded or the tab is hidden. ── #}
-  <div class="cr-list cr-scroll"
-       hx-get="/ui/home/list"
-       hx-vals='js:{"domain": (window.location.hash.slice(1) || "all")}'
-       hx-trigger="every 5s [document.visibilityState === 'visible' && !document.querySelector('.cr-card[data-expanded=&quot;1&quot;]')]"
-       hx-swap="innerHTML">
+  {# ── Project list — live via SSE (js/sse.js). The stream pushes a
+       re-rendered, domain-filtered list on every state change; swaps are
+       deferred while a card is expanded and flushed on collapse. ── #}
+  <div class="cr-list cr-scroll">
     {% include "partials/home_list.html" %}
   </div>
 </div>

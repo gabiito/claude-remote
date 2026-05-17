@@ -216,13 +216,13 @@ async def test_home_project_card_has_data_id(
 # ---------------------------------------------------------------------------
 
 
-async def test_home_list_polls_at_list_level_not_per_card(
+async def test_home_list_is_live_via_sse_not_polling(
     home_client: AsyncClient,
     projects_repo: ProjectsRepository,
     tmp_projects_root,
 ) -> None:
-    """Polling moved from per-card to the whole .cr-list so cards re-group
-    live. The list polls GET /ui/home/list; cards no longer self-poll."""
+    """mvp-sse: the whole-list 5s poll is replaced by an SSE stream. No
+    list-level poll, and cards still never self-poll their /card endpoint."""
     p_path = tmp_projects_root / "acme.com" / "pollproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -233,13 +233,12 @@ async def test_home_list_polls_at_list_level_not_per_card(
 
     response = await home_client.get("/")
     assert response.status_code == 200
-    # List-level poll exists.
-    assert 'hx-get="/ui/home/list"' in response.text
-    assert "every 5s" in response.text
-    # The card root no longer self-polls its /card endpoint.
+    # SSE client shipped; no HTMX polling of the list anymore.
+    assert "js/sse.js" in response.text
+    assert "every 5s" not in response.text
+    assert 'hx-get="/ui/home/list"' not in response.text
+    # The card root still does not self-poll its /card endpoint.
     assert f'hx-get="/ui/projects/{project.id}/card"' not in response.text
-    # Exactly one polling trigger (the list), not one per card.
-    assert response.text.count("every 5s") == 1
 
 
 async def test_home_list_filters_by_domain_server_side(
