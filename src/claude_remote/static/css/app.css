@@ -620,7 +620,7 @@ body {
 .cr-rail::-webkit-scrollbar { width: 0; }
 .cr-rail[data-collapsed="1"] { width: 22px; }
 .cr-rail[data-collapsed="1"] .cr-rail-name { display: none; }
-.cr-rail[data-collapsed="1"] .cr-rail-item { padding: 12px 0; }
+.cr-rail[data-collapsed="1"] .cr-rail-entry { padding: 12px 0; }
 .cr-rail-toggle {
   flex: 0 0 auto;
   height: 30px;
@@ -636,37 +636,40 @@ body {
 .cr-rail-toggle:hover { color: var(--fg-1); }
 .cr-rail-toggle .cr-icon { width: 15px; height: 15px; transition: transform 140ms; }
 .cr-rail:not([data-collapsed="1"]) .cr-rail-toggle .cr-icon { transform: rotate(180deg); }
-.cr-rail-item {
+/* The whole tab is ONE surface: the link (status dot + vertical name) and
+   the stop 'x' both live inside .cr-rail-entry and share its background,
+   accent border and hover/current state — so it reads as "close THIS tab",
+   not a detached control. Status dot owns the top; the x sits centered at
+   the bottom, under the domain. */
+.cr-rail-entry {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   padding: 14px 4px;
-  text-decoration: none;
   color: var(--fg-3);
   border-left: 2px solid transparent;
   transition: background 120ms, color 120ms;
 }
 /* Hover is a distinct, lighter transient cue — NOT the active surface. */
-.cr-rail-item:hover { background: var(--bg-3); color: var(--fg-1); }
-.cr-rail-item[data-current="1"] {
+.cr-rail-entry:hover { background: var(--bg-3); color: var(--fg-1); }
+.cr-rail-entry:has(.cr-rail-item[data-current="1"]) {
   color: var(--fg-0);
   background: var(--bg-2);
   border-left-color: var(--accent);
 }
-/* Column: status dot (top, inside the link) → vertical name → stop 'x'
-   (bottom, centered under the text). The dot owns the top, so the x sits
-   below the domain — no clash. */
-.cr-rail-entry {
+.cr-rail-item {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
 }
-.cr-rail-entry .cr-rail-item { width: 100%; }
 .cr-rail-close {
   width: 18px;
   height: 18px;
-  margin: 2px 0 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -683,8 +686,10 @@ body {
 }
 /* Current session's stop is always visible; others reveal on hover. */
 .cr-rail-entry:hover .cr-rail-close,
-.cr-rail-item[data-current="1"] + .cr-rail-close { opacity: 1; }
-.cr-rail-close:hover { color: var(--st-stop); background: var(--bg-3); }
+.cr-rail-entry:has(.cr-rail-item[data-current="1"]) .cr-rail-close {
+  opacity: 1;
+}
+.cr-rail-close:hover { color: var(--st-stop); background: var(--bg-1); }
 .cr-rail[data-collapsed="1"] .cr-rail-close { display: none; }
 .cr-rail-dot {
   width: 8px;
