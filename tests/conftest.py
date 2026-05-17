@@ -39,17 +39,29 @@ def _authenticate_unless_testing_auth(request: pytest.FixtureRequest, monkeypatc
     _orig_get = AppSettingsRepository.get
 
     def _get(self: AppSettingsRepository) -> AppSettings:
-        # Always pin the signing secret to the fixed test value (and ensure
-        # a password exists) so the injected cookie verifies regardless of
-        # what the real dev DB happens to hold (e.g. a real `claudio
-        # set-password` was run on ./claude-remote.db). verify_session still
-        # runs for real against this pinned secret — not a bypass.
-        row = _orig_get(self)
-        return row.model_copy(
-            update={
-                "password_hash": row.password_hash or _TEST_PW_HASH,
-                "session_secret": _TEST_SECRET,
-            }
+        # Pin the signing secret to the fixed test value (and ensure a
+        # password exists) so the injected cookie verifies regardless of
+        # what the real dev DB holds — INCLUDING when it predates the auth
+        # migration (the async_client fixture skips lifespan, so the real
+        # ./claude-remote.db may lack the 0011 columns and _orig_get raises).
+        # verify_session still runs for real against this secret — not a
+        # bypass; the auth suites opt out and exercise the unpatched gate.
+        try:
+            row = _orig_get(self)
+            projects_root = row.projects_root
+            updated_at = row.updated_at
+            password_hash = row.password_hash or _TEST_PW_HASH
+        except Exception:  # noqa: BLE001 — un-migrated/locked dev DB
+            projects_root, updated_at, password_hash = (
+                None,
+                "1970-01-01T00:00:00+00:00",
+                _TEST_PW_HASH,
+            )
+        return AppSettings(
+            projects_root=projects_root,
+            updated_at=updated_at,
+            password_hash=password_hash,
+            session_secret=_TEST_SECRET,
         )
 
     monkeypatch.setattr(AppSettingsRepository, "get", _get)
@@ -91,9 +103,11 @@ async def async_client() -> AsyncClient:
 
     app = create_app()
     # This fixture runs against the real env defaults (dev DB) by design.
-    # Force configured=True so the first-run /setup guard doesn't redirect
-    # these shell/404/health tests; everything else stays as real settings.
+    # Ensure that DB is migrated — AsyncClient(ASGITransport) does NOT run
+    # the lifespan, so without this the suite depends on a prior `make run`
+    # having migrated ./claude-remote.db (flaky after install/venv churn).
     _real = get_settings()
+    apply_migrations(_real.db_path, MIGRATIONS_DIR)
     app.dependency_overrides[get_settings] = lambda: dataclasses.replace(
         _real, configured=True
     )

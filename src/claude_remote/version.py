@@ -9,8 +9,9 @@ resolve through this one function — they can never drift apart.
   - uncommitted changes → ...-dirty
   - no tags yet         → short SHA (honest: untagged commit)
 
-Falls back to packaged metadata, then "dev". Cached for the process
-(restart to pick up a new tag) and never raises.
+No .git (source ZIP / wheel of a tagged release) → the release-stamped
+``_version.py`` is used. Then packaged metadata, then "dev". Cached for
+the process (restart to pick up a new tag) and never raises.
 """
 
 from __future__ import annotations
@@ -37,9 +38,24 @@ def resolve_version() -> str:
             return out
     except (OSError, subprocess.SubprocessError):
         pass
+    stamped = _stamped_version()
+    if stamped is not None:
+        return stamped
     try:
         from importlib.metadata import version
 
         return version("claude-remote")
     except Exception:  # noqa: BLE001
         return "dev"
+
+
+def _stamped_version() -> str | None:
+    """Release-stamped value from _version.py, or None if it's the
+    unstamped placeholder (so a non-release tree falls through)."""
+    try:
+        from claude_remote._version import __version__ as v
+    except Exception:  # noqa: BLE001
+        return None
+    if v and not v.startswith("0.0.0"):
+        return v
+    return None
