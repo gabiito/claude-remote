@@ -22,7 +22,12 @@ from claude_remote.services.tmux_adapter import FakeTmuxAdapter
 _TEST_SECRET = "conftest-fixed-session-secret"
 _TEST_PW_HASH = hash_password("conftest-pw")
 _TEST_COOKIE = sign_session(_TEST_SECRET)
-_AUTH_TEST_MODULES = {"test_auth", "test_auth_session", "test_auth_gate"}
+_AUTH_TEST_MODULES = {
+    "test_auth",
+    "test_auth_session",
+    "test_auth_gate",
+    "test_hardening",
+}
 
 
 @pytest.fixture(autouse=True)
