@@ -33,12 +33,22 @@ def pytest_collection_modifyitems(
 
 @pytest.fixture()
 async def async_client() -> AsyncClient:
+    import dataclasses
+
     app = create_app()
+    # This fixture runs against the real env defaults (dev DB) by design.
+    # Force configured=True so the first-run /setup guard doesn't redirect
+    # these shell/404/health tests; everything else stays as real settings.
+    _real = get_settings()
+    app.dependency_overrides[get_settings] = lambda: dataclasses.replace(
+        _real, configured=True
+    )
     async with AsyncClient(
         transport=ASGITransport(app=app),  # type: ignore[arg-type]
         base_url="http://test",
     ) as client:
         yield client  # type: ignore[misc]
+    app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------

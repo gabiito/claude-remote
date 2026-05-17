@@ -1,0 +1,14 @@
+{% if error %}
+<div class="cr-field-error" style="display:block">{{ error }}</div>
+{% elif create_path %}
+<div class="cr-setup-warn">
+  <p><code>{{ create_path }}</code> doesn't exist yet.</p>
+  <p class="cr-helper">Create it and continue, or edit the path above to correct it.</p>
+  <form hx-post="/ui/setup" hx-target="#setup-result" hx-swap="innerHTML"
+        style="margin-top: 10px;">
+    <input type="hidden" name="path" value="{{ create_path }}">
+    <input type="hidden" name="confirm_create" value="1">
+    <button type="submit" class="cr-btn-primary">Create folder &amp; continue</button>
+  </form>
+</div>
+{% endif %}

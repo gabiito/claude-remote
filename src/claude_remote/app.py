@@ -50,6 +50,41 @@ def create_app() -> FastAPI:
     # Excluded paths: let FastAPI/Starlette default handlers serve these.
     _PASSTHROUGH_PATHS = ("/openapi.json", "/docs", "/redoc")
 
+    # First-run guard: until projects_root is configured, redirect HTML
+    # navigation to /setup. Exempt static/api/health/hooks/sw/setup so assets
+    # and Claude's hook receiver keep working. Resolve settings via the
+    # dependency-override map so test fixtures (which override get_settings)
+    # are respected exactly as in route injection.
+    _GUARD_EXEMPT = (
+        "/setup",
+        "/ui/setup",
+        "/static",
+        "/api",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/health",
+        "/hooks",
+        "/sw.js",
+    )
+
+    def _guard_exempt(path: str) -> bool:
+        return any(path == p or path.startswith(p + "/") for p in _GUARD_EXEMPT)
+
+    @app.middleware("http")
+    async def _require_configured(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if not _guard_exempt(request.url.path):
+            resolver = app.dependency_overrides.get(get_settings, get_settings)
+            try:
+                cfg = resolver()
+            except Exception:  # noqa: BLE001 — never block on a settings error
+                cfg = None
+            if cfg is not None and not getattr(cfg, "configured", True):
+                from fastapi.responses import RedirectResponse as _RR  # noqa: PLC0415
+
+                return _RR("/setup", status_code=303)
+        return await call_next(request)  # pyright: ignore[reportUnknownVariableType]
+
     @app.exception_handler(StarletteHTTPException)
     async def _http_exception_handler(  # pyright: ignore[reportUnusedFunction]
         request: Request, exc: StarletteHTTPException
@@ -114,8 +149,9 @@ def create_app() -> FastAPI:
 
     # UI routers — imported here to avoid circular imports at module level
     # (home + ui need TEMPLATES which lives in routes/_templates.py, not app.py)
-    from claude_remote.routes import home, metrics, settings, ui  # noqa: PLC0415
+    from claude_remote.routes import home, metrics, settings, setup, ui  # noqa: PLC0415
 
+    app.include_router(setup.router)
     app.include_router(home.router)
     app.include_router(settings.router)
     app.include_router(metrics.router)

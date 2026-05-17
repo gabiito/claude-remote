@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "icons/_macros.html" import arrow_right %}
+{% block title %}Setup · Claudio-RC{% endblock %}
+{% block content %}
+<div class="cr-shell">
+  <main class="cr-settings-main cr-scroll">
+    <section class="cr-settings-section">
+      <h2>Welcome to Claudio-RC</h2>
+      <p class="cr-helper">
+        Claudio-RC manages your projects in a fixed two-level layout:
+      </p>
+      <div class="cr-setup-model">
+        <code>&lt;root&gt;</code>
+        <span class="cr-path-arrow">/</span><code>domain</code>
+        <span class="cr-path-arrow">/</span><code>project</code>
+      </div>
+      <p class="cr-helper">
+        e.g. <code>~/Projects</code> / <code>wooli</code> / <code>landing</code>.
+        Pick the <strong>root</strong> folder that holds your domains.
+      </p>
+    </section>
+
+    <hr class="cr-divider">
+
+    <section class="cr-settings-section">
+      <form hx-post="/ui/setup" hx-target="#setup-result" hx-swap="innerHTML">
+        <label class="cr-field-label">Projects root folder</label>
+        {% if suggested_exists %}
+        <p class="cr-helper">We found <code>{{ suggested }}</code> — use it, or change it.</p>
+        {% endif %}
+        <input class="cr-setup-input" name="path" value="{{ suggested }}"
+               autocomplete="off" spellcheck="false" autofocus>
+        <div class="cr-settings-actions">
+          <button type="submit" class="cr-btn-primary">
+            {{ arrow_right(cls='cr-icon') }} Continue
+          </button>
+        </div>
+        <div id="setup-result" aria-live="polite"></div>
+      </form>
+    </section>
+  </main>
+</div>
+{% endblock %}
