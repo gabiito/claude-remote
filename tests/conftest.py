@@ -11,6 +11,54 @@ from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.services.tmux_adapter import FakeTmuxAdapter
 
 
+from claude_remote.db.app_settings import AppSettings, AppSettingsRepository
+from claude_remote.services.auth import hash_password, sign_session
+
+# Auth gate (#7) is global. The gate's own behaviour (block/allow) is fully
+# covered by tests/test_auth_gate.py + test_auth_session.py + test_auth.py —
+# those modules opt OUT below and exercise the real, unpatched flow. Every
+# OTHER test would otherwise 303 → /login. We don't bypass the gate; we
+# provision a real password + fixed session secret (exactly what
+# `claudio set-password` does) and every httpx client carries a real
+# HMAC-signed cookie, so the gate's verify_session runs for real.
+_TEST_SECRET = "conftest-fixed-session-secret"
+_TEST_PW_HASH = hash_password("conftest-pw")
+_TEST_COOKIE = sign_session(_TEST_SECRET)
+_AUTH_TEST_MODULES = {"test_auth", "test_auth_session", "test_auth_gate"}
+
+
+@pytest.fixture(autouse=True)
+def _authenticate_unless_testing_auth(request: pytest.FixtureRequest, monkeypatch):
+    """Make non-auth tests pass the global gate via REAL auth (no bypass)."""
+    if request.module.__name__.split(".")[-1] in _AUTH_TEST_MODULES:
+        return  # the auth suites drive the gate themselves, unpatched
+
+    _orig_get = AppSettingsRepository.get
+
+    def _get(self: AppSettingsRepository) -> AppSettings:
+        row = _orig_get(self)
+        if row.password_hash is None:
+            return row.model_copy(
+                update={
+                    "password_hash": _TEST_PW_HASH,
+                    "session_secret": _TEST_SECRET,
+                }
+            )
+        return row
+
+    monkeypatch.setattr(AppSettingsRepository, "get", _get)
+
+    import httpx
+
+    _orig_init = httpx.AsyncClient.__init__
+
+    def _init(self: httpx.AsyncClient, *a, **kw) -> None:  # type: ignore[no-untyped-def]
+        _orig_init(self, *a, **kw)
+        self.cookies.set("cr_session", _TEST_COOKIE)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", _init)
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers to suppress PytestUnknownMarkWarning."""
     config.addinivalue_line(

@@ -63,7 +63,7 @@ def create_app() -> FastAPI:
         "/docs",
         "/redoc",
         "/openapi.json",
-        "/health",
+        "/healthz",
         "/hooks",
         "/sse",
         "/sw.js",
@@ -84,6 +84,59 @@ def create_app() -> FastAPI:
                 from fastapi.responses import RedirectResponse as _RR  # noqa: PLC0415
 
                 return _RR("/setup", status_code=303)
+        return await call_next(request)  # pyright: ignore[reportUnknownVariableType]
+
+    # Auth gate. Added AFTER _require_configured so it is the OUTER middleware
+    # (runs first): you must log in before anything, including first-run
+    # /setup. Exempt: /login,/logout (the auth flow itself), /static & /sw.js
+    # (assets the login page needs), /health (liveness), /hooks (Claude's
+    # receiver — token-gated, never browser-logged-in).
+    _AUTH_EXEMPT = (
+        "/login",
+        "/logout",
+        "/static",
+        "/sw.js",
+        "/healthz",
+        "/hooks",
+    )
+
+    def _auth_exempt(path: str) -> bool:
+        return any(path == p or path.startswith(p + "/") for p in _AUTH_EXEMPT)
+
+    @app.middleware("http")
+    async def _require_auth(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if _auth_exempt(request.url.path):
+            return await call_next(request)  # pyright: ignore[reportUnknownVariableType]
+
+        from fastapi.responses import RedirectResponse as _RR  # noqa: PLC0415
+
+        from claude_remote.db.app_settings import (  # noqa: PLC0415
+            AppSettingsRepository,
+        )
+        from claude_remote.services.auth import (  # noqa: PLC0415
+            COOKIE_NAME,
+            verify_session,
+        )
+
+        resolver = app.dependency_overrides.get(get_settings, get_settings)
+        try:
+            cfg = resolver()
+            row = AppSettingsRepository(
+                lambda: get_connection_for(cfg.db_path)
+            ).get()
+        except Exception:  # noqa: BLE001 — unreadable settings/DB → block
+            row = None
+
+        authed = False
+        if row is not None and row.password_hash is not None:
+            tok = request.cookies.get(COOKIE_NAME)
+            authed = bool(tok) and verify_session(row.session_secret or "", tok)
+
+        if not authed:
+            path = request.url.path
+            if path.startswith(("/sse", "/api")):
+                return Response(status_code=401)
+            return _RR("/login", status_code=303)
         return await call_next(request)  # pyright: ignore[reportUnknownVariableType]
 
     @app.exception_handler(StarletteHTTPException)

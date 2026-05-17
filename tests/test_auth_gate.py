@@ -74,7 +74,7 @@ async def test_exempt_paths_open_without_auth(settings) -> None:
     _set_pw(settings, "pw")
     async with _client(settings) as c:
         assert (await c.get("/login")).status_code == 200
-        assert (await c.get("/health")).status_code == 200
+        assert (await c.get("/healthz")).status_code == 200
         # Claude's hook receiver is token-gated, never login-gated.
         h = await c.post("/hooks/Notification?token=bogus", follow_redirects=False)
         assert h.status_code == 200
