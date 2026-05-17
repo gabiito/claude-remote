@@ -19,6 +19,15 @@ async def test_sse_client_script_is_served(async_client_with_db: AsyncClient) ->
     assert "EventSource" in resp.text
 
 
+async def test_sse_client_reprocesses_htmx_after_swap(
+    async_client_with_db: AsyncClient,
+) -> None:
+    """Regression: raw innerHTML injection leaves hx-* controls (Launch/
+    Stop/Delete) dead unless htmx re-scans the swapped subtree."""
+    js = (await async_client_with_db.get("/static/js/sse.js")).text
+    assert "htmx.process" in js
+
+
 async def test_home_loads_sse_client_and_drops_poll(
     async_client_with_db: AsyncClient,
 ) -> None:

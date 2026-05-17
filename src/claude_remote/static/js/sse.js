@@ -15,7 +15,13 @@
     var es = null;
     var pending = null;
 
-    function apply(html) { el.innerHTML = html; }
+    function apply(html) {
+      el.innerHTML = html;
+      // htmx only wires content IT swapped; raw innerHTML injection leaves
+      // hx-* controls (Launch/Stop/Delete) dead until we re-scan. Alpine 3's
+      // own MutationObserver re-inits x-data, so only htmx needs this.
+      if (window.htmx) window.htmx.process(el);
+    }
 
     function onMessage(ev) {
       if (blockFn && blockFn()) { pending = ev.data; return; }
