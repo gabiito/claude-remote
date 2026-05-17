@@ -1488,6 +1488,12 @@ body {
   text-align: center;
   gap: 16px;
 }
+/* cr-new-btn has flex:1 for the home actions row; in this flex column it
+   would stretch vertically into a tall strip. Pin it to its content. */
+.cr-404 .cr-new-btn {
+  flex: 0 0 auto;
+  min-width: 180px;
+}
 
 /* ── 32. HTMX global request indicator bar — WU-4 ── */
 .cr-htmx-indicator {
