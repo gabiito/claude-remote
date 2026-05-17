@@ -152,3 +152,23 @@ async def test_settings_change_root_persists_no_redirect(tmp_db, tmp_path) -> No
         AppSettingsRepository(lambda: get_connection_for(tmp_db)).get().projects_root
         == str(newroot)
     )
+
+
+async def test_setup_htmx_submit_uses_hx_redirect_not_303(tmp_db, tmp_path) -> None:
+    """htmx form: success must be 200 + HX-Redirect (a 303 gets followed by
+    the XHR and the home HTML lands in #setup-result instead of navigating)."""
+    root = tmp_path / "ok"
+    root.mkdir()
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: _settings(
+        tmp_db, tmp_path, configured=False
+    )
+    async with _client(app) as c:
+        r = await c.post(
+            "/ui/setup",
+            data={"path": str(root)},
+            headers={"HX-Request": "true"},
+        )
+    assert r.status_code == 200
+    assert r.headers.get("HX-Redirect") == "/"
+    assert "<!doctype html" not in r.text.lower()  # not the home page swapped in
