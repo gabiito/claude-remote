@@ -136,7 +136,14 @@ async def test_get_settings_has_no_ntfy_section(
     html = response.text
     assert "ntfy_topic" not in html
     assert "ntfy.sh" not in html
-    assert "ntfy" not in html.lower().replace("<!-- ntfy removed -->", "")
+    # Strip user-data echoes (the projects_root path renders in a <code>
+    # block AND an input value="…"); an arbitrary tmp dir can contain "ntfy"
+    # → false positive. We only care about ntfy in actual UI copy/markup.
+    import re
+
+    visible = re.sub(r"<code>.*?</code>", "", html, flags=re.S)
+    visible = re.sub(r'value="[^"]*"', "", visible)
+    assert "ntfy" not in visible.lower().replace("<!-- ntfy removed -->", "")
 
 
 async def test_get_settings_prefills_quiet_hours(

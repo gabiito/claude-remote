@@ -119,3 +119,36 @@ async def test_static_exempt_from_guard(tmp_db, tmp_path) -> None:
     async with _client(app) as c:
         r = await c.get("/static/css/app.css")
     assert r.status_code == 200  # not redirected to /setup
+
+
+async def test_settings_page_shows_current_root(tmp_db, tmp_path) -> None:
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: _settings(
+        tmp_db, tmp_path / "Projects", configured=True
+    )
+    async with _client(app) as c:
+        r = await c.get("/settings")
+    assert r.status_code == 200
+    assert "Projects folder" in r.text
+    assert str(tmp_path / "Projects") in r.text
+
+
+async def test_settings_change_root_persists_no_redirect(tmp_db, tmp_path) -> None:
+    newroot = tmp_path / "moved"
+    newroot.mkdir()
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: _settings(
+        tmp_db, tmp_path, configured=True
+    )
+    async with _client(app) as c:
+        r = await c.post(
+            "/ui/settings/projects-root", data={"path": str(newroot)}
+        )
+    assert r.status_code == 200  # fragment, NOT a redirect
+    assert "Saved" in r.text
+    from claude_remote.db.app_settings import AppSettingsRepository
+
+    assert (
+        AppSettingsRepository(lambda: get_connection_for(tmp_db)).get().projects_root
+        == str(newroot)
+    )

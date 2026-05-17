@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -45,6 +46,29 @@ def _persist(settings: Settings, path: Path) -> Response:
     return RedirectResponse("/", status_code=303, headers={"HX-Redirect": "/"})
 
 
+def _resolve(raw: str, confirm_create: str) -> tuple[str, Any]:
+    """Validate a candidate root.
+
+    Returns ("ok", resolved Path) | ("warn", {"create_path": str})
+            | ("error", {"error": msg}).
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return "error", {"error": "Enter a folder path."}
+    p = Path(raw).expanduser()
+    if p.exists():
+        if not p.is_dir():
+            return "error", {"error": f"{p} exists but is not a directory."}
+        return "ok", p.resolve()
+    if confirm_create:
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return "error", {"error": f"Could not create {p}: {exc}"}
+        return "ok", p.resolve()
+    return "warn", {"create_path": str(p)}
+
+
 @router.post("/ui/setup", response_class=HTMLResponse)
 async def setup_submit(
     request: Request,
@@ -52,33 +76,31 @@ async def setup_submit(
     confirm_create: str = Form(default=""),
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> Response:
-    raw = (path or "").strip()
-    if not raw:
-        return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
-            request, "partials/setup_result.html",
-            {"error": "Enter a folder path."},
-        )
-    p = Path(raw).expanduser()
-
-    if p.exists():
-        if not p.is_dir():
-            return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
-                request, "partials/setup_result.html",
-                {"error": f"{p} exists but is not a directory."},
-            )
-        return _persist(settings, p.resolve())
-
-    if confirm_create:
-        try:
-            p.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
-                request, "partials/setup_result.html",
-                {"error": f"Could not create {p}: {exc}"},
-            )
-        return _persist(settings, p.resolve())
-
-    # Doesn't exist yet — warn + offer to create or correct.
+    kind, payload = _resolve(path, confirm_create)
+    if kind == "ok":
+        return _persist(settings, payload)
     return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
-        request, "partials/setup_result.html", {"create_path": str(p)}
+        request, "partials/setup_result.html", payload
+    )
+
+
+@router.post("/ui/settings/projects-root", response_class=HTMLResponse)
+async def settings_projects_root(
+    request: Request,
+    path: str = Form(default=""),
+    confirm_create: str = Form(default=""),
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> HTMLResponse:
+    """Change the root from /settings — same validation, but stay on the page
+    with a confirmation instead of redirecting home."""
+    kind, payload = _resolve(path, confirm_create)
+    if kind == "ok":
+        AppSettingsRepository(
+            lambda: get_connection_for(settings.db_path)
+        ).set_projects_root(str(payload))
+        return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
+            request, "partials/setup_result.html", {"saved_path": str(payload)}
+        )
+    return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
+        request, "partials/setup_result.html", payload
     )

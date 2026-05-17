@@ -26,9 +26,14 @@ def get_notifications_repo(
 async def settings_page(
     request: Request,
     notifications_repo: NotificationsRepository = Depends(get_notifications_repo),  # noqa: B008
+    settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> HTMLResponse:
     prefs = notifications_repo.get()
-    return TEMPLATES.TemplateResponse(request, "settings.html", {"prefs": prefs})
+    return TEMPLATES.TemplateResponse(
+        request,
+        "settings.html",
+        {"prefs": prefs, "projects_root": str(settings.projects_root)},
+    )
 
 
 @router.post("/ui/settings", response_class=HTMLResponse)

@@ -1850,3 +1850,29 @@ body {
   font-family: var(--fnt-mono); font-size: 11px; color: var(--fg-2);
 }
 .cr-chip-stat b { color: var(--fg-0); }
+
+/* ── Setup / projects-root config ── */
+.cr-setup-model {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--fnt-mono); font-size: 14px; color: var(--fg-1);
+  margin: 10px 0;
+}
+.cr-setup-model code, .cr-setup-warn code, .cr-settings-section code {
+  background: var(--bg-2); border: 1px solid var(--line-0);
+  border-radius: 6px; padding: 2px 7px; color: var(--accent);
+  font-family: var(--fnt-mono); font-size: 12px;
+}
+.cr-setup-input {
+  width: 100%; box-sizing: border-box;
+  background: var(--bg-input); border: 1px solid var(--line-1);
+  border-radius: 9px; padding: 11px 12px; margin-top: 8px;
+  color: var(--fg-0); font-family: var(--fnt-mono); font-size: 13px;
+}
+.cr-setup-input:focus { outline: 0; border-color: var(--accent-dim); }
+.cr-setup-warn {
+  margin-top: 10px; padding: 12px 14px;
+  background: var(--bg-2); border: 1px solid var(--line-0);
+  border-left: 3px solid var(--st-idle); border-radius: 9px;
+  font-size: 13px; color: var(--fg-1);
+}
+.cr-setup-warn p { margin: 0 0 6px; }

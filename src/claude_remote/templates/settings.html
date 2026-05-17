@@ -138,6 +138,26 @@
         </ul>
       </div>
     </section>
+
+    <hr class="cr-divider">
+
+    {# ── Projects folder ── #}
+    <section class="cr-settings-section">
+      <h2>Projects folder</h2>
+      <p class="cr-helper">
+        Root of the <code>root / domain / project</code> layout. Current:
+        <code>{{ projects_root }}</code>
+      </p>
+      <form hx-post="/ui/settings/projects-root"
+            hx-target="#root-result" hx-swap="innerHTML">
+        <input class="cr-setup-input" name="path" value="{{ projects_root }}"
+               autocomplete="off" spellcheck="false">
+        <div class="cr-settings-actions">
+          <button type="submit" class="cr-btn-primary">Save folder</button>
+        </div>
+        <div id="root-result" aria-live="polite"></div>
+      </form>
+    </section>
   </main>
 </div>
 {% endblock %}

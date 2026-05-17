@@ -1,4 +1,10 @@
-{% if error %}
+{% if saved_path %}
+<div class="cr-setup-warn" style="border-left-color: var(--st-active);">
+  <p>Saved. Projects root is now <code>{{ saved_path }}</code>.</p>
+  <p class="cr-helper">Already-registered projects keep their stored paths;
+  this changes where discovery scans and where new projects are created.</p>
+</div>
+{% elif error %}
 <div class="cr-field-error" style="display:block">{{ error }}</div>
 {% elif create_path %}
 <div class="cr-setup-warn">
