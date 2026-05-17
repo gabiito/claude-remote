@@ -36,7 +36,7 @@ def get_push_repo_for_metrics(
     )
 
 
-def _build_ctx(
+def build_metrics_ctx(
     projects_repo: Any,
     instances_repo: Any,
     events_repo: Any,
@@ -80,7 +80,7 @@ async def metrics_page(
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> HTMLResponse:
     """Full metrics page."""
-    ctx = _build_ctx(projects_repo, instances_repo, events_repo, push_repo, settings)
+    ctx = build_metrics_ctx(projects_repo, instances_repo, events_repo, push_repo, settings)
     return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
         request, "metrics.html", ctx
     )
@@ -96,7 +96,7 @@ async def metrics_poll(
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> HTMLResponse:
     """Just the metrics body — polled every 5s, swapped innerHTML."""
-    ctx = _build_ctx(projects_repo, instances_repo, events_repo, push_repo, settings)
+    ctx = build_metrics_ctx(projects_repo, instances_repo, events_repo, push_repo, settings)
     content: str = TEMPLATES.get_template("partials/metrics_body.html").render(  # type: ignore[attr-defined]
         request=request, **ctx
     )

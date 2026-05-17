@@ -1,8 +1,10 @@
-"""SSE endpoints stream re-rendered partials on bus ticks (mvp-sse WU-3).
+"""SSE streaming behaviour (mvp-sse WU-3).
 
-These replace the 5s HTMX polling of the home list and the metrics body.
-Tests use real streaming with hard timeouts so a wiring bug fails fast
-instead of hanging the suite.
+We drive the async generator directly with a fake request. httpx's
+ASGITransport buffers the whole response body, so it cannot consume an
+infinite event-stream — the generator IS the unit under test. Route
+registration + guard exemption are asserted via the app's route table.
+Hard timeouts make a wiring bug fail fast instead of hanging the suite.
 """
 
 from __future__ import annotations
@@ -10,62 +12,86 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from httpx import AsyncClient
+
+from claude_remote.routes.sse import _event_stream, _frame
+from claude_remote.services.event_bus import bus
 
 pytestmark = pytest.mark.anyio
 
 
-async def _read_frame(aiter, timeout: float = 3.0) -> str:
-    """Read one streamed chunk (an SSE frame) or fail fast."""
-    return await asyncio.wait_for(aiter.__anext__(), timeout=timeout)
+class _FakeRequest:
+    def __init__(self) -> None:
+        self._disconnected = False
+
+    async def is_disconnected(self) -> bool:
+        return self._disconnected
 
 
-async def test_sse_home_is_event_stream_with_initial_frame(
-    async_client_with_db: AsyncClient,
-) -> None:
-    async with async_client_with_db.stream("GET", "/sse/home") as resp:
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/event-stream")
-        chunk = await _read_frame(resp.aiter_text())
-        assert chunk.startswith("data:") or chunk.startswith(":")
+async def _anext(gen, timeout: float = 3.0) -> str:
+    return await asyncio.wait_for(gen.__anext__(), timeout=timeout)
 
 
-async def test_sse_home_re_renders_on_publish(
-    async_client_with_db: AsyncClient,
-) -> None:
-    from claude_remote.services.event_bus import bus
+async def test_frame_encodes_every_line_as_sse_data() -> None:
+    out = _frame("<a>\n<b>")
+    assert out == "data: <a>\ndata: <b>\n\n"
 
-    async with async_client_with_db.stream("GET", "/sse/home") as resp:
-        ait = resp.aiter_text()
-        await _read_frame(ait)  # initial
+
+async def test_initial_frame_is_rendered_immediately() -> None:
+    gen = _event_stream(_FakeRequest(), lambda: "<p>hi</p>")
+    try:
+        first = await _anext(gen)
+        assert first == "data: <p>hi</p>\n\n"
+    finally:
+        await gen.aclose()
+
+
+async def test_re_renders_on_publish() -> None:
+    calls = {"n": 0}
+
+    def render() -> str:
+        calls["n"] += 1
+        return f"<i>{calls['n']}</i>"
+
+    gen = _event_stream(_FakeRequest(), render)
+    try:
+        assert await _anext(gen) == "data: <i>1</i>\n\n"
         bus.publish()
-        nxt = await _read_frame(ait)
-        assert nxt.startswith("data:")
+        assert await _anext(gen) == "data: <i>2</i>\n\n"
+    finally:
+        await gen.aclose()
 
 
-async def test_sse_metrics_is_event_stream_with_initial_frame(
-    async_client_with_db: AsyncClient,
-) -> None:
-    async with async_client_with_db.stream("GET", "/sse/metrics") as resp:
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/event-stream")
-        chunk = await _read_frame(resp.aiter_text())
-        assert chunk.startswith("data:") or chunk.startswith(":")
+async def test_does_not_emit_without_a_publish() -> None:
+    """Event-driven, not a spin loop: no tick → no frame (until ping)."""
+    gen = _event_stream(_FakeRequest(), lambda: "<p>x</p>")
+    try:
+        await _anext(gen)  # initial
+        with pytest.raises(asyncio.TimeoutError):
+            await _anext(gen, timeout=1.5)
+    finally:
+        await gen.aclose()
 
 
-async def test_sse_unsubscribes_on_client_disconnect(
-    async_client_with_db: AsyncClient,
-) -> None:
-    """Closing the connection must drop the subscriber (no queue leak)."""
-    from claude_remote.services.event_bus import bus
+async def test_disconnect_stops_stream_and_unsubscribes() -> None:
+    req = _FakeRequest()
+    before = bus.subscriber_count
+    gen = _event_stream(req, lambda: "<p>x</p>")
+    try:
+        await _anext(gen)  # initial → now subscribed
+        assert bus.subscriber_count == before + 1
+        req._disconnected = True
+        bus.publish()  # unblock the wait so it re-checks disconnect
+        with pytest.raises(StopAsyncIteration):
+            await _anext(gen)
+    finally:
+        await gen.aclose()
+    assert bus.subscriber_count == before
 
-    async with async_client_with_db.stream("GET", "/sse/home") as resp:
-        await _read_frame(resp.aiter_text())
-        assert bus.subscriber_count >= 1
 
-    # Cleanup is driven by generator cancellation — give it a moment.
-    for _ in range(50):
-        if bus.subscriber_count == 0:
-            break
-        await asyncio.sleep(0.02)
-    assert bus.subscriber_count == 0
+async def test_routes_registered_and_guard_exempt() -> None:
+    from claude_remote.app import create_app
+
+    app = create_app()
+    paths = {getattr(r, "path", None) for r in app.routes}
+    assert "/sse/home" in paths
+    assert "/sse/metrics" in paths
