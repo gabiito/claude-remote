@@ -1,9 +1,8 @@
-"""``claudio`` — manage the claude-remote systemd --user service.
+"""claudio — install and control the claude-remote background service.
 
-Exposed as a console script (see [project.scripts]). Wraps systemctl so the
-daily lifecycle is ergonomic: ``claudio start|stop|restart|status|logs``
-(install/uninstall added in WU-2). These manage the installed service — for
-foreground dev use ``make run``.
+A thin, friendly wrapper over the systemd --user service: install it once,
+then start/stop/restart/check it and tail its logs. For foreground
+development use 'make run' instead.
 """
 
 from __future__ import annotations
@@ -130,13 +129,37 @@ def _version() -> str:
     return resolve_version()
 
 
+_EPILOG = """\
+Commands:
+  install      set up the service and start it; enable auto-start on login
+  uninstall    stop the service and remove it (and the claudio symlink)
+  start        start the service now
+  stop         stop the service now
+  restart      restart the service now
+  status       show whether the service is running
+  logs         follow the service logs (Ctrl-C to quit)
+
+Examples:
+  claudio install      # first-time setup
+  claudio status
+  claudio restart
+  claudio logs
+"""
+
+
 def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="claudio", description=__doc__)
+    p = argparse.ArgumentParser(
+        prog="claudio",
+        description=__doc__,
+        epilog=_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     p.add_argument(
         "command",
         choices=[*_VERBS, "logs", "install", "uninstall"],
-        help="install | uninstall | start | stop | restart | status | logs",
+        metavar="<command>",
+        help="the action to run (see Commands below)",
     )
     return p
 
