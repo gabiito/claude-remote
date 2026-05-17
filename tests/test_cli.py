@@ -198,3 +198,29 @@ def test_help_lists_commands(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     for word in ("install", "uninstall", "start", "stop", "restart", "status", "logs"):
         assert word in out
+
+
+def test_help_has_no_internal_jargon(capsys: pytest.CaptureFixture[str]) -> None:
+    """--help is user-facing: no WU refs, no pyproject internals leaking."""
+    from claude_remote import cli
+
+    with pytest.raises(SystemExit):
+        cli.main(["--help"], runner=lambda _a: 0)
+    out = capsys.readouterr().out
+    for leak in ("WU-2", "WU-", "[project.scripts]", "console script"):
+        assert leak not in out
+
+
+def test_help_explains_each_command_and_shows_examples(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Each command has a one-line gloss; an Examples section is present."""
+    from claude_remote import cli
+
+    with pytest.raises(SystemExit):
+        cli.main(["--help"], runner=lambda _a: 0)
+    out = capsys.readouterr().out
+    assert "Examples:" in out
+    # a per-command gloss, not just the bare choices list
+    assert "auto-start on login" in out
+    assert "follow the service logs" in out
