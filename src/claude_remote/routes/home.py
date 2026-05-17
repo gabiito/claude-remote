@@ -67,8 +67,8 @@ def build_home_cards(
     now: datetime,
 ) -> list[ProjectCardContext]:
     """Build the per-project card contexts (project + instance live_status +
-    recent events). Shared by the full-page home route and the /ui/home/list
-    poll fragment so both group identically.
+    recent events). Shared by the full-page home route and the SSE stream
+    (routes/sse.py) so both group identically.
     """
     projects = projects_repo.list_all()
     all_instances = instances_repo.list_all()

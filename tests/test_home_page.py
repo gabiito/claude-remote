@@ -241,13 +241,20 @@ async def test_home_list_is_live_via_sse_not_polling(
     assert f'hx-get="/ui/projects/{project.id}/card"' not in response.text
 
 
-async def test_home_list_filters_by_domain_server_side(
-    home_client: AsyncClient,
+def test_build_home_cards_filtered_by_domain(
     projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    events_repo: EventsRepository,
     tmp_projects_root,
 ) -> None:
-    """GET /ui/home/list?domain=wooli renders only wooli cards (no client
-    x-show wrappers — that combo broke under innerHTML swaps)."""
+    """Domain filtering — this was the /ui/home/list HTTP contract; that
+    poll route was retired with mvp-sse. The SSE render path uses these same
+    builders, so the contract now lives at the builder level."""
+    from datetime import UTC, datetime
+
+    from claude_remote.routes.home import build_home_cards
+    from claude_remote.services.session_grouping import filter_cards_by_domain
+
     (tmp_projects_root / "wooli" / "w1").mkdir(parents=True)
     (tmp_projects_root / "sandbox" / "s1").mkdir(parents=True)
     projects_repo.create(
@@ -261,12 +268,12 @@ async def test_home_list_filters_by_domain_server_side(
         )
     )
 
-    resp = await home_client.get("/ui/home/list?domain=wooli")
-    assert resp.status_code == 200
-    assert 'data-project-name="w1"' in resp.text
-    assert 'data-project-name="s1"' not in resp.text
-    # No per-card Alpine show wrappers anymore (server filtered).
-    assert 'x-show="filter' not in resp.text
+    now = datetime.now(UTC)
+    all_cards = build_home_cards(projects_repo, instances_repo, events_repo, now)
+    assert {c["project"].domain for c in all_cards} == {"wooli", "sandbox"}
+
+    wooli = filter_cards_by_domain(all_cards, "wooli")
+    assert {c["project"].name for c in wooli} == {"w1"}
 
 
 async def test_home_page_filters_by_domain_query(
@@ -292,30 +299,6 @@ async def test_home_page_filters_by_domain_query(
     assert resp.status_code == 200
     assert 'data-project-name="w2"' in resp.text
     assert 'data-project-name="g2"' not in resp.text
-
-
-async def test_home_list_fragment_endpoint(
-    home_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    tmp_projects_root,
-    fake_adapter: FakeTmuxAdapter,
-) -> None:
-    """GET /ui/home/list returns the grouped sections as a fragment (no <html>)."""
-    live = tmp_projects_root / "wooli" / "landing"
-    live.mkdir(parents=True)
-    proj = projects_repo.create(
-        project_create=ProjectCreate(
-            name="landing", slug="landing", path=live, domain="wooli"
-        )
-    )
-    await home_client.post(f"/ui/projects/{proj.id}/launch")
-
-    resp = await home_client.get("/ui/home/list")
-    assert resp.status_code == 200
-    body = resp.text
-    assert "<html" not in body  # fragment, not a full page
-    assert "ACTIVE SESSIONS" in body
-    assert 'data-project-id=' in body
 
 
 async def test_home_live_status_pill_running_when_no_events(

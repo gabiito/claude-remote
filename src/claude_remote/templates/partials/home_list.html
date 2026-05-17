@@ -1,7 +1,7 @@
-{# Inner content of .cr-list — rendered inline on full page load AND returned
-   standalone by GET /ui/home/list for the whole-list poll (WU-1b). Cards are
-   already filtered by domain server-side (WU-1c) — no per-card x-show wrapper,
-   which broke under the innerHTML swap. #}
+{# Inner content of .cr-list — rendered inline on full page load AND pushed
+   by the SSE stream (routes/sse.py) on every state change. Cards are already
+   filtered by domain server-side — no per-card x-show wrapper, which broke
+   under the innerHTML swap. #}
 {% from "icons/_macros.html" import plus %}
 {% if cards %}
   {% if grouped.active %}
