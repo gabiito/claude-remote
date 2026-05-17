@@ -332,3 +332,37 @@ async def test_hook_fire_and_forget_task_scheduled(
     assert "response_received" in call_order
     # dispatch task ran after response
     assert "dispatch" in call_order
+
+
+# ---------------------------------------------------------------------------
+# mvp-sse WU-2 — hook receiver publishes a tick to the SSE event bus
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_valid_hook_publishes_tick_to_event_bus(
+    client: AsyncClient, token: str
+) -> None:
+    """A persisted hook event signals SSE subscribers (so they re-render)."""
+    import asyncio
+
+    from claude_remote.services.event_bus import bus
+
+    async with bus.subscribe() as q:
+        resp = await client.post(f"/hooks/Notification?token={token}", json={})
+        assert resp.status_code == 200
+        await asyncio.wait_for(q.get(), timeout=1)
+
+
+@pytest.mark.anyio
+async def test_rejected_hook_does_not_publish(client: AsyncClient) -> None:
+    """Unknown token → no event stored → no SSE tick (nothing changed)."""
+    import asyncio
+
+    from claude_remote.services.event_bus import bus
+
+    async with bus.subscribe() as q:
+        resp = await client.post("/hooks/Notification?token=bogus-xyz", json={})
+        assert resp.status_code == 200
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(q.get(), timeout=0.2)
