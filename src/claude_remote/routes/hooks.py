@@ -26,6 +26,7 @@ from claude_remote.db.projects import ProjectsRepository
 from claude_remote.db.push_subscriptions import PushSubscriptionsRepository
 from claude_remote.db.vapid_keys import VapidKeysRepository
 from claude_remote.services import notifier
+from claude_remote.services.event_bus import bus as event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,10 @@ async def receive_hook(
             event_type=event_type,
             payload=json.dumps(body),
         )
+
+        # Step 5b: signal SSE subscribers — state changed, re-render.
+        # Non-blocking, never raises (coalesced per subscriber).
+        event_bus.publish()
 
         # Step 6: dispatch to notifier (fire-and-forget, never-raise)
         # Inner try/except is distinct from the outer one: it catches repo/wiring
