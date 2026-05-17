@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "icons/_macros.html" import chevron_right, sync %}
+{% block title %}Metrics · Claudio-RC{% endblock %}
+{% block content %}
+<div class="cr-shell">
+  <div class="cr-pv-header">
+    <a class="cr-back" href="/" aria-label="Back to home"
+       title="Back to home">{{ chevron_right(cls='cr-icon cr-flip') }}</a>
+    <div class="cr-pv-title">
+      <span class="cr-proj-name"><span class="cr-leaf">Metrics</span></span>
+      <div class="cr-pv-sub">
+        <span class="cr-pill" data-variant="dot" data-status="active">
+          <span class="cr-pill-mark"></span>live · refresh 5s
+        </span>
+      </div>
+    </div>
+    <button class="cr-gear-link" type="button"
+            hx-get="/metrics/poll" hx-target="#cr-metrics-body" hx-swap="innerHTML"
+            aria-label="Refresh now" title="Refresh now">{{ sync(cls='cr-icon') }}</button>
+  </div>
+
+  <div id="cr-metrics-body" class="cr-metrics cr-scroll"
+       hx-get="/metrics/poll"
+       hx-trigger="every 5s [document.visibilityState === 'visible']"
+       hx-swap="innerHTML">
+    {% include "partials/metrics_body.html" %}
+  </div>
+</div>
+{% endblock %}

@@ -64,6 +64,10 @@
   '<polygon points="6 4 20 12 6 20 6 4"/>',
   cls, size) }}{% endmacro %}
 
+{% macro activity(cls='', size=20) %}{{ _svg(
+  '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  cls, size) }}{% endmacro %}
+
 {% macro list(cls='', size=20) %}{{ _svg(
   '<line x1="8" y1="6" x2="21" y2="6"/>'
   '<line x1="8" y1="12" x2="21" y2="12"/>'

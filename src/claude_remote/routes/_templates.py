@@ -31,6 +31,26 @@ def status_token(live_status: str) -> str:
     return live_status
 
 
+def _fmt_uptime(seconds: object) -> str:
+    """Compact uptime: 3d 4h / 1h 12m / 34m / 38s. 0/invalid → "0s"."""
+    try:
+        s = int(seconds)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "0s"
+    if s < 0:
+        s = 0
+    d, rem = divmod(s, 86400)
+    h, rem = divmod(rem, 3600)
+    m, sec = divmod(rem, 60)
+    if d:
+        return f"{d}d {h}h"
+    if h:
+        return f"{h}h {m}m"
+    if m:
+        return f"{m}m"
+    return f"{sec}s"
+
+
 _PACKAGE_ROOT = Path(__file__).parent.parent
 _STATIC_ROOT = _PACKAGE_ROOT / "static"
 templates = Jinja2Templates(directory=_PACKAGE_ROOT / "templates")
@@ -91,5 +111,6 @@ def app_version() -> str:
 templates.env.filters["format_relative"] = format_relative  # pyright: ignore[reportUnknownMemberType]
 templates.env.filters["extract_snippet"] = extract_snippet  # pyright: ignore[reportUnknownMemberType]
 templates.env.filters["status_token"] = status_token  # pyright: ignore[reportUnknownMemberType]
+templates.env.filters["fmt_uptime"] = _fmt_uptime  # pyright: ignore[reportUnknownMemberType]
 templates.env.globals["asset_url"] = asset_url  # pyright: ignore[reportUnknownMemberType]
 templates.env.globals["app_version"] = app_version  # pyright: ignore[reportUnknownMemberType]

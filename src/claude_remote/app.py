@@ -114,10 +114,11 @@ def create_app() -> FastAPI:
 
     # UI routers — imported here to avoid circular imports at module level
     # (home + ui need TEMPLATES which lives in routes/_templates.py, not app.py)
-    from claude_remote.routes import home, settings, ui  # noqa: PLC0415
+    from claude_remote.routes import home, metrics, settings, ui  # noqa: PLC0415
 
     app.include_router(home.router)
     app.include_router(settings.router)
+    app.include_router(metrics.router)
     app.include_router(ui.router)
     return app
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "icons/_macros.html" import gear, sync, plus %}
+{% from "icons/_macros.html" import gear, sync, plus, activity %}
 
 {% block title %}Claudio-RC{% if needs_count %} ({{ needs_count }}){% endif %}{% endblock %}
 
@@ -92,6 +92,7 @@
               :title="mode === 'az' ? 'Sort A→Z' : mode === 'za' ? 'Sort Z→A' : 'Sort by status'">
         <span x-text="mode === 'az' ? 'A-Z' : mode === 'za' ? 'Z-A' : '●●'"></span>
       </button>
+      <a href="/metrics" class="cr-gear-link" aria-label="Metrics" title="Metrics">{{ activity(cls='cr-icon') }}</a>
       <a href="/settings" class="cr-gear-link" aria-label="Settings" title="Settings">{{ gear(cls='cr-icon') }}</a>
     </div>
 

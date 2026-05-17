@@ -1,0 +1,97 @@
+{# Metrics body — rendered inline on /metrics and returned by /metrics/poll. #}
+
+{# ── HOST ── #}
+<div class="cr-section-head">
+  <span>HOST</span><span class="cr-section-rule"></span>
+  <span class="cr-section-count">{{ host.host }}</span>
+</div>
+
+<div class="cr-mcard">
+  <div class="cr-mcard-head"><span>CPU</span><span>{{ host.cpu_count }} cores</span></div>
+  <div class="cr-cpu-row">
+    <div class="cr-gauge" style="--pct: {{ host.cpu_percent }}">
+      <div class="cr-gauge-num"><b>{{ host.cpu_percent|round|int }}</b><span>%</span><small>USAGE</small></div>
+    </div>
+    <div class="cr-load">
+      {% for k, v in [('1m', host.load['1m']), ('5m', host.load['5m']), ('15m', host.load['15m'])] %}
+      <div><span>LOAD {{ k }}</span><b>{{ '%.2f'|format(v) }}</b><small>/ {{ host.cpu_count }}</small></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="cr-mrow">
+  <div class="cr-mcard">
+    <div class="cr-mcard-head"><span>RAM</span><span>{{ host.ram.total_gb }} GB total</span></div>
+    <div class="cr-mbig"><b>{{ host.ram.used_gb }}</b> / {{ host.ram.total_gb }} GB
+      <span class="cr-mpct">{{ host.ram.percent|round|int }}%</span></div>
+    <div class="cr-bar"><i style="width: {{ host.ram.percent }}%"></i></div>
+    {% if host.swap.used_gb > 0 %}
+    <div class="cr-mswap">SWAP <b>{{ host.swap.used_gb }} GB</b></div>
+    {% endif %}
+  </div>
+  <div class="cr-mcard">
+    <div class="cr-mcard-head"><span>DISK</span><span>~/Projects</span></div>
+    <div class="cr-mbig"><b>{{ host.disk.free_gb|round|int }}</b> GB free
+      <span class="cr-mpct">{{ host.disk.percent|round|int }}%</span></div>
+    <div class="cr-bar cr-bar-disk"><i style="width: {{ host.disk.percent }}%"></i></div>
+  </div>
+</div>
+
+<div class="cr-mcard cr-muptime">
+  <span><span class="cr-mdot" data-status="active"></span>SYSTEM UPTIME</span>
+  <b>{{ host.uptime_seconds|fmt_uptime }}</b>
+</div>
+
+{# ── ACTIVE SESSIONS ── #}
+<div class="cr-section-head">
+  <span>ACTIVE SESSIONS</span><span class="cr-section-rule"></span>
+  <span class="cr-section-count">{{ sessions|length }}</span>
+</div>
+{% if sessions %}
+  {% for s in sessions %}
+  <a class="cr-msession" href="/projects/{{ s.project_id }}">
+    <span class="cr-mdot" data-status="{{ s.status | status_token }}"></span>
+    <span class="cr-proj-name">
+      <span class="cr-domain">{{ s.domain }}</span><span class="cr-slash">/</span><span class="cr-leaf">{{ s.name }}</span>
+    </span>
+    <span class="cr-mstat"><b>{{ s.cpu_percent|round|int }}</b><small>% CPU</small></span>
+    <span class="cr-mstat"><b>{{ s.rss_mb|round|int }}</b><small>MB RAM</small></span>
+    <span class="cr-mstat"><b>{{ s.uptime_seconds|fmt_uptime }}</b><small>UP</small></span>
+  </a>
+  {% endfor %}
+{% else %}
+  <div class="cr-empty" style="padding: 24px;"><p>No active sessions.</p></div>
+{% endif %}
+
+{# ── APP ── #}
+<div class="cr-section-head"><span>APP</span><span class="cr-section-rule"></span></div>
+
+<div class="cr-mcard">
+  <div class="cr-mcard-head"><span>SESSIONS</span><span>registered</span></div>
+  <div class="cr-mbig"><b>{{ app.sessions.projects }}</b> projects
+    <span class="cr-mpct cr-ok">{{ app.sessions.live }} live</span></div>
+  <div class="cr-chips-wrap">
+    {% for tok, label in [('active','Active'),('needs','Needs input'),('running','Running'),('idle','Idle'),('stopped','Stopped'),('crashed','Crashed')] %}
+    {% if app.sessions.breakdown.get(tok) %}
+    <span class="cr-chip-stat"><span class="cr-mdot" data-status="{{ tok }}"></span>{{ label }} <b>{{ app.sessions.breakdown[tok] }}</b></span>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="cr-mcard">
+  <div class="cr-mcard-head"><span>EVENTS</span><span>all-time</span></div>
+  <div class="cr-mbig"><b>{{ '{:,}'.format(app.events.total) }}</b> total
+    {% if app.events.last_hour %}<span class="cr-mpct cr-ok">+{{ app.events.last_hour }} last hour</span>{% endif %}</div>
+  <div class="cr-chips-wrap">
+    {% for et, n in app.events.by_type.items() %}
+    <span class="cr-chip-stat">{{ et }} <b>{{ n }}</b></span>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="cr-mcard cr-muptime">
+  <span><span class="cr-mdot" data-status="running"></span>PUSH DEVICES</span>
+  <b>{{ app.push_devices }}</b>
+</div>
