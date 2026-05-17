@@ -159,18 +159,34 @@ def test_main_accepts_install_uninstall() -> None:
 # --- WU-3: --version / --help ---
 
 
-def test_version_flag_prints_version_and_exits_zero(
+def test_version_flag_matches_git_describe_and_exits_zero(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from importlib.metadata import version
+    """--version reflects the real git state — same source as the web header."""
+    import subprocess
 
     from claude_remote import cli
+
+    expected = subprocess.run(
+        ["git", "describe", "--tags", "--always", "--dirty"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    assert expected, "git describe produced no output in this checkout"
 
     with pytest.raises(SystemExit) as exc:
         cli.main(["--version"], runner=lambda _a: 0)
     assert exc.value.code == 0
-    out = capsys.readouterr().out
-    assert version("claude-remote") in out
+    assert expected in capsys.readouterr().out
+
+
+def test_cli_version_is_same_source_as_header() -> None:
+    """CLI and web header MUST resolve the version through one shared function."""
+    from claude_remote import cli
+    from claude_remote.routes._templates import app_version
+
+    assert cli._version() == app_version()
 
 
 def test_help_lists_commands(capsys: pytest.CaptureFixture[str]) -> None:
