@@ -154,8 +154,10 @@ def set_password(prompt: Callable[[str], str] = getpass.getpass) -> int:
     db_path = get_settings().db_path
     repo = AppSettingsRepository(lambda: get_connection_for(db_path))
     repo.set_password_hash(hash_password(pw))
-    repo.get_or_create_session_secret()
-    print("Password set. Restart the server (or it picks it up next request).")
+    # Rotate the signing secret so any device logged in under the old
+    # password is forced back to /login (expected on a password change).
+    repo.rotate_session_secret()
+    print("Password set. All existing sessions were logged out.")
     return 0
 
 

@@ -74,6 +74,22 @@ class AppSettingsRepository:
             )
         return self.get()
 
+    def rotate_session_secret(self) -> str:
+        """Generate + persist a NEW signing secret, invalidating every
+        existing cookie (used on password change — log out all devices)."""
+        from claude_remote.services.auth import (  # noqa: PLC0415
+            generate_session_secret,
+        )
+
+        secret = generate_session_secret()
+        with self._factory() as conn:
+            conn.execute(
+                "UPDATE app_settings SET session_secret = ?, updated_at = ? "
+                "WHERE id = 1",
+                (secret, datetime.now(UTC).isoformat()),
+            )
+        return secret
+
     def get_or_create_session_secret(self) -> str:
         """Return the cookie-signing secret, generating+persisting it once."""
         current = self.get().session_secret

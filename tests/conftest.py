@@ -39,15 +39,18 @@ def _authenticate_unless_testing_auth(request: pytest.FixtureRequest, monkeypatc
     _orig_get = AppSettingsRepository.get
 
     def _get(self: AppSettingsRepository) -> AppSettings:
+        # Always pin the signing secret to the fixed test value (and ensure
+        # a password exists) so the injected cookie verifies regardless of
+        # what the real dev DB happens to hold (e.g. a real `claudio
+        # set-password` was run on ./claude-remote.db). verify_session still
+        # runs for real against this pinned secret — not a bypass.
         row = _orig_get(self)
-        if row.password_hash is None:
-            return row.model_copy(
-                update={
-                    "password_hash": _TEST_PW_HASH,
-                    "session_secret": _TEST_SECRET,
-                }
-            )
-        return row
+        return row.model_copy(
+            update={
+                "password_hash": row.password_hash or _TEST_PW_HASH,
+                "session_secret": _TEST_SECRET,
+            }
+        )
 
     monkeypatch.setattr(AppSettingsRepository, "get", _get)
 
