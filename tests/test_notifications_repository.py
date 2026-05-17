@@ -367,16 +367,22 @@ class TestEnvVarOverride:
         settings = get_settings()
         assert not hasattr(settings, "ntfy_topic_override")
 
-    def test_settings_has_three_fields_only(
+    def test_settings_field_set(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Settings has exactly db_path, projects_root, hooks_base_url after WU-5."""
+        """Settings fields after the runtime-configurable projects_root work
+        (added ``configured``); ntfy_topic_override stays gone (WU-5)."""
         import dataclasses
 
         from claude_remote.config import Settings
 
         field_names = {f.name for f in dataclasses.fields(Settings)}
-        assert field_names == {"db_path", "projects_root", "hooks_base_url"}
+        assert field_names == {
+            "db_path",
+            "projects_root",
+            "hooks_base_url",
+            "configured",
+        }
 
 
 # ---------------------------------------------------------------------------

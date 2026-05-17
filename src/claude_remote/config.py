@@ -17,6 +17,9 @@ class Settings:
     db_path: Path
     projects_root: Path
     hooks_base_url: str = "http://localhost:8000"
+    # False only when the app_settings.projects_root row is NULL (first run).
+    # Direct construction (tests/fixtures) defaults to configured=True.
+    configured: bool = True
 
 
 def get_settings() -> Settings:
@@ -44,8 +47,28 @@ def get_settings() -> Settings:
             hooks_base_url,
         )
 
+    # Runtime override: app_settings.projects_root (set via /setup or
+    # /settings). NULL → unconfigured → first-run setup flow. Best-effort:
+    # a missing/locked DB must not break startup (treat as unconfigured).
+    configured = False
+    try:
+        from claude_remote.db.app_settings import (  # noqa: PLC0415
+            AppSettingsRepository,
+        )
+        from claude_remote.db.connection import get_connection_for  # noqa: PLC0415
+
+        stored = AppSettingsRepository(
+            lambda: get_connection_for(db_path)
+        ).get().projects_root
+        if stored:
+            projects_root = Path(stored).expanduser().resolve()
+            configured = True
+    except Exception:  # noqa: BLE001 — DB absent/unmigrated/locked
+        configured = False
+
     return Settings(
         db_path=db_path,
         projects_root=projects_root,
         hooks_base_url=hooks_base_url,
+        configured=configured,
     )
