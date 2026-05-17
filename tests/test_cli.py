@@ -154,3 +154,31 @@ def test_main_accepts_install_uninstall() -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             ns = cli._parser().parse_args([cmd])
         assert ns.command == cmd
+
+
+# --- WU-3: --version / --help ---
+
+
+def test_version_flag_prints_version_and_exits_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from importlib.metadata import version
+
+    from claude_remote import cli
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--version"], runner=lambda _a: 0)
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert version("claude-remote") in out
+
+
+def test_help_lists_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    from claude_remote import cli
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"], runner=lambda _a: 0)
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    for word in ("install", "uninstall", "start", "stop", "restart", "status", "logs"):
+        assert word in out
