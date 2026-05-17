@@ -2,6 +2,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import cast
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -138,6 +139,44 @@ def create_app() -> FastAPI:
                 return Response(status_code=401)
             return _RR("/login", status_code=303)
         return await call_next(request)  # pyright: ignore[reportUnknownVariableType]
+
+    _UNSAFE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
+
+    @app.middleware("http")
+    async def _csrf_origin(request: Request, call_next):  # type: ignore[no-untyped-def]
+        """Reject cross-origin state changes. The session cookie is
+        SameSite=Lax already; this rejects a present-but-foreign Origin.
+        No Origin (server-to-server, e.g. Claude's hook receiver) → allow.
+        """
+        if request.method in _UNSAFE_METHODS:
+            origin = request.headers.get("origin")
+            if origin:
+                from urllib.parse import urlparse  # noqa: PLC0415
+
+                if urlparse(origin).netloc != request.url.netloc:
+                    return Response(status_code=403)
+        return await call_next(request)  # pyright: ignore[reportUnknownVariableType]
+
+    # 'unsafe-eval' is required: Alpine.js + htmx evaluate expressions via the
+    # Function constructor. 'unsafe-inline' style covers template inline
+    # styles (sparkline bars, x-bind). unpkg is where htmx/alpine are loaded.
+    _CSP = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-eval' https://unpkg.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    )
+
+    @app.middleware("http")
+    async def _security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = cast(Response, await call_next(request))
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault("Content-Security-Policy", _CSP)
+        return response
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_exception_handler(  # pyright: ignore[reportUnusedFunction]
