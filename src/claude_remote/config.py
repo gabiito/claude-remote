@@ -35,6 +35,7 @@ def get_settings() -> Settings:
     db_path is stored as-given; migrations runner does its own mkdir.
     """
     db_path = Path(os.environ.get("CLAUDE_REMOTE_DB_PATH", "./claude-remote.db"))
+    env_root_explicit = "CLAUDE_REMOTE_PROJECTS_ROOT" in os.environ
     projects_root = (
         Path(os.environ.get("CLAUDE_REMOTE_PROJECTS_ROOT", "~/Projects")).expanduser().resolve()
     )
@@ -50,21 +51,31 @@ def get_settings() -> Settings:
     # Runtime override: app_settings.projects_root (set via /setup or
     # /settings). NULL → unconfigured → first-run setup flow. Best-effort:
     # a missing/locked DB must not break startup (treat as unconfigured).
-    configured = False
-    try:
-        from claude_remote.db.app_settings import (  # noqa: PLC0415
-            AppSettingsRepository,
-        )
-        from claude_remote.db.connection import get_connection_for  # noqa: PLC0415
-
-        stored = AppSettingsRepository(
-            lambda: get_connection_for(db_path)
-        ).get().projects_root
-        if stored:
-            projects_root = Path(stored).expanduser().resolve()
-            configured = True
-    except Exception:  # noqa: BLE001 — DB absent/unmigrated/locked
+    # Precedence: explicit CLAUDE_REMOTE_PROJECTS_ROOT env var wins (deliberate
+    # deployment override). Otherwise the app_settings DB value (set via
+    # /setup or /settings). Neither → unconfigured (first-run /setup).
+    if env_root_explicit:
+        configured = True
+    else:
         configured = False
+        try:
+            from claude_remote.db.app_settings import (  # noqa: PLC0415
+                AppSettingsRepository,
+            )
+            from claude_remote.db.connection import (  # noqa: PLC0415
+                get_connection_for,
+            )
+
+            stored = (
+                AppSettingsRepository(lambda: get_connection_for(db_path))
+                .get()
+                .projects_root
+            )
+            if stored:
+                projects_root = Path(stored).expanduser().resolve()
+                configured = True
+        except Exception:  # noqa: BLE001 — DB absent/unmigrated/locked
+            configured = False
 
     return Settings(
         db_path=db_path,

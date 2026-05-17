@@ -39,11 +39,15 @@ async def setup_page(request: Request) -> HTMLResponse:
     )
 
 
-def _persist(settings: Settings, path: Path) -> Response:
+def _persist(request: Request, settings: Settings, path: Path) -> Response:
     AppSettingsRepository(
         lambda: get_connection_for(settings.db_path)
     ).set_projects_root(str(path))
-    return RedirectResponse("/", status_code=303, headers={"HX-Redirect": "/"})
+    # htmx follows a 303 in the XHR (the home HTML would land in the target).
+    # Use HX-Redirect on a 200 so htmx does a real client-side navigation.
+    if request.headers.get("hx-request"):
+        return HTMLResponse(status_code=200, headers={"HX-Redirect": "/"})
+    return RedirectResponse("/", status_code=303)
 
 
 def _resolve(raw: str, confirm_create: str) -> tuple[str, Any]:
@@ -78,7 +82,7 @@ async def setup_submit(
 ) -> Response:
     kind, payload = _resolve(path, confirm_create)
     if kind == "ok":
-        return _persist(settings, payload)
+        return _persist(request, settings, payload)
     return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
         request, "partials/setup_result.html", payload
     )
