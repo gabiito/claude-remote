@@ -16,6 +16,9 @@ dependencies = [
     "psutil>=6,<8",
 ]
 
+[project.scripts]
+claudio = "claude_remote.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3,<9",
