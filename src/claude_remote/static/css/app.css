@@ -1914,3 +1914,100 @@ body {
   font-size: 13px; color: var(--fg-1);
 }
 .cr-setup-warn p { margin: 0 0 6px; }
+
+/* ── Login page (standalone, no app shell) ───────────────────────────── */
+.cr-login {
+  min-height: 100dvh;
+  background: var(--bg-0);
+  display: flex;
+  justify-content: center;
+  padding: max(14vh, 64px) 22px 40px;
+  box-sizing: border-box;
+}
+.cr-login-inner { width: 100%; max-width: 440px; }
+.cr-login-brand { font-size: 24px; }
+.cr-login-brand .cr-cursor { width: 11px; height: 22px; vertical-align: -3px; }
+.cr-login-conn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 40px;
+  font-family: var(--fnt-mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  letter-spacing: 0.02em;
+}
+.cr-login-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--st-idle);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-idle) 22%, transparent);
+  flex: 0 0 auto;
+}
+.cr-login-form { display: flex; flex-direction: column; gap: 12px; }
+.cr-login-form .cr-field-label { margin-bottom: -4px; }
+.cr-login-field { position: relative; }
+.cr-login-field input {
+  width: 100%;
+  height: 52px;
+  box-sizing: border-box;
+  background: var(--bg-input);
+  border: 1px solid var(--line-1);
+  border-radius: 12px;
+  color: var(--fg-0);
+  font-family: var(--fnt-mono);
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  padding: 0 48px 0 16px;
+  outline: none;
+}
+.cr-login-field input:focus { border-color: var(--accent-dim); }
+.cr-login-eye {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+  border-radius: 9px;
+}
+.cr-login-eye:hover { color: var(--fg-1); }
+.cr-login-eye-on { color: var(--accent); }
+.cr-login-submit {
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font-family: var(--fnt-ui);
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.cr-login-submit:hover:not(:disabled) {
+  background: var(--bg-3);
+  border-color: var(--accent-dim);
+}
+.cr-login-submit:disabled,
+.cr-login-field input:disabled { opacity: 0.55; cursor: not-allowed; }
+.cr-login-note {
+  margin: 4px 0 0;
+  font-family: var(--fnt-mono);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.cr-login-note code {
+  color: var(--accent);
+  background: var(--bg-2);
+  padding: 1px 6px;
+  border-radius: 6px;
+}

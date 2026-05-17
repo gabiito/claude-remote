@@ -66,6 +66,21 @@ async def test_get_login_page(client) -> None:
     assert "password" in r.text.lower()
 
 
+async def test_login_page_is_styled_and_self_contained(client) -> None:
+    async with client as c:
+        r = await c.get("/login")
+        js = await c.get("/static/js/login.js")
+    html = r.text
+    assert "cr-login" in html  # styled shell, not the old bare card
+    assert 'class="cr-brand' in html  # reuses the app brand mark
+    assert "cr-pw-toggle" in html  # show/hide eye
+    assert "js/login.js" in html
+    # CSP-safe: the toggle is an external script, never inline.
+    assert "<script>" not in html
+    assert js.status_code == 200
+    assert "addEventListener" in js.text
+
+
 async def test_post_login_wrong_password_no_cookie(client) -> None:
     async with client as c:
         r = await c.post("/login", data={"password": "nope"})

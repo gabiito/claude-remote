@@ -47,7 +47,11 @@ async def login_page(
     return TEMPLATES.TemplateResponse(  # type: ignore[return-value]
         request,
         "login.html",
-        {"error": None, "configured": s.password_hash is not None},
+        {
+            "error": None,
+            "configured": s.password_hash is not None,
+            "host": request.url.hostname or "localhost",
+        },
     )
 
 
@@ -68,6 +72,7 @@ async def login_submit(
                 if s.password_hash
                 else "No password set — run: claudio set-password",
                 "configured": s.password_hash is not None,
+                "host": request.url.hostname or "localhost",
             },
             status_code=401,
         )
