@@ -389,11 +389,9 @@ async def launch_project_ui(
     cols: int | None = Form(default=None),
     rows: int | None = Form(default=None),
     launcher: TmuxLauncher = Depends(get_tmux_launcher),  # noqa: B008
-    instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
-    events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
     projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
 ) -> HTMLResponse:
-    """Launch an instance for a project and return the updated project card.
+    """Launch an instance for a project, then navigate to its terminal.
 
     cols/rows (sent by the home from the device viewport) size the tmux
     window at creation so Claude renders at the right width from the first
@@ -428,23 +426,14 @@ async def launch_project_ui(
     if project is None:
         return _error_fragment(request, "Project not found.", status_code=404)
 
-    now = datetime.now(UTC)
-    project_instances = instances_repo.list_by_project(project_id)
-    instance_views: list[InstanceView] = [
-        {
-            "instance": inst,
-            "live_status": derive_live_status(
-                inst,
-                events_repo.list_for_instance(inst.id, limit=20),
-                now=now,
-            ),
-        }
-        for inst in project_instances
-    ]
-    recent_events = events_repo.list_for_project(project_id, limit=5)
-
-    content = _render_project_card(request, project, instance_views, recent_events)
-    return HTMLResponse(content=content, status_code=200)
+    # You launch an instance to use it → go straight to its terminal.
+    # htmx XHR would silently follow a 303; a 200 + HX-Redirect makes htmx
+    # do a real client-side navigation instead.
+    return HTMLResponse(
+        content="",
+        status_code=200,
+        headers={"HX-Redirect": f"/projects/{project_id}"},
+    )
 
 
 # ---------------------------------------------------------------------------
