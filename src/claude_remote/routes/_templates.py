@@ -9,14 +9,13 @@ Custom Jinja2 filters registered here (ADR-3):
   - ``status_token``     → maps derive_live_status() output to CSS [data-status] token
 """
 
-import subprocess
-from functools import lru_cache
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
 from claude_remote.services.event_snippet import extract_snippet
 from claude_remote.services.timefmt import format_relative
+from claude_remote.version import resolve_version
 
 
 def status_token(live_status: str) -> str:
@@ -71,38 +70,10 @@ def asset_url(rel_path: str) -> str:
     return f"/static/{rel_path}?v={version}"
 
 
-@lru_cache(maxsize=1)
-def app_version() -> str:
-    """Return the running version, derived from git so a tag is the source of truth.
-
-    `git describe --tags --always --dirty`:
-      - tagged commit            → the tag (e.g. v0.1.0)
-      - commits after a tag      → v0.1.0-3-gabc1234
-      - uncommitted changes      → ...-dirty
-      - no tags yet              → short SHA (honest: untagged commit)
-
-    Falls back to the packaged metadata version, then "dev". Cached for the
-    process (restart to pick up a new tag) and never raises.
-    """
-    try:
-        out = subprocess.run(
-            ["git", "describe", "--tags", "--always", "--dirty"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=2,
-            cwd=_PACKAGE_ROOT,
-        ).stdout.strip()
-        if out:
-            return out
-    except (OSError, subprocess.SubprocessError):
-        pass
-    try:
-        from importlib.metadata import version
-
-        return version("claude-remote")
-    except Exception:  # noqa: BLE001
-        return "dev"
+# Single source of truth shared with the `claudio` CLI — see version.py.
+# Re-exported under the historical name so templates/tests keep working
+# (resolve_version is lru_cached, so .cache_clear() still exists).
+app_version = resolve_version
 
 
 # Register display helpers as Jinja2 filters/globals so templates call them

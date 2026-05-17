@@ -1,0 +1,70 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST 'http://localhost:8000/hooks/SessionStart?token=AICwRCkV10_M5HvM7L20ewCQgzcs1ggRJVYnK7-5TB0' -H 'Content-Type: application/json' -d @-"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST 'http://localhost:8000/hooks/Notification?token=AICwRCkV10_M5HvM7L20ewCQgzcs1ggRJVYnK7-5TB0' -H 'Content-Type: application/json' -d @-"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST 'http://localhost:8000/hooks/Stop?token=AICwRCkV10_M5HvM7L20ewCQgzcs1ggRJVYnK7-5TB0' -H 'Content-Type: application/json' -d @-"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST 'http://localhost:8000/hooks/PreToolUse?token=AICwRCkV10_M5HvM7L20ewCQgzcs1ggRJVYnK7-5TB0' -H 'Content-Type: application/json' -d @-"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST 'http://localhost:8000/hooks/PostToolUse?token=AICwRCkV10_M5HvM7L20ewCQgzcs1ggRJVYnK7-5TB0' -H 'Content-Type: application/json' -d @-"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST 'http://localhost:8000/hooks/SessionEnd?token=AICwRCkV10_M5HvM7L20ewCQgzcs1ggRJVYnK7-5TB0' -H 'Content-Type: application/json' -d @-"
+          }
+        ]
+      }
+    ]
+  }
+}

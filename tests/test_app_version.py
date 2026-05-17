@@ -78,19 +78,19 @@ def test_app_version_matches_git_describe() -> None:
 
 def test_app_version_never_raises(monkeypatch) -> None:
     """If the git subprocess blows up, the helper falls back, never raises."""
-    import claude_remote.routes._templates as tmpl
+    import claude_remote.version as ver
 
     def _boom(*_a, **_k):
         raise OSError("git not found")
 
-    monkeypatch.setattr(tmpl.subprocess, "run", _boom)
-    tmpl.app_version.cache_clear()
+    monkeypatch.setattr(ver.subprocess, "run", _boom)
+    ver.resolve_version.cache_clear()
     try:
-        v = tmpl.app_version()
+        v = ver.resolve_version()
         assert isinstance(v, str)
         assert v.strip() != ""
     finally:
-        tmpl.app_version.cache_clear()
+        ver.resolve_version.cache_clear()
 
 
 async def test_home_header_shows_dynamic_version_not_hardcoded(
