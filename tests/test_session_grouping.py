@@ -12,7 +12,10 @@ from types import SimpleNamespace
 def _card(domain: str, name: str, statuses: list[str], event_times: list[str] | None = None):
     return {
         "project": SimpleNamespace(domain=domain, name=name, id=f"{domain}-{name}"),
-        "instance_views": [{"live_status": s} for s in statuses],
+        "instance_views": [
+            {"instance": SimpleNamespace(id=f"{domain}-{name}-{i}"), "live_status": s}
+            for i, s in enumerate(statuses)
+        ],
         "recent_events": [SimpleNamespace(received_at=t) for t in (event_times or [])],
     }
 
@@ -122,6 +125,17 @@ class TestBuildActiveSessions:
         assert s["name"] == "landing"
         assert s["status"] == "needs_input"
         assert s["is_current"] is True
+
+    def test_entry_includes_active_instance_id(self) -> None:
+        """The rail 'x' needs the active instance id to POST a stop."""
+        from claude_remote.services.session_grouping import build_active_sessions
+
+        out = build_active_sessions(
+            [_card("wooli", "landing", ["idle", "needs_input"])],
+            current_project_id="x",
+        )
+        # First non-terminal instance of the project.
+        assert out[0]["instance_id"] == "wooli-landing-0"
 
 
 class TestGroupAndSort:

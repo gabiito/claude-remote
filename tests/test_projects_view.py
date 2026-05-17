@@ -449,6 +449,44 @@ async def test_deep_view_rail_lists_active_sessions(
     assert "dead" not in html.split("cr-rail")[1].split("cr-pv-tabs")[0]
 
 
+async def test_deep_view_rail_has_stop_x_per_session(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Each rail tab carries an 'x' that stops that project's instance."""
+    (tmp_projects_root / "wooli" / "landing").mkdir(parents=True)
+    (tmp_projects_root / "wooli" / "api").mkdir(parents=True)
+    cur = projects_repo.create(
+        project_create=ProjectCreate(
+            name="landing", slug="landing",
+            path=tmp_projects_root / "wooli" / "landing", domain="wooli",
+        )
+    )
+    other = projects_repo.create(
+        project_create=ProjectCreate(
+            name="api", slug="api",
+            path=tmp_projects_root / "wooli" / "api", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{cur.id}/launch")
+    await pv_client.post(f"/ui/projects/{other.id}/launch")
+    cur_inst = instances_repo.list_by_project(cur.id)[0]
+    other_inst = instances_repo.list_by_project(other.id)[0]
+
+    html = (
+        await pv_client.get(
+            f"/projects/{cur.id}", headers={"Accept": "text/html"}
+        )
+    ).text
+    rail = html.split("cr-rail")[1].split("cr-pv-tabs")[0]
+    assert "cr-rail-close" in rail
+    assert f'hx-post="/ui/instances/{cur_inst.id}/stop"' in rail
+    assert f'hx-post="/ui/instances/{other_inst.id}/stop"' in rail
+
+
 async def test_deep_view_rail_absent_when_no_active(
     pv_client: AsyncClient,
     projects_repo: ProjectsRepository,
