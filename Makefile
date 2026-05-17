@@ -3,8 +3,8 @@
 
 PYTHON := .venv/bin/python
 UV := uv
+CLAUDIO := .venv/bin/claudio
 
-SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
 SERVICE_NAME := claude-remote.service
 
 # Install all deps (runtime + dev) into .venv
@@ -42,22 +42,13 @@ run:
 # Composite gate: lint + typecheck + test (local CI equivalent)
 check: lint typecheck test
 
-# Install + start the keep-alive systemd --user service (auto-starts on login).
-# enable-linger lets it keep running after logout / start at boot.
+# Install/uninstall delegate to `claudio` — single source of truth for the
+# render + enable + linger + symlink logic (see src/claude_remote/cli.py).
 service-install:
-	mkdir -p $(SYSTEMD_USER_DIR)
-	$(PYTHON) deploy/render_service.py > $(SYSTEMD_USER_DIR)/$(SERVICE_NAME)
-	systemctl --user daemon-reload
-	systemctl --user enable --now $(SERVICE_NAME)
-	loginctl enable-linger $(USER) || echo "NOTE: run 'sudo loginctl enable-linger $(USER)' so it survives logout/boot"
-	@echo "Installed + started. Status: make service-status | Logs: make service-logs"
+	$(CLAUDIO) install
 
-# Stop, disable and remove the service.
 service-uninstall:
-	-systemctl --user disable --now $(SERVICE_NAME)
-	-rm -f $(SYSTEMD_USER_DIR)/$(SERVICE_NAME)
-	systemctl --user daemon-reload
-	@echo "Removed."
+	$(CLAUDIO) uninstall
 
 service-status:
 	systemctl --user status $(SERVICE_NAME) --no-pager || true
