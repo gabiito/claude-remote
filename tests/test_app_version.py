@@ -104,3 +104,40 @@ async def test_home_header_shows_dynamic_version_not_hardcoded(
     assert app_version() in resp.text
     # The old hardcoded token must be gone (unless a real tag is literally v0.1).
     assert ">v0.1 · py<" not in resp.text
+
+
+# --- _version.py stamped fallback (ZIP/wheel installs, no .git) ---
+
+
+def test_resolve_version_uses_stamped_when_no_git(monkeypatch) -> None:
+    """No git (source ZIP): a release-stamped _version.py is used."""
+    import claude_remote._version as ver_mod
+    import claude_remote.version as v
+
+    def _boom(*_a, **_k):
+        raise OSError("no git")
+
+    monkeypatch.setattr(v.subprocess, "run", _boom)
+    monkeypatch.setattr(ver_mod, "__version__", "v9.9.9")
+    v.resolve_version.cache_clear()
+    try:
+        assert v.resolve_version() == "v9.9.9"
+    finally:
+        v.resolve_version.cache_clear()
+
+
+def test_placeholder_stamp_is_ignored(monkeypatch) -> None:
+    """The unstamped placeholder must NOT be reported; fall through."""
+    import claude_remote._version as ver_mod
+    import claude_remote.version as v
+
+    def _boom(*_a, **_k):
+        raise OSError("no git")
+
+    monkeypatch.setattr(v.subprocess, "run", _boom)
+    monkeypatch.setattr(ver_mod, "__version__", "0.0.0+unknown")
+    v.resolve_version.cache_clear()
+    try:
+        assert v.resolve_version() != "0.0.0+unknown"
+    finally:
+        v.resolve_version.cache_clear()
