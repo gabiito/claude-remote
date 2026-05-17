@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 SERVICE = "claude-remote.service"
@@ -124,8 +125,16 @@ def build_argv(command: str) -> list[str]:
     raise ValueError(f"unknown command: {command}")
 
 
+def _version() -> str:
+    try:
+        return version("claude-remote")
+    except PackageNotFoundError:
+        return "0+unknown"
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="claudio", description=__doc__)
+    p.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     p.add_argument(
         "command",
         choices=[*_VERBS, "logs", "install", "uninstall"],
