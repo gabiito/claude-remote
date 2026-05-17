@@ -488,6 +488,65 @@ async def test_deep_view_rail_has_stop_x_per_session(
     assert f'hx-post="/ui/instances/{cur_inst.id}/stop"' in rail
 
 
+async def test_deep_view_rail_hidden_with_single_session(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """One active session → no rail; the view takes the full width."""
+    (tmp_projects_root / "wooli" / "solo").mkdir(parents=True)
+    p = projects_repo.create(
+        project_create=ProjectCreate(
+            name="solo", slug="solo",
+            path=tmp_projects_root / "wooli" / "solo", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{p.id}/launch")
+    resp = await pv_client.get(
+        f"/projects/{p.id}", headers={"Accept": "text/html"}
+    )
+    assert resp.status_code == 200
+    assert 'aria-label="Active sessions"' not in resp.text
+
+
+async def test_deep_view_rail_x_navigates_to_another_session(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Stopping a rail tab (when others remain) jumps to another session."""
+    (tmp_projects_root / "wooli" / "aa").mkdir(parents=True)
+    (tmp_projects_root / "wooli" / "bb").mkdir(parents=True)
+    a = projects_repo.create(
+        project_create=ProjectCreate(
+            name="aa", slug="aa",
+            path=tmp_projects_root / "wooli" / "aa", domain="wooli",
+        )
+    )
+    b = projects_repo.create(
+        project_create=ProjectCreate(
+            name="bb", slug="bb",
+            path=tmp_projects_root / "wooli" / "bb", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{a.id}/launch")
+    await pv_client.post(f"/ui/projects/{b.id}/launch")
+    a_inst = instances_repo.list_by_project(a.id)[0]
+
+    html = (
+        await pv_client.get(
+            f"/projects/{a.id}", headers={"Accept": "text/html"}
+        )
+    ).text
+    # The 'x' on session a, when stopped, must navigate to b (not reload a).
+    block = html.split(f'/ui/instances/{a_inst.id}/stop')[1].split("</button>")[0]
+    assert f"/projects/{b.id}" in block
+    assert "reload()" not in block
+
+
 async def test_deep_view_rail_absent_when_no_active(
     pv_client: AsyncClient,
     projects_repo: ProjectsRepository,
@@ -542,15 +601,24 @@ async def test_deep_view_rail_collapsible(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Rail has a collapse handle; collapsed state persists in localStorage."""
+    """Rail has a collapse handle; collapsed state persists in localStorage.
+    (Rail only shows with >1 session, so launch two.)"""
     (tmp_projects_root / "wooli" / "rc1").mkdir(parents=True)
+    (tmp_projects_root / "wooli" / "rc2").mkdir(parents=True)
     p = projects_repo.create(
         project_create=ProjectCreate(
             name="rc1", slug="rc1",
             path=tmp_projects_root / "wooli" / "rc1", domain="wooli",
         )
     )
+    p2 = projects_repo.create(
+        project_create=ProjectCreate(
+            name="rc2", slug="rc2",
+            path=tmp_projects_root / "wooli" / "rc2", domain="wooli",
+        )
+    )
     await pv_client.post(f"/ui/projects/{p.id}/launch")
+    await pv_client.post(f"/ui/projects/{p2.id}/launch")
     resp = await pv_client.get(
         f"/projects/{p.id}", headers={"Accept": "text/html"}
     )
