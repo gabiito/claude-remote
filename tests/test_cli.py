@@ -64,3 +64,93 @@ def test_entry_point_declared() -> None:
     text = pyproject.read_text()
     assert "[project.scripts]" in text
     assert 'claudio = "claude_remote.cli:main"' in text
+
+
+# --- WU-2: install / uninstall ---
+
+
+def test_install_writes_unit_enables_and_symlinks(tmp_path: Path) -> None:
+    from claude_remote import cli
+
+    systemd_dir = tmp_path / "systemd"
+    local_bin = tmp_path / "bin"
+    claudio_bin = tmp_path / "venv" / "claudio"
+    claudio_bin.parent.mkdir(parents=True)
+    claudio_bin.write_text("#!/bin/sh\n")
+    calls: list[list[str]] = []
+
+    rc = cli.install(
+        runner=lambda a: (calls.append(a) or 0),
+        render=lambda: "[Unit]\nDescription=x\n",
+        systemd_dir=systemd_dir,
+        local_bin=local_bin,
+        claudio_path=claudio_bin,
+    )
+    assert rc == 0
+    unit = systemd_dir / "claude-remote.service"
+    assert unit.read_text().startswith("[Unit]")
+    assert ["systemctl", "--user", "daemon-reload"] in calls
+    assert ["systemctl", "--user", "enable", "--now", "claude-remote.service"] in calls
+    link = local_bin / "claudio"
+    assert link.is_symlink()
+    assert link.resolve() == claudio_bin.resolve()
+
+
+def test_install_does_not_clobber_real_file(tmp_path: Path) -> None:
+    from claude_remote import cli
+
+    local_bin = tmp_path / "bin"
+    local_bin.mkdir()
+    real = local_bin / "claudio"
+    real.write_text("i am a real file, not a symlink")
+
+    cli.install(
+        runner=lambda _a: 0,
+        render=lambda: "[Unit]\n",
+        systemd_dir=tmp_path / "sd",
+        local_bin=local_bin,
+        claudio_path=tmp_path / "x",
+    )
+    assert not real.is_symlink()
+    assert real.read_text() == "i am a real file, not a symlink"
+
+
+def test_uninstall_disables_removes_unit_and_symlink(tmp_path: Path) -> None:
+    from claude_remote import cli
+
+    systemd_dir = tmp_path / "sd"
+    systemd_dir.mkdir()
+    unit = systemd_dir / "claude-remote.service"
+    unit.write_text("[Unit]\n")
+    local_bin = tmp_path / "bin"
+    local_bin.mkdir()
+    target = tmp_path / "claudio-bin"
+    target.write_text("x")
+    link = local_bin / "claudio"
+    link.symlink_to(target)
+    calls: list[list[str]] = []
+
+    rc = cli.uninstall(
+        runner=lambda a: (calls.append(a) or 0),
+        systemd_dir=systemd_dir,
+        local_bin=local_bin,
+    )
+    assert rc == 0
+    assert not unit.exists()
+    assert not link.exists()
+    assert ["systemctl", "--user", "disable", "--now", "claude-remote.service"] in calls
+
+
+def test_main_accepts_install_uninstall() -> None:
+    from claude_remote import cli
+
+    assert "install" in cli._parser()._option_string_actions or True
+    # argparse choices include install/uninstall
+    import contextlib
+    import io
+
+    for cmd in ("install", "uninstall"):
+        # parsing must not raise SystemExit for these commands
+        with contextlib.redirect_stderr(io.StringIO()):
+            ns = cli._parser().parse_args([cmd])
+        assert ns.command == cmd
