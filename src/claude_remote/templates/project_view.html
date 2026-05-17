@@ -67,7 +67,9 @@
 
   {# ── Body: vertical session rail + tab content ── #}
   <div class="cr-pv-body">
-  {% if active_sessions %}
+  {# Rail only earns its space with >1 session — a lone session gets the
+     full width, no pointless single-tab rail. #}
+  {% if active_sessions and active_sessions | length > 1 %}
   <nav class="cr-rail cr-scroll" aria-label="Active sessions"
        x-data="{ railOpen: localStorage.getItem('cr-rail-open') !== '0' }"
        :data-collapsed="railOpen ? '0' : '1'">
@@ -88,10 +90,14 @@
         <span class="cr-rail-name"><span class="cr-rail-domain">{{ s.domain }}/</span><span class="cr-rail-leaf">{{ s.name }}</span></span>
       </a>
       {% if s.instance_id %}
+      {# Jump to another live session after stopping this one (the rail
+         only renders with >1, so an "other" always exists). #}
+      {% set ns = namespace(other='') %}
+      {% for o in active_sessions %}{% if not ns.other and o.project_id != s.project_id %}{% set ns.other = o.project_id %}{% endif %}{% endfor %}
       <button class="cr-rail-close" type="button"
               hx-post="/ui/instances/{{ s.instance_id }}/stop"
               hx-swap="none"
-              hx-on::after-request="if (event.detail.successful) window.location.reload()"
+              hx-on::after-request="if (event.detail.successful) window.location.href = '{{ ('/projects/' ~ ns.other) if ns.other else '/' }}'"
               aria-label="Stop {{ s.domain }}/{{ s.name }}" title="Stop session">×</button>
       {% endif %}
     </div>

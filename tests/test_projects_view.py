@@ -541,8 +541,10 @@ async def test_deep_view_rail_x_navigates_to_another_session(
             f"/projects/{a.id}", headers={"Accept": "text/html"}
         )
     ).text
-    # The 'x' on session a, when stopped, must navigate to b (not reload a).
-    block = html.split(f'/ui/instances/{a_inst.id}/stop')[1].split("</button>")[0]
+    # Scope to the rail (a_inst's stop is also in the header for current).
+    rail = html.split('aria-label="Active sessions"')[1].split("cr-pv-tabs")[0]
+    block = rail.split(f"/ui/instances/{a_inst.id}/stop")[1].split("</button>")[0]
+    # The 'x' on session a, when stopped, navigates to b (not reload a).
     assert f"/projects/{b.id}" in block
     assert "reload()" not in block
 
