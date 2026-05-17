@@ -2,7 +2,22 @@
 // SW_VERSION bumps trigger a re-install on next page load (browser refetches
 // /sw.js whenever the byte stream differs from the cached version).
 
-const SW_VERSION = 'v1';
+const SW_VERSION = 'v2';
+
+// Presence-aware push (#6): pages post {type:'cr-activity'} on real user
+// interaction. We keep only the latest timestamp. A push is suppressed
+// only if a window is focused/visible AND activity is within this window —
+// an open-but-idle tab (you walked away) still buzzes the phone. If the SW
+// was restarted lastActivityAt is 0 → we fail OPEN (show the notification).
+const ACTIVITY_WINDOW_MS = 5 * 60 * 1000;
+let lastActivityAt = 0;
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'cr-activity') {
+    // Use SW receipt time — don't trust the page's clock.
+    lastActivityAt = Date.now();
+  }
+});
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -24,15 +39,27 @@ self.addEventListener('push', (event) => {
   const data = payload.data || {};
   const tag = data.event_type || 'claude-remote';
 
-  event.waitUntil(
-    self.registration.showNotification(title, {
+  event.waitUntil((async () => {
+    const recentlyActive = Date.now() - lastActivityAt < ACTIVITY_WINDOW_MS;
+    if (recentlyActive) {
+      const wins = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      const present = wins.some(
+        (c) => c.focused || c.visibilityState === 'visible'
+      );
+      // You're actively using the app and saw it live via SSE — no buzz.
+      if (present) return;
+    }
+    await self.registration.showNotification(title, {
       body,
       data,
       icon: '/static/favicon.svg',
       badge: '/static/favicon.svg',
       tag,
-    })
-  );
+    });
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {

@@ -33,10 +33,14 @@ async def test_sw_js_has_no_cache_header(async_client_with_db: AsyncClient) -> N
 
 
 async def test_sw_js_content_contains_sw_version(async_client_with_db: AsyncClient) -> None:
-    """GET /sw.js response body contains SW_VERSION = 'v1'. (SC-8.2, REQ-8.2)"""
+    """GET /sw.js carries a SW_VERSION marker. The value bumps over time
+    (a bump forces SW re-install), so assert it's versioned, don't pin the
+    number. (SC-8.2, REQ-8.2)"""
+    import re
+
     response = await async_client_with_db.get("/sw.js")
     assert "SW_VERSION" in response.text
-    assert "v1" in response.text
+    assert re.search(r"SW_VERSION\s*=\s*'v\d+'", response.text)
 
 
 async def test_sw_js_contains_push_event_listener(async_client_with_db: AsyncClient) -> None:
