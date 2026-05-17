@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sign in — Claudio-RC</title>
+  <link rel="icon" href="{{ asset_url('favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ asset_url('css/app.css') }}">
+</head>
+<body>
+  <main class="cr-login">
+    <form class="cr-login-card" method="post" action="/login">
+      <div class="cr-brand">
+        <span class="cr-prompt">~/</span><span>Claudio-RC</span>
+        <span class="cr-cursor"></span>
+      </div>
+      {% if error %}
+      <div class="cr-field-error" role="alert">{{ error }}</div>
+      {% endif %}
+      <label class="cr-field-label" for="cr-pw">Password</label>
+      <input id="cr-pw" class="cr-input" type="password" name="password"
+             autocomplete="current-password" autofocus
+             {% if not configured %}disabled{% endif %}>
+      <button class="cr-new-btn" type="submit"
+              {% if not configured %}disabled{% endif %}>Sign in</button>
+      {% if not configured %}
+      <p class="cr-sheet-sub">No password set yet. On the server run:
+        <code>claudio set-password</code></p>
+      {% endif %}
+    </form>
+  </main>
+</body>
+</html>

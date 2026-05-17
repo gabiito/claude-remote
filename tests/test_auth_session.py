@@ -81,7 +81,8 @@ async def test_post_login_correct_sets_cookie_and_redirects(client) -> None:
     sc = r.headers.get("set-cookie", "")
     assert "cr_session=" in sc
     assert "HttpOnly" in sc
-    assert "SameSite=Lax" in sc
+    # SameSite value is case-insensitive per RFC 6265bis; Starlette emits 'lax'.
+    assert "samesite=lax" in sc.lower()
     assert r.status_code in (302, 303)
 
 

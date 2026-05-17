@@ -57,3 +57,38 @@ def verify_password(password: str, stored: str) -> bool:
 
 def generate_session_secret() -> str:
     return secrets.token_urlsafe(32)
+
+
+# --- session cookie (HMAC-signed, no server-side store) ---
+
+COOKIE_NAME = "cr_session"
+SESSION_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days — it's the owner's phone
+
+
+def _sig(secret: str, issued_at: int) -> str:
+    return hmac.new(
+        secret.encode("utf-8"), str(issued_at).encode("ascii"), hashlib.sha256
+    ).hexdigest()
+
+
+def sign_session(secret: str, *, now: int | None = None) -> str:
+    import time  # noqa: PLC0415
+
+    issued_at = int(now if now is not None else time.time())
+    return f"{issued_at}.{_sig(secret, issued_at)}"
+
+
+def verify_session(
+    secret: str, token: str, *, now: int | None = None, ttl: int = SESSION_TTL_SECONDS
+) -> bool:
+    import time  # noqa: PLC0415
+
+    try:
+        issued_s, sig = token.split(".", 1)
+        issued_at = int(issued_s)
+    except (ValueError, AttributeError):
+        return False
+    if not hmac.compare_digest(sig, _sig(secret, issued_at)):
+        return False
+    current = int(now if now is not None else time.time())
+    return 0 <= current - issued_at <= ttl
