@@ -654,6 +654,33 @@ body {
   background: var(--bg-2);
   border-left-color: var(--accent);
 }
+.cr-rail-entry { position: relative; display: flex; }
+.cr-rail-entry .cr-rail-item { flex: 1 1 auto; }
+.cr-rail-close {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-4);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms, color 120ms, background 120ms;
+}
+/* Current session's stop is always visible; others reveal on hover. */
+.cr-rail-entry:hover .cr-rail-close,
+.cr-rail-item[data-current="1"] + .cr-rail-close { opacity: 1; }
+.cr-rail-close:hover { color: var(--st-stop); background: var(--bg-3); }
+.cr-rail[data-collapsed="1"] .cr-rail-close { display: none; }
 .cr-rail-dot {
   width: 8px;
   height: 8px;

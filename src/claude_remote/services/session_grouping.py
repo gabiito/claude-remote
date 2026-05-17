@@ -69,6 +69,14 @@ def build_active_sessions(
         if status not in ACTIVE_STATUSES:
             continue
         project = card["project"]
+        ivs = card.get("instance_views", [])
+        primary = next(
+            (iv for iv in ivs if iv.get("live_status") not in ("stopped", "crashed")),
+            None,
+        )
+        instance_id = (
+            getattr(primary.get("instance"), "id", None) if primary else None
+        )
         entries.append(
             {
                 "project_id": project.id,
@@ -76,6 +84,7 @@ def build_active_sessions(
                 "name": project.name,
                 "status": status,
                 "is_current": project.id == current_project_id,
+                "instance_id": instance_id,
             }
         )
     entries.sort(

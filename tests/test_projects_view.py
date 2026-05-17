@@ -481,10 +481,11 @@ async def test_deep_view_rail_has_stop_x_per_session(
             f"/projects/{cur.id}", headers={"Accept": "text/html"}
         )
     ).text
-    rail = html.split("cr-rail")[1].split("cr-pv-tabs")[0]
+    rail = html.split('aria-label="Active sessions"')[1].split("cr-pv-tabs")[0]
     assert "cr-rail-close" in rail
-    assert f'hx-post="/ui/instances/{cur_inst.id}/stop"' in rail
+    # other_inst's stop only exists in the rail (cur's also in the header).
     assert f'hx-post="/ui/instances/{other_inst.id}/stop"' in rail
+    assert f'hx-post="/ui/instances/{cur_inst.id}/stop"' in rail
 
 
 async def test_deep_view_rail_absent_when_no_active(
