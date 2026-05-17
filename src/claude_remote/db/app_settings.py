@@ -20,6 +20,8 @@ class AppSettings(BaseModel):
 
     projects_root: str | None
     updated_at: str
+    password_hash: str | None = None
+    session_secret: str | None = None
 
 
 ConnectionFactory = Callable[[], AbstractContextManager[sqlite3.Connection]]
@@ -39,13 +41,19 @@ class AppSettingsRepository:
         """
         with self._factory() as conn:
             row = conn.execute(
-                "SELECT projects_root, updated_at FROM app_settings WHERE id = 1"
+                "SELECT projects_root, updated_at, password_hash, session_secret "
+                "FROM app_settings WHERE id = 1"
             ).fetchone()
         if row is None:
             raise RuntimeError(
                 "app_settings row missing; check migration 0010 was applied"
             )
-        return AppSettings(projects_root=row[0], updated_at=row[1])
+        return AppSettings(
+            projects_root=row[0],
+            updated_at=row[1],
+            password_hash=row[2],
+            session_secret=row[3],
+        )
 
     def set_projects_root(self, value: str | None) -> AppSettings:
         """Set (or clear with None) the configured projects root."""
@@ -55,6 +63,34 @@ class AppSettingsRepository:
                 (value, datetime.now(UTC).isoformat()),
             )
         return self.get()
+
+    def set_password_hash(self, value: str) -> AppSettings:
+        """Store the scrypt password hash (see services/auth.py)."""
+        with self._factory() as conn:
+            conn.execute(
+                "UPDATE app_settings SET password_hash = ?, updated_at = ? "
+                "WHERE id = 1",
+                (value, datetime.now(UTC).isoformat()),
+            )
+        return self.get()
+
+    def get_or_create_session_secret(self) -> str:
+        """Return the cookie-signing secret, generating+persisting it once."""
+        current = self.get().session_secret
+        if current:
+            return current
+        from claude_remote.services.auth import (  # noqa: PLC0415
+            generate_session_secret,
+        )
+
+        secret = generate_session_secret()
+        with self._factory() as conn:
+            conn.execute(
+                "UPDATE app_settings SET session_secret = ?, updated_at = ? "
+                "WHERE id = 1",
+                (secret, datetime.now(UTC).isoformat()),
+            )
+        return secret
 
     @staticmethod
     def _row_to_model(row: Any) -> AppSettings:  # pragma: no cover - parity helper

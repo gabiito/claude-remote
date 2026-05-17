@@ -129,6 +129,36 @@ def _version() -> str:
     return resolve_version()
 
 
+def set_password(prompt: Callable[[str], str] = getpass.getpass) -> int:
+    """Configure the mandatory shared password (auth/#7).
+
+    Prompts twice (confirm), scrypt-hashes it and stores it on the
+    app_settings singleton, provisioning the session secret on first set.
+    Writes to the same DB the server reads (CLAUDE_REMOTE_DB_PATH / default).
+    """
+    from claude_remote.config import get_settings  # noqa: PLC0415
+    from claude_remote.db.app_settings import (  # noqa: PLC0415
+        AppSettingsRepository,
+    )
+    from claude_remote.db.connection import get_connection_for  # noqa: PLC0415
+    from claude_remote.services.auth import hash_password  # noqa: PLC0415
+
+    pw = prompt("New password: ")
+    if not pw:
+        print("Aborted: empty password.", file=sys.stderr)
+        return 1
+    if prompt("Confirm password: ") != pw:
+        print("Aborted: passwords do not match.", file=sys.stderr)
+        return 1
+
+    db_path = get_settings().db_path
+    repo = AppSettingsRepository(lambda: get_connection_for(db_path))
+    repo.set_password_hash(hash_password(pw))
+    repo.get_or_create_session_secret()
+    print("Password set. Restart the server (or it picks it up next request).")
+    return 0
+
+
 _EPILOG = """\
 Commands:
   install      set up the service and start it; enable auto-start on login
@@ -138,9 +168,11 @@ Commands:
   restart      restart the service now
   status       show whether the service is running
   logs         follow the service logs (Ctrl-C to quit)
+  set-password set the shared login password (required to use the app)
 
 Examples:
   claudio install      # first-time setup
+  claudio set-password
   claudio status
   claudio restart
   claudio logs
@@ -157,7 +189,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     p.add_argument(
         "command",
-        choices=[*_VERBS, "logs", "install", "uninstall"],
+        choices=[*_VERBS, "logs", "install", "uninstall", "set-password"],
         metavar="<command>",
         help="the action to run (see Commands below)",
     )
@@ -173,4 +205,6 @@ def main(
         return install(runner=runner)
     if args.command == "uninstall":
         return uninstall(runner=runner)
+    if args.command == "set-password":
+        return set_password()
     return runner(build_argv(args.command))
