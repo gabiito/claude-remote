@@ -81,6 +81,21 @@ async def test_exempt_paths_open_without_auth(settings) -> None:
         assert h.headers.get("location") != "/login"
 
 
+async def test_fresh_install_no_redirect_loop(settings, tmp_path) -> None:
+    """Fresh install: no password AND projects-root not configured. /login
+    must render (200), not bounce to /setup (the /login↔/setup loop)."""
+    import dataclasses
+
+    unconfigured = dataclasses.replace(settings, configured=False)
+    async with _client(unconfigured) as c:
+        login = await c.get("/login", follow_redirects=False)
+        assert login.status_code == 200
+        # / still bounces to /login (auth), and that's the end of the chain.
+        root = await c.get("/", follow_redirects=False)
+        assert root.status_code in (302, 303)
+        assert root.headers["location"] == "/login"
+
+
 async def test_sse_unauth_is_401_not_redirect(settings) -> None:
     _set_pw(settings, "pw")
     async with _client(settings) as c:

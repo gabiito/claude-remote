@@ -59,6 +59,12 @@ def create_app() -> FastAPI:
     _GUARD_EXEMPT = (
         "/setup",
         "/ui/setup",
+        # The login page must render regardless of projects-root config,
+        # otherwise a fresh install (no password + not configured) ping-pongs
+        # /login ↔ /setup forever (auth bounces /setup → /login; this guard
+        # bounced /login → /setup).
+        "/login",
+        "/logout",
         "/static",
         "/api",
         "/docs",
