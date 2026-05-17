@@ -37,12 +37,14 @@ from claude_remote.services.session_grouping import (
 
 router = APIRouter(tags=["sse"])
 
-# Keepalive comment cadence — keeps the connection alive through any idle
-# proxy (Tailscale, reverse proxies) without sending a real re-render.
-_PING_INTERVAL = 15.0
-# Wake at least this often so a client disconnect is noticed promptly
-# (not only every _PING_INTERVAL).
-_TICK = 1.0
+# Periodic re-render cadence. Both views need a timer, not pure event-
+# driven: metrics are time-varying samples (CPU/RAM/uptime) and home's
+# live_status uses time windows (active=60s, needs_input=300s) that decay
+# with wall-clock even when no hook fires. A bus tick just refreshes home
+# *sooner*. A real frame every interval also keeps the connection warm
+# through idle proxies (Tailscale) — no separate keepalive needed.
+_HOME_INTERVAL = 5.0
+_METRICS_INTERVAL = 2.0
 # Collapse a burst of hook events (Claude fires several in a row) into one
 # re-render.
 _DEBOUNCE = 0.25
@@ -62,7 +64,7 @@ def _frame(html: str) -> str:
 
 
 async def _event_stream(
-    request: Request, render: Callable[[], str]
+    request: Request, render: Callable[[], str], *, interval: float
 ) -> AsyncGenerator[str]:
     async def render_html() -> str:
         return await asyncio.to_thread(render)
@@ -71,23 +73,18 @@ async def _event_stream(
     # first render and subscription is not lost (real connect-time race).
     async with bus.subscribe() as q:
         yield _frame(await render_html())  # initial paint
-        idle = 0.0
         while True:
             if await request.is_disconnected():
                 break
             try:
-                await asyncio.wait_for(q.get(), timeout=_TICK)
+                await asyncio.wait_for(q.get(), timeout=interval)
+                # A bus tick → coalesce the burst, then refresh early.
+                await asyncio.sleep(_DEBOUNCE)
+                with suppress(asyncio.QueueEmpty):
+                    while True:
+                        q.get_nowait()
             except TimeoutError:
-                idle += _TICK
-                if idle >= _PING_INTERVAL:
-                    idle = 0.0
-                    yield ": ping\n\n"
-                continue
-            idle = 0.0
-            await asyncio.sleep(_DEBOUNCE)
-            with suppress(asyncio.QueueEmpty):
-                while True:
-                    q.get_nowait()
+                pass  # periodic refresh (time-varying data)
             if await request.is_disconnected():
                 break
             yield _frame(await render_html())
@@ -112,7 +109,7 @@ async def sse_home(
         )
 
     return StreamingResponse(
-        _event_stream(request, render),
+        _event_stream(request, render, interval=_HOME_INTERVAL),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
@@ -136,7 +133,7 @@ async def sse_metrics(
         )
 
     return StreamingResponse(
-        _event_stream(request, render),
+        _event_stream(request, render, interval=_METRICS_INTERVAL),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )

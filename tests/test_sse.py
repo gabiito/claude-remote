@@ -37,7 +37,7 @@ async def test_frame_encodes_every_line_as_sse_data() -> None:
 
 
 async def test_initial_frame_is_rendered_immediately() -> None:
-    gen = _event_stream(_FakeRequest(), lambda: "<p>hi</p>")
+    gen = _event_stream(_FakeRequest(), lambda: "<p>hi</p>", interval=10.0)
     try:
         first = await _anext(gen)
         assert first == "data: <p>hi</p>\n\n"
@@ -45,29 +45,39 @@ async def test_initial_frame_is_rendered_immediately() -> None:
         await gen.aclose()
 
 
-async def test_re_renders_on_publish() -> None:
+async def test_publish_triggers_early_refresh_before_interval() -> None:
+    """A bus tick re-renders immediately, not only on the periodic interval."""
     calls = {"n": 0}
 
     def render() -> str:
         calls["n"] += 1
         return f"<i>{calls['n']}</i>"
 
-    gen = _event_stream(_FakeRequest(), render)
+    gen = _event_stream(_FakeRequest(), render, interval=30.0)
     try:
         assert await _anext(gen) == "data: <i>1</i>\n\n"
         bus.publish()
-        assert await _anext(gen) == "data: <i>2</i>\n\n"
+        assert await _anext(gen, timeout=3.0) == "data: <i>2</i>\n\n"
     finally:
         await gen.aclose()
 
 
-async def test_does_not_emit_without_a_publish() -> None:
-    """Event-driven, not a spin loop: no tick → no frame (until ping)."""
-    gen = _event_stream(_FakeRequest(), lambda: "<p>x</p>")
+async def test_emits_periodically_without_any_publish() -> None:
+    """Time-varying data (metrics, time-windowed status): re-render every
+    `interval` even when no hook event fires."""
+    calls = {"n": 0}
+
+    def render() -> str:
+        calls["n"] += 1
+        return f"<i>{calls['n']}</i>"
+
+    gen = _event_stream(_FakeRequest(), render, interval=0.3)
     try:
         await _anext(gen)  # initial
-        with pytest.raises(asyncio.TimeoutError):
-            await _anext(gen, timeout=1.5)
+        # next frame arrives from the timer alone (no publish)
+        nxt = await _anext(gen, timeout=2.0)
+        assert nxt.startswith("data:")
+        assert calls["n"] >= 2
     finally:
         await gen.aclose()
 
@@ -75,14 +85,13 @@ async def test_does_not_emit_without_a_publish() -> None:
 async def test_disconnect_stops_stream_and_unsubscribes() -> None:
     req = _FakeRequest()
     before = bus.subscriber_count
-    gen = _event_stream(req, lambda: "<p>x</p>")
+    gen = _event_stream(req, lambda: "<p>x</p>", interval=0.2)
     try:
         await _anext(gen)  # initial → now subscribed
         assert bus.subscriber_count == before + 1
         req._disconnected = True
-        bus.publish()  # unblock the wait so it re-checks disconnect
         with pytest.raises(StopAsyncIteration):
-            await _anext(gen)
+            await _anext(gen, timeout=2.0)
     finally:
         await gen.aclose()
     assert bus.subscriber_count == before
