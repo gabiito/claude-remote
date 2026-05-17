@@ -162,6 +162,27 @@ class EventsRepository:
             ).fetchall()
         return [self._row_to_event(row) for row in rows]
 
+    def stats(self, since_iso: str) -> dict[str, Any]:
+        """Aggregate counts for the metrics screen.
+
+        Returns ``{"total": int, "since": int, "by_type": {type: count}}``
+        where ``since`` counts events with received_at >= since_iso.
+        """
+        with self._factory() as conn:
+            total = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+            since = conn.execute(
+                "SELECT COUNT(*) FROM events WHERE received_at >= ?",
+                (since_iso,),
+            ).fetchone()[0]
+            rows = conn.execute(
+                "SELECT event_type, COUNT(*) FROM events GROUP BY event_type"
+            ).fetchall()
+        return {
+            "total": int(total),
+            "since": int(since),
+            "by_type": {str(r[0]): int(r[1]) for r in rows},
+        }
+
     def list_for_project(self, project_id: str, limit: int = 50) -> list[Event]:
         """Return events for a specific project, ordered received_at DESC."""
         with self._factory() as conn:
