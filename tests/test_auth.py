@@ -86,6 +86,44 @@ def test_session_secret_get_or_create_is_stable(repo) -> None:
     assert repo.get().session_secret == s1
 
 
+def test_rotate_session_secret_changes_it(repo) -> None:
+    old = repo.get_or_create_session_secret()
+    new = repo.rotate_session_secret()
+    assert new != old
+    assert repo.get().session_secret == new
+
+
+def test_set_password_rotates_secret_invalidating_sessions(
+    tmp_path, monkeypatch
+) -> None:
+    """Changing the password must log out existing devices: the cookie's
+    validity rides on session_secret, so set-password rotates it."""
+    from claude_remote import cli
+    from claude_remote.db.app_settings import AppSettingsRepository
+    from claude_remote.db.connection import get_connection_for
+    from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
+    from claude_remote.services.auth import sign_session, verify_session
+
+    db = tmp_path / "rot.db"
+    apply_migrations(db, MIGRATIONS_DIR)
+    monkeypatch.setenv("CLAUDE_REMOTE_DB_PATH", str(db))
+    repo = AppSettingsRepository(lambda: get_connection_for(db))
+
+    prompts = iter(["first", "first"])
+    cli.set_password(prompt=lambda _l: next(prompts))
+    old_secret = repo.get().session_secret
+    assert old_secret
+    old_cookie = sign_session(old_secret)
+    assert verify_session(old_secret, old_cookie)
+
+    prompts = iter(["second", "second"])
+    cli.set_password(prompt=lambda _l: next(prompts))
+    new_secret = repo.get().session_secret
+    assert new_secret and new_secret != old_secret
+    # The previously-issued cookie no longer validates.
+    assert verify_session(new_secret, old_cookie) is False
+
+
 # --- claudio set-password CLI command ---
 
 
