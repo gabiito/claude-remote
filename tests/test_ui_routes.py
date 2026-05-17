@@ -177,18 +177,17 @@ async def test_post_ui_projects_nonexistent_dir(
 # ---------------------------------------------------------------------------
 
 
-async def test_post_ui_launch_happy_path(
+async def test_post_ui_launch_redirects_to_project_view(
     ui_client: AsyncClient,
     existing_project,
 ) -> None:
-    """POST /ui/projects/{id}/launch returns 200 with updated project card."""
+    """Launch navigates straight to the project's terminal so you can use
+    the instance you just started (200 + HX-Redirect, htmx-client nav)."""
     response = await ui_client.post(f"/ui/projects/{existing_project.id}/launch")
     assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-    # Launch returns a project card with status LED reflecting the new instance
-    assert 'cr-card' in response.text
-    # Status is reflected via data-status on cr-led/cr-pill
-    assert 'data-status=' in response.text
+    assert response.headers.get("HX-Redirect") == f"/projects/{existing_project.id}"
+    # No card fragment anymore — the browser navigates instead.
+    assert "cr-card" not in response.text
 
 
 async def test_post_ui_launch_not_found(ui_client: AsyncClient) -> None:
@@ -208,6 +207,7 @@ async def test_post_ui_launch_not_found(ui_client: AsyncClient) -> None:
 async def test_post_ui_stop_happy_path(
     ui_client: AsyncClient,
     existing_project,
+    instances_repo,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
     """POST /ui/instances/{id}/stop returns 200 with updated instance row (stopped)."""
@@ -215,11 +215,10 @@ async def test_post_ui_stop_happy_path(
     launch_resp = await ui_client.post(f"/ui/projects/{existing_project.id}/launch")
     assert launch_resp.status_code == 200
 
-    # Extract the instance id from the stop button hx-post URL in the new card design
-    import re
-    m = re.search(r'hx-post="/ui/instances/([^/]+)/stop"', launch_resp.text)
-    assert m is not None, f"No stop button with instance id in response: {launch_resp.text}"
-    instance_id = m.group(1)
+    # Launch now redirects (no card body) — get the instance id from the DB.
+    instances = instances_repo.list_by_project(existing_project.id)
+    assert instances, "launch should have created an instance"
+    instance_id = instances[0].id
 
     response = await ui_client.post(f"/ui/instances/{instance_id}/stop")
     assert response.status_code == 200
