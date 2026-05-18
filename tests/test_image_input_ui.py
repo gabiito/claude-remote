@@ -342,9 +342,26 @@ async def test_paste_handler_present(
     projects_repo: ProjectsRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """Textarea has @paste handler extracting image items from ClipboardEvent."""
+    """Textarea @paste must delegate to a method, not inline a bare statement.
+
+    Regression guard: a bare ``for (...)`` directly in the @paste attribute
+    is NOT a valid Alpine expression — Alpine throws
+    'Unexpected token for' and the handler never runs. The handler must
+    call a method defined on the x-data (e.g. handlePaste($event)).
+    """
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach3")
     assert "@paste" in html or "x-on:paste" in html, "Expected @paste Alpine handler on textarea"
+    # Extract the @paste attribute value
+    marker = '@paste="'
+    start = html.find(marker)
+    assert start != -1, "@paste attribute not found"
+    val = html[start + len(marker) : html.find('"', start + len(marker))]
+    assert "for " not in val and "for(" not in val, (
+        f"@paste contains a bare statement (invalid Alpine expression): {val!r}"
+    )
+    assert "handlePaste" in val, (
+        f"@paste must delegate to a method (handlePaste), got: {val!r}"
+    )
 
 
 async def test_drag_over_class_present(
