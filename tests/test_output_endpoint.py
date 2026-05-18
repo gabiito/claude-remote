@@ -212,3 +212,100 @@ async def test_output_adapter_error_returns_200(
         or "no disponible" in html.lower()
         or "sesión" in html.lower()
     )
+
+
+# ---------------------------------------------------------------------------
+# ETag conditional polling — idle dedup so the terminal DOM is NOT replaced
+# every 2s (replacing innerHTML with identical content destroys the user's
+# text selection). Stateless: the client echoes back the last ETag via
+# If-None-Match; matching content → 204 No Content (HTMX skips the swap).
+# ---------------------------------------------------------------------------
+
+
+async def _launch_with_content(
+    out_client, projects_repo, instances_repo, root, fake_adapter, slug, content
+):
+    p_path = root / "acme.com" / slug
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name=slug, slug=slug, path=p_path, domain="acme.com"
+        )
+    )
+    launch_resp = await out_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instance = instances_repo.list_by_project(project.id)[0]
+    fake_adapter.set_pane_content(instance.tmux_session_name, content)
+    return instance
+
+
+async def test_output_200_carries_etag_header(
+    out_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """A 200 output response MUST carry an ETag of the pane content."""
+    instance = await _launch_with_content(
+        out_client, projects_repo, instances_repo,
+        tmp_projects_root, fake_adapter, "etagproj", "hello world",
+    )
+    response = await out_client.get(f"/ui/instances/{instance.id}/output")
+    assert response.status_code == 200
+    assert response.headers.get("ETag")
+
+
+async def test_output_204_when_if_none_match_matches(
+    out_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Unchanged pane + matching If-None-Match → 204 with empty body.
+
+    This is the whole point: when Claude is idle the content is identical,
+    so the server tells HTMX 'nothing to swap' and the DOM (and the user's
+    text selection) is left untouched.
+    """
+    instance = await _launch_with_content(
+        out_client, projects_repo, instances_repo,
+        tmp_projects_root, fake_adapter, "idleproj", "static idle screen",
+    )
+    first = await out_client.get(f"/ui/instances/{instance.id}/output")
+    etag = first.headers["ETag"]
+
+    second = await out_client.get(
+        f"/ui/instances/{instance.id}/output",
+        headers={"If-None-Match": etag},
+    )
+    assert second.status_code == 204
+    assert second.text == ""
+    # ETag echoed back so the client keeps it for the next poll.
+    assert second.headers.get("ETag") == etag
+
+
+async def test_output_200_again_when_content_changes(
+    out_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Stale If-None-Match (pane changed) → fresh 200 + new ETag."""
+    instance = await _launch_with_content(
+        out_client, projects_repo, instances_repo,
+        tmp_projects_root, fake_adapter, "liveproj", "first frame",
+    )
+    first = await out_client.get(f"/ui/instances/{instance.id}/output")
+    old_etag = first.headers["ETag"]
+
+    fake_adapter.set_pane_content(instance.tmux_session_name, "second frame")
+    response = await out_client.get(
+        f"/ui/instances/{instance.id}/output",
+        headers={"If-None-Match": old_etag},
+    )
+    assert response.status_code == 200
+    assert "second frame" in response.text
+    assert response.headers["ETag"] != old_etag

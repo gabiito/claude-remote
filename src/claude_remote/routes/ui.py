@@ -14,13 +14,14 @@ Errors return 4xx with HX-Reswap + HX-Retarget headers + error_message partial.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse
 
 from claude_remote.config import Settings, get_settings
@@ -536,10 +537,20 @@ async def get_instance_output(
     ``<pre id="output-content">`` element.  Alpine smart-scroll handler
     stays mounted because innerHTML swap does NOT remount the element.
 
+    Idle dedup (stateless): the body is hashed into a strong ``ETag``.
+    HTMX echoes the last ETag back via ``If-None-Match``; when it matches
+    (Claude finished and the pane is unchanged) we return ``204 No
+    Content`` so HTMX skips the swap entirely. That leaves the terminal
+    DOM — and therefore the user's text selection — untouched between
+    identical 2s polls. No server-side state: the client declares what it
+    already has, so it stays correct with multiple concurrent viewers.
+
     Returns:
-        200 + ``<pre id="output-content">`` with pane text on success.
-        200 + ``<pre id="output-content">`` with fallback message on adapter error
-            (NEVER 5xx — keeps the 2s polling loop alive).
+        200 + escaped pane text + ``ETag`` on changed/first content.
+        204 + ``ETag`` (empty body) when ``If-None-Match`` matches — HTMX
+            does not swap, DOM untouched.
+        200 + fallback message on adapter error (NEVER 5xx — keeps the 2s
+            polling loop alive).
         404 + error fragment with ``HX-Reswap: innerHTML`` when instance missing.
     """
     instance = instances_repo.get(instance_id)
@@ -560,11 +571,20 @@ async def get_instance_output(
     except TmuxOperationError:
         escaped = "[Session unavailable]"
 
+    # Strong ETag over the exact body. blake2b(16) is fast and collision-safe
+    # for change detection. Quoted per RFC 7232.
+    etag = f'"{hashlib.blake2b(escaped.encode(), digest_size=16).hexdigest()}"'
+    if request.headers.get("if-none-match") == etag:
+        # Content identical to what the client already rendered → tell HTMX
+        # not to swap. 204 (not 304): HTMX skips the swap on 204 with no
+        # ambiguity, so the DOM and the user's selection are left alone.
+        return Response(status_code=204, headers={"ETag": etag})
+
     # Return ANSI-converted HTML fragment only — the <pre id="output-content"> wrapper is
     # owned by project_view.html and stays mounted (so Alpine smart-scroll
     # state survives the HTMX innerHTML swap). Returning the wrapper here
     # would nest <pre> inside <pre>, hiding the outer cr-terminal styles.
-    return HTMLResponse(content=escaped, status_code=200)
+    return HTMLResponse(content=escaped, status_code=200, headers={"ETag": etag})
 
 
 # ---------------------------------------------------------------------------
