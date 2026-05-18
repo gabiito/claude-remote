@@ -189,6 +189,65 @@ async def test_chip_name_is_x_text_not_innerhtml(
 
 
 # ---------------------------------------------------------------------------
+# B: Chip strip outside .cr-input-wrap (input dock layout)
+# ---------------------------------------------------------------------------
+
+
+async def test_chip_strip_outside_input_wrap(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """cr-attachment-chips must NOT be nested inside cr-input-wrap.
+    The chip band is a full-width strip above the input row, not inside the text box."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "layout1")
+    # Structural check: cr-input-wrap must appear AFTER cr-attachment-chips in the source
+    # (chip band is first child of form, cr-input-wrap is inside cr-input-row which follows)
+    chips_pos = html.find("cr-attachment-chips")
+    wrap_pos = html.find("cr-input-wrap")
+    assert chips_pos != -1, "cr-attachment-chips not found in template"
+    assert wrap_pos != -1, "cr-input-wrap not found in template"
+    assert chips_pos < wrap_pos, (
+        "cr-attachment-chips must appear before cr-input-wrap in source "
+        "(chip strip is outside the text box, above the input row)"
+    )
+
+
+async def test_cr_input_row_wrapper_present(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """A cr-input-row wrapper div must be present inside the input dock form."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "layout2")
+    assert "cr-input-row" in html, (
+        "Expected cr-input-row wrapper div inside the input dock form"
+    )
+
+
+def test_css_has_cr_input_row() -> None:
+    """app.css must define .cr-input-row for the horizontal input controls row."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert ".cr-input-row" in css, ".cr-input-row CSS rule missing from app.css"
+
+
+def test_css_input_wrap_is_not_column() -> None:
+    """app.css .cr-input-wrap must NOT set flex-direction: column.
+    The column layout was reverted — chip strip now lives outside the wrap."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    # Find the .cr-input-wrap block and ensure flex-direction:column is gone
+    wrap_start = css.find(".cr-input-wrap {")
+    assert wrap_start != -1, ".cr-input-wrap rule not found in app.css"
+    # Look for the closing brace of the rule block
+    wrap_end = css.find("}", wrap_start)
+    wrap_block = css[wrap_start:wrap_end]
+    assert "flex-direction" not in wrap_block, (
+        ".cr-input-wrap still sets flex-direction — revert the column layout; "
+        "chip strip is now outside the wrap in a separate band"
+    )
+
+
+# ---------------------------------------------------------------------------
 # F-2: Picker / paste / drag controls present
 # ---------------------------------------------------------------------------
 

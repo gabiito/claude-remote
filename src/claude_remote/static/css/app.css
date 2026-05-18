@@ -868,6 +868,12 @@ body {
   border-top: 1px solid var(--line-0);
   flex: 0 0 auto;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+/* Horizontal row containing the text box + action buttons */
+.cr-input-row {
+  display: flex;
   align-items: flex-end;
   gap: 8px;
 }
@@ -880,10 +886,6 @@ body {
   padding: 9px 12px;
   min-height: 42px;
   display: flex;
-  /* Column so the attachment-chip strip is its own full-width row ABOVE
-     the textarea instead of sharing the row and squeezing it. */
-  flex-direction: column;
-  align-items: stretch;
   transition: border-color 140ms;
 }
 .cr-input-wrap:focus-within { border-color: var(--accent-dim); }
@@ -930,12 +932,12 @@ body {
   outline: 2px dashed var(--accent);
   outline-offset: -2px;
 }
-/* image-input: multi-chip attachment strip above textarea */
+/* image-input: full-width chip band above the input row — collapses when empty (x-show) */
 .cr-attachment-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 0 8px;
+  margin-bottom: 6px;
 }
 .cr-chip__item {
   display: inline-flex;

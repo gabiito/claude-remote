@@ -276,6 +276,20 @@ No active session. Launch a new one to see output.</pre>
         @dragleave="dragging = false"
         @drop.prevent="dragging = false; const f = $event.dataTransfer.files[0]; if (f) attachFile(f)"
         :class="{ 'cr-drag-over': dragging }">
+    {# Attachment chip band — full-width strip above the input row; collapses when empty #}
+    <div class="cr-attachment-chips" x-show="attachments.length">
+      <template x-for="(att, idx) in attachments" :key="att.ref">
+        <div class="cr-chip__item">
+          <img :src="att.dataUrl" class="cr-chip__thumb" alt="">
+          <span class="cr-chip__name" x-text="att.name"></span>
+          <button type="button" class="cr-chip__remove"
+                  @click="removeAttachment(att.ref)"
+                  aria-label="Remove attachment">&times;</button>
+        </div>
+      </template>
+    </div>
+    {# Input row — horizontal: file picker, text box, attach button, send button #}
+    <div class="cr-input-row">
     {# Hidden file picker — triggered by paperclip button below #}
     <input type="file"
            accept="image/*"
@@ -284,18 +298,6 @@ No active session. Launch a new one to see output.</pre>
            style="display:none"
            @change="const f = $event.target.files[0]; if (f) attachFile(f); $event.target.value = ''">
     <div class="cr-input-wrap">
-      {# Multi-chip attachment strip — one chip per staged image #}
-      <div class="cr-attachment-chips" x-show="attachments.length">
-        <template x-for="(att, idx) in attachments" :key="att.ref">
-          <div class="cr-chip__item">
-            <img :src="att.dataUrl" class="cr-chip__thumb" alt="">
-            <span class="cr-chip__name" x-text="att.name"></span>
-            <button type="button" class="cr-chip__remove"
-                    @click="removeAttachment(att.ref)"
-                    aria-label="Remove attachment">&times;</button>
-          </div>
-        </template>
-      </div>
       <textarea name="text"
                 x-model="text"
                 rows="1"
@@ -316,6 +318,7 @@ No active session. Launch a new one to see output.</pre>
             x-data="{ flash: false }"
             :class="{ 'cr-send-flash': flash }"
             @click="flash = true; setTimeout(() => flash = false, 280)">{{ send_icon(cls='cr-icon') }}</button>
+    </div>{# /.cr-input-row #}
   </form>
   {% else %}
   <div id="input-form" class="cr-input-dock cr-disabled">

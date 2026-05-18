@@ -107,7 +107,7 @@ async def test_get_project_view_happy_path(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """GET /projects/{id} active instance → 200 with output panel + input form; no dev-only pills."""
+    """GET /projects/{id} active instance → 200, output panel + input form; no dev-only pills."""
     p_path = tmp_projects_root / "acme.com" / "myproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
