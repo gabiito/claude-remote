@@ -246,18 +246,62 @@ No active session. Launch a new one to see output.</pre>
         class="cr-input-dock"
         hx-post="/ui/instances/{{ primary_instance.instance.id }}/input"
         hx-swap="none"
-        x-data="{ text: '' }"
-        @htmx:after-request="if ($event.detail.successful) { text = ''; }">
+        x-data="{
+          text: '',
+          preview: null,
+          dragging: false,
+          async sendImage(fileObj) {
+            if (!fileObj || !fileObj.type.startsWith('image/')) return;
+            const fd = new FormData();
+            fd.append('file', fileObj);
+            fd.append('send_enter', 'true');
+            const r = await fetch('/ui/instances/{{ primary_instance.instance.id }}/upload-image',
+                                  { method: 'POST', body: fd });
+            this.preview = null;
+            if (r.ok && window.htmx) { htmx.trigger(document.body, 'input-sent'); }
+          },
+          showPreview(fileObj) {
+            const fr = new FileReader();
+            fr.onload = e => { this.preview = e.target.result; };
+            fr.readAsDataURL(fileObj);
+          }
+        }"
+        @htmx:after-request="if ($event.detail.successful) { text = ''; }"
+        @dragover.prevent="dragging = true"
+        @dragleave="dragging = false"
+        @drop.prevent="dragging = false; const f = $event.dataTransfer.files[0]; if (f) { showPreview(f); sendImage(f); }"
+        :class="{ 'cr-drag-over': dragging }">
+    {# Hidden file picker — triggered by paperclip button below #}
+    <input type="file"
+           accept="image/*"
+           capture="environment"
+           x-ref="imgInput"
+           style="display:none"
+           @change="const f = $event.target.files[0]; if (f) { showPreview(f); sendImage(f); } $event.target.value = ''">
     <div class="cr-input-wrap">
+      {# Image preview thumbnail — cleared on send/error #}
+      <template x-if="preview">
+        <div class="cr-img-preview-wrap">
+          <img :src="preview" class="cr-img-preview" alt="">
+          <button type="button" class="cr-img-remove" @click="preview = null" aria-label="Remove image">&times;</button>
+        </div>
+      </template>
       <textarea name="text"
                 x-model="text"
                 rows="1"
                 placeholder="Type a message…"
                 @keydown.ctrl.enter.prevent="$el.form.requestSubmit()"
-                @input="$el.style.height='auto'; $el.style.height=Math.min(120,$el.scrollHeight)+'px'"></textarea>
+                @input="$el.style.height='auto'; $el.style.height=Math.min(120,$el.scrollHeight)+'px'"
+                @paste="for (const it of ($event.clipboardData?.items || [])) { if (it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) { $event.preventDefault(); showPreview(f); sendImage(f); } } }"></textarea>
       <span class="cr-input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send</span>
     </div>
     <input type="hidden" name="send_enter" value="true">
+    {# Paperclip button — opens hidden file picker #}
+    <button type="button" class="cr-attach" aria-label="Attach image" @click="$refs.imgInput.click()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cr-icon" aria-hidden="true">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.41 17.41a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+      </svg>
+    </button>
     <button type="submit" class="cr-send" aria-label="Send"
             x-data="{ flash: false }"
             :class="{ 'cr-send-flash': flash }"
