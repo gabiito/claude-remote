@@ -291,9 +291,11 @@ No active session. Launch a new one to see output.</pre>
     {# Input row — horizontal: file picker, text box, attach button, send button #}
     <div class="cr-input-row">
     {# Hidden file picker — triggered by paperclip button below #}
+    {# No capture= : on mobile that forces the camera and hides the
+       gallery/files chooser. Plain accept lets the user pick from
+       library, files, or camera. #}
     <input type="file"
            accept="image/*"
-           capture="environment"
            x-ref="imgInput"
            style="display:none"
            @change="const f = $event.target.files[0]; if (f) attachFile(f); $event.target.value = ''">
