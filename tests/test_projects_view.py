@@ -739,3 +739,41 @@ async def test_deep_view_no_auto_fit_manual_only(
     assert "orientationchange" not in html      # no auto re-fit
     assert "$watch('tab'" not in html
     assert "cr-rail-toggled" not in html
+
+
+async def test_events_fragment_endpoint_polls_live(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Events pane must live-update via a pollable fragment (no F5).
+
+    GET /ui/projects/{id}/events returns ONLY the events list fragment
+    (not the full page), and the deep view wires the pane to poll it.
+    """
+    (tmp_projects_root / "wooli" / "evp").mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="evp", slug="evp",
+            path=tmp_projects_root / "wooli" / "evp", domain="wooli",
+        )
+    )
+
+    frag = await pv_client.get(f"/ui/projects/{proj.id}/events")
+    assert frag.status_code == 200
+    body = frag.text
+    # Fragment only — no full-page chrome
+    assert "<!doctype" not in body.lower()
+    assert 'id="output-content"' not in body
+    # Renders the events pane content (empty state here)
+    assert "No events yet" in body or "cr-event-row" in body
+
+    page = await pv_client.get(
+        f"/projects/{proj.id}", headers={"Accept": "text/html"}
+    )
+    html = page.text
+    assert f"/ui/projects/{proj.id}/events" in html, (
+        "events pane must hx-get the events fragment endpoint"
+    )
+    assert "every" in html  # polled, not F5-only
