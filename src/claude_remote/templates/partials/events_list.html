@@ -1,0 +1,18 @@
+{# Events list — shared by the deep-view pane and the /ui/projects/{id}/events
+   poll fragment so both render identically (DRY). Expects `recent_events`. #}
+{% if recent_events %}
+  {% for event in recent_events %}
+  <div class="cr-event-row" data-kind="{{ event.event_type }}">
+    <time>{{ event.received_at|format_relative }}</time>
+    <span class="cr-ev-bullet"></span>
+    <div class="cr-ev-body">
+      <div class="cr-ev-kind">{{ event.event_type }}</div>
+      <div class="cr-ev-text">{% set snippet = event|extract_snippet %}{{ snippet or '—' }}</div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="cr-empty" style="padding: 32px;">
+    <p>No events yet.</p>
+  </div>
+{% endif %}

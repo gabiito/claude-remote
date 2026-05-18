@@ -230,23 +230,13 @@ No active session. Launch a new one to see output.</pre>
     </div>
 
     {# ── Events pane ── #}
-    <div class="cr-events-pane cr-scroll cr-tab-panel" x-show="tab === 'events'" x-cloak>
-      {% if recent_events %}
-        {% for event in recent_events %}
-        <div class="cr-event-row" data-kind="{{ event.event_type }}">
-          <time>{{ event.received_at|format_relative }}</time>
-          <span class="cr-ev-bullet"></span>
-          <div class="cr-ev-body">
-            <div class="cr-ev-kind">{{ event.event_type }}</div>
-            <div class="cr-ev-text">{% set snippet = event|extract_snippet %}{{ snippet or '—' }}</div>
-          </div>
-        </div>
-        {% endfor %}
-      {% else %}
-        <div class="cr-empty" style="padding: 32px;">
-          <p>No events yet.</p>
-        </div>
-      {% endif %}
+    {# Live-polled events fragment (no F5). Mirrors the terminal poll;
+       gated on document visibility. #}
+    <div class="cr-events-pane cr-scroll cr-tab-panel" x-show="tab === 'events'" x-cloak
+         hx-get="/ui/projects/{{ project.id }}/events"
+         hx-trigger="load, every 3s [document.visibilityState === 'visible']"
+         hx-swap="innerHTML">
+      {% include "partials/events_list.html" %}
     </div>
   </div>
   </div>{# /.cr-pv-body #}

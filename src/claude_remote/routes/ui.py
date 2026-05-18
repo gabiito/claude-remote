@@ -626,6 +626,30 @@ async def get_instance_output(
 
 
 # ---------------------------------------------------------------------------
+# GET /ui/projects/{id}/events — Events list fragment (HTMX polling target)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/projects/{project_id}/events", response_class=HTMLResponse)
+async def get_project_events(
+    request: Request,
+    project_id: str,
+    events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
+) -> HTMLResponse:
+    """Render the events list fragment, polled by the deep-view events pane.
+
+    Same partial the full page includes (DRY), so the pane live-updates
+    without an F5. Never 5xx: an unknown project yields an empty list →
+    empty-state fragment, keeping the poll loop alive.
+    """
+    recent_events = events_repo.list_for_project(project_id, limit=50)
+    content: str = TEMPLATES.get_template("partials/events_list.html").render(  # type: ignore[attr-defined]
+        recent_events=recent_events
+    )
+    return HTMLResponse(content=content, status_code=200)
+
+
+# ---------------------------------------------------------------------------
 # POST /ui/instances/{id}/input — Deliver keystrokes to tmux pane
 # ---------------------------------------------------------------------------
 

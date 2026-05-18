@@ -3,4 +3,4 @@
 # development. A git checkout ignores this (git describe is authoritative
 # and more precise); a source ZIP or wheel of a tagged release carries the
 # real value here (no .git to describe).
-__version__ = "v0.6.6"
+__version__ = "v0.6.7"
