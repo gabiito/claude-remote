@@ -579,11 +579,13 @@ async def get_instance_output(
     # Live status lets the deep-view client chime exactly when Claude
     # finishes its turn (edge into needs_input/idle) — NOT on the user's
     # own echoed input. Same derivation as the project cards.
-    live_status = derive_live_status(
-        instance,
-        events_repo.list_for_instance(instance_id, limit=20),
-        now=datetime.now(UTC),
-    )
+    events = events_repo.list_for_instance(instance_id, limit=20)
+    live_status = derive_live_status(instance, events, now=datetime.now(UTC))
+    # Most recent Stop event's id (events are received_at DESC). The client
+    # chimes when this changes after a send = Claude finished a turn.
+    # Reliable for every reply (Stop fires text OR tool), unlike a status
+    # edge (status sits on idle for quick text replies).
+    last_stop = next((e.id for e in events if e.event_type == "Stop"), "")
 
     try:
         raw = await asyncio.to_thread(adapter.capture_pane, instance.tmux_session_name)
@@ -601,7 +603,11 @@ async def get_instance_output(
         # ambiguity, so the DOM and the user's selection are left alone.
         return Response(
             status_code=204,
-            headers={"ETag": etag, "X-Live-Status": live_status},
+            headers={
+                "ETag": etag,
+                "X-Live-Status": live_status,
+                "X-Last-Stop": last_stop,
+            },
         )
 
     # Return ANSI-converted HTML fragment only — the <pre id="output-content"> wrapper is
@@ -611,7 +617,11 @@ async def get_instance_output(
     return HTMLResponse(
         content=escaped,
         status_code=200,
-        headers={"ETag": etag, "X-Live-Status": live_status},
+        headers={
+            "ETag": etag,
+            "X-Live-Status": live_status,
+            "X-Last-Stop": last_stop,
+        },
     )
 
 

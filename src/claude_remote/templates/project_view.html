@@ -197,29 +197,28 @@
              smartScroll: true,
              etag: null,
              armed: false,
-             sawWorking: false,
+             lastStop: null,
+             baseStop: null,
              onPoll(xhr) {
-               // Chime when Claude FINISHES its turn after a send: armed by
-               // input-sent, we must have seen a working state, then status
-               // lands on needs_input/idle. Edge-detected so the user's own
-               // echoed input never triggers it. (Logic in a METHOD, not an
-               // inline Alpine expr — @paste bare-for crash lesson.)
-               const st = xhr.getResponseHeader('X-Live-Status');
-               if (st === 'active' || st === 'running' || st === 'starting') {
-                 this.sawWorking = true;
-               }
-               if (this.armed && this.sawWorking && (st === 'needs_input' || st === 'idle')) {
+               // Chime when a NEW Stop event arrives after a send. Claude
+               // fires Stop at the end of EVERY turn (text or tool), so a
+               // changed X-Last-Stop = the turn just completed. Robust where
+               // a status edge isn't (status sits on idle for quick text
+               // replies → never fires again). Logic in a METHOD, not an
+               // inline Alpine expr — @paste bare-for crash lesson.
+               const ns = xhr.getResponseHeader('X-Last-Stop');
+               if (this.armed && ns && ns !== this.baseStop) {
                  this.armed = false;
-                 this.sawWorking = false;
                  try { new Audio('/static/audio/glump.mp3').play(); } catch (e) {}
                }
+               this.lastStop = ns;
                this.etag = xhr.getResponseHeader('ETag') || this.etag;
              }
            }"
            @scroll="smartScroll = (Math.abs($el.scrollTop + $el.clientHeight - $el.scrollHeight) < 50)"
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"
            @htmx:config-request="if (etag) $event.detail.headers['If-None-Match'] = etag"
-           @input-sent.window="armed = true; sawWorking = false"
+           @input-sent.window="armed = true; baseStop = lastStop"
            @htmx:after-request="onPoll($event.detail.xhr)"
            hx-get="/ui/instances/{{ primary_instance.instance.id }}/output"
            hx-trigger="load, every 2s [document.visibilityState === 'visible' && !(window.getSelection().toString() && document.getElementById('output-content').contains(window.getSelection().anchorNode))]"
