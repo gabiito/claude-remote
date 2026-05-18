@@ -598,6 +598,38 @@ async def test_deep_view_has_fit_toggle(
     assert "'cr-wrap'" not in html
 
 
+async def test_fit_cols_has_right_edge_safety_margin(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """_measure() must subtract a 1-column safety margin.
+
+    Regression guard: terminals have a universal right-edge off-by-one
+    (auto-margin) and `cw` is a sub-pixel average, so cols = floor(w/cw)
+    can render ~1 col wider than the visible grid → Claude's TUI box
+    border draws off-screen / ragged. A -1 margin absorbs it (browser-
+    and scrollbar-agnostic, no CSS coupling).
+    """
+    (tmp_projects_root / "wooli" / "fitm").mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="fitm", slug="fitm",
+            path=tmp_projects_root / "wooli" / "fitm", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{proj.id}/launch")
+    resp = await pv_client.get(
+        f"/projects/{proj.id}", headers={"Accept": "text/html"}
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "Math.floor((pre.clientWidth - padX) / cw) - 1" in html, (
+        "_measure cols must apply a -1 right-edge safety margin"
+    )
+
+
 async def test_deep_view_rail_collapsible(
     pv_client: AsyncClient,
     projects_repo: ProjectsRepository,
