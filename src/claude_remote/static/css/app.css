@@ -1502,7 +1502,10 @@ body {
     justify-content: center;
   }
   .cr-shell {
-    max-width: 480px;
+    /* Mobile-first, but tablets/desktop get a comfortably wider centred
+       column (was 480 = phone-width, wasted tablet space). Capped so the
+       monospace terminal and chat input stay readable, not full-bleed. */
+    max-width: 820px;
     width: 100%;
     box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
   }
