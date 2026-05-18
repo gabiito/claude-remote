@@ -1,9 +1,9 @@
-"""Unit tests for services/image_upload.py — pure service layer (no HTTP).
+"""Unit tests for services/file_upload.py — pure service layer (no HTTP).
 
 Covers:
-  - sniff_extension: magic-byte validation for PNG/JPEG/WebP/GIF; rejects spoofed
+  - classify_file: magic-byte validation for PNG/JPEG/WebP/GIF; rejects spoofed
     Content-Type, SVG, PDF, and empty input
-  - write_image: creates .claude/uploads/ dir, correct permissions, UUID filename
+  - write_staged_file: creates .claude/uploads/ dir, correct permissions, UUID filename
   - unlink_best_effort: idempotent delete
   - sweep_stale_uploads: deterministic with injected clock, no sleep
 """
@@ -17,14 +17,14 @@ from pathlib import Path
 
 import pytest
 
-from claude_remote.services.image_upload import (
+from claude_remote.services.file_upload import (
     STALE_SWEEP_SECONDS,
     UPLOAD_SUBDIR,
-    ImageValidationError,
-    sniff_extension,
+    FileValidationError,
+    classify_file,
     sweep_stale_uploads,
     unlink_best_effort,
-    write_image,
+    write_staged_file,
 )
 
 # ---------------------------------------------------------------------------
@@ -41,92 +41,92 @@ SVG_MAGIC = b"<svg xmlns" + b"\x00" * 16
 
 
 # ---------------------------------------------------------------------------
-# 1.1 sniff_extension tests (RED — service not yet implemented)
+# 1.1 classify_file tests
 # ---------------------------------------------------------------------------
 
 
 class TestSniffExtension:
     def test_png_accepted(self):
-        assert sniff_extension(PNG_MAGIC) == ".png"
+        assert classify_file(PNG_MAGIC) == ".png"
 
     def test_jpeg_accepted(self):
-        assert sniff_extension(JPEG_MAGIC) == ".jpg"
+        assert classify_file(JPEG_MAGIC) == ".jpg"
 
     def test_webp_accepted(self):
-        assert sniff_extension(WEBP_MAGIC) == ".webp"
+        assert classify_file(WEBP_MAGIC) == ".webp"
 
     def test_gif87_accepted(self):
-        assert sniff_extension(GIF87_MAGIC) == ".gif"
+        assert classify_file(GIF87_MAGIC) == ".gif"
 
     def test_gif89_accepted(self):
-        assert sniff_extension(GIF89_MAGIC) == ".gif"
+        assert classify_file(GIF89_MAGIC) == ".gif"
 
     def test_spoofed_content_type_pdf_magic_rejected(self):
         """PDF magic bytes with an image/png Content-Type header — rejected by magic only."""
-        with pytest.raises(ImageValidationError):
-            sniff_extension(PDF_MAGIC)
+        with pytest.raises(FileValidationError):
+            classify_file(PDF_MAGIC)
 
     def test_svg_bytes_rejected(self):
-        with pytest.raises(ImageValidationError):
-            sniff_extension(SVG_MAGIC)
+        with pytest.raises(FileValidationError):
+            classify_file(SVG_MAGIC)
 
     def test_empty_bytes_rejected(self):
-        with pytest.raises(ImageValidationError):
-            sniff_extension(b"")
+        with pytest.raises(FileValidationError):
+            classify_file(b"")
 
     def test_random_bytes_rejected(self):
-        with pytest.raises(ImageValidationError):
-            sniff_extension(b"\x00\x01\x02\x03" * 4)
+        with pytest.raises(FileValidationError):
+            classify_file(b"\x00\x01\x02\x03" * 4)
 
     def test_webp_riff_only_no_webp_marker_rejected(self):
         """RIFF container without WEBP at offset 8 is NOT a WebP."""
         bad_riff = b"RIFF\x00\x00\x00\x00MPEG" + b"\x00" * 8
-        with pytest.raises(ImageValidationError):
-            sniff_extension(bad_riff)
+        with pytest.raises(FileValidationError):
+            classify_file(bad_riff)
 
     def test_too_short_for_png_rejected(self):
-        with pytest.raises(ImageValidationError):
-            sniff_extension(b"\x89PN")
+        with pytest.raises(FileValidationError):
+            classify_file(b"\x89PN")
 
 
 # ---------------------------------------------------------------------------
-# 1.3 write_image tests (RED — service not yet implemented)
+# 1.3 write_staged_file tests
 # ---------------------------------------------------------------------------
 
 
 class TestWriteImage:
     def test_creates_upload_dir(self, tmp_path: Path):
         project_path = str(tmp_path)
-        write_image(project_path, PNG_MAGIC, ".png")
+        write_staged_file(project_path, PNG_MAGIC, ".png")
         upload_dir = tmp_path.joinpath(*UPLOAD_SUBDIR)
         assert upload_dir.is_dir()
 
     def test_upload_dir_mode_is_0700(self, tmp_path: Path):
         project_path = str(tmp_path)
-        write_image(project_path, PNG_MAGIC, ".png")
+        write_staged_file(project_path, PNG_MAGIC, ".png")
         upload_dir = tmp_path.joinpath(*UPLOAD_SUBDIR)
         mode = oct(upload_dir.stat().st_mode)[-3:]
         assert mode == "700"
 
     def test_filename_matches_uuid_hex_pattern(self, tmp_path: Path):
         project_path = str(tmp_path)
-        result = write_image(project_path, PNG_MAGIC, ".png")
+        result = write_staged_file(project_path, PNG_MAGIC, ".png")
         assert re.match(r"^[0-9a-f]{32}\.png$", result.name)
 
     def test_file_content_equals_input_bytes(self, tmp_path: Path):
         project_path = str(tmp_path)
-        result = write_image(project_path, PNG_MAGIC, ".png")
+        result = write_staged_file(project_path, PNG_MAGIC, ".png")
         assert result.read_bytes() == PNG_MAGIC
 
     def test_jpeg_ext_written_correctly(self, tmp_path: Path):
         project_path = str(tmp_path)
-        result = write_image(project_path, JPEG_MAGIC, ".jpg")
+        result = write_staged_file(project_path, JPEG_MAGIC, ".jpg")
         assert result.name.endswith(".jpg")
 
     def test_client_filename_never_used(self, tmp_path: Path):
-        """write_image takes only (project_path, data, ext) — no filename param."""
+        """write_staged_file takes only (project_path, data, ext) — no filename param."""
         project_path = str(tmp_path)
-        result = write_image(project_path, PNG_MAGIC, ".png")
+        result = write_staged_file(project_path, PNG_MAGIC, ".png")
         # The function signature does not accept a filename argument.
         # The name must be a UUID hex (already tested above) — no path component.
         assert "/" not in result.name
@@ -134,13 +134,13 @@ class TestWriteImage:
 
     def test_returns_absolute_path(self, tmp_path: Path):
         project_path = str(tmp_path)
-        result = write_image(project_path, PNG_MAGIC, ".png")
+        result = write_staged_file(project_path, PNG_MAGIC, ".png")
         assert result.is_absolute()
 
     def test_multiple_writes_create_different_files(self, tmp_path: Path):
         project_path = str(tmp_path)
-        p1 = write_image(project_path, PNG_MAGIC, ".png")
-        p2 = write_image(project_path, PNG_MAGIC, ".png")
+        p1 = write_staged_file(project_path, PNG_MAGIC, ".png")
+        p2 = write_staged_file(project_path, PNG_MAGIC, ".png")
         assert p1 != p2
         assert p1.exists()
         assert p2.exists()
@@ -226,7 +226,7 @@ class TestSweepStaleUploads:
         project_path = self._make_project(tmp_path, "proj4")
         self._seed_file(project_path, "stale_err.png", now - STALE_SWEEP_SECONDS - 1)
 
-        from claude_remote.services import image_upload
+        from claude_remote.services import file_upload
 
         call_count = {"n": 0}
 
@@ -234,7 +234,7 @@ class TestSweepStaleUploads:
             call_count["n"] += 1
             raise OSError("simulated")
 
-        monkeypatch.setattr(image_upload, "unlink_best_effort", _raising_unlink)
+        monkeypatch.setattr(file_upload, "unlink_best_effort", _raising_unlink)
         # Must not raise; count may be 0 (error swallowed)
         count = sweep_stale_uploads([str(project_path)], now=now)
         assert call_count["n"] >= 1  # sweep attempted unlink

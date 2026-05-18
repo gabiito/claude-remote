@@ -44,16 +44,16 @@ from claude_remote.services.exceptions import (
     ProjectNotFoundError,
     TmuxOperationError,
 )
-from claude_remote.services.image_upload import (
+from claude_remote.services.file_upload import (
     IMAGE_PATH_TEMPLATE,
     MAX_IMAGE_BYTES,
     UPLOAD_TTL_SECONDS,
-    ImageValidationError,
+    FileValidationError,
+    classify_file,
     resolve_staged_ref,
     resolve_staged_ref_path,
-    sniff_extension,
     unlink_best_effort,
-    write_image,
+    write_staged_file,
 )
 from claude_remote.services.live_status import derive_live_status
 from claude_remote.services.path_validation import PathValidationError, validate_project_path
@@ -704,15 +704,15 @@ def _safe_display_name(raw: str | None) -> str:
     This is cosmetic only — never used for path resolution.
     """
     if not raw:
-        return "image"
+        return "file"
     # Strip directory components from client-supplied name
-    name = Path(raw).name or raw.split("/")[-1] or raw.split("\\")[-1] or "image"
+    name = Path(raw).name or raw.split("/")[-1] or raw.split("\\")[-1] or "file"
     # Truncate for display
     return name[:64]
 
 
 @router.post("/instances/{instance_id}/upload-image")
-async def post_instance_upload_image(
+async def post_instance_upload_file(
     request: Request,
     instance_id: str,
     file: UploadFile = File(...),  # noqa: B008
@@ -723,11 +723,11 @@ async def post_instance_upload_image(
 
     Flow (v2 design, never-5xx contract):
       1. Bounded read — reject if > MAX_IMAGE_BYTES or empty.
-      2. sniff_extension — magic-byte validation; Content-Type is ignored.
+      2. classify_file — magic-byte classification; Content-Type is ignored.
       3. Instance lookup — 404 fragment on miss.
       4. Project join — 404 fragment on miss (resolves Project.path).
       5. Running guard — 409 if instance is not running.
-      6. write_image (asyncio.to_thread) — writes UUID-named file.
+      6. write_staged_file (asyncio.to_thread) — writes UUID-named file.
       7. Return 200 JSON {ref: <uuid>.<ext>, name: <display_name>}.
 
     Returns:
@@ -739,21 +739,21 @@ async def post_instance_upload_image(
     # Step 1: bounded read
     data = await file.read(MAX_IMAGE_BYTES + 1)
     if len(data) == 0:
-        return _error_fragment(request, "Imagen vacía.", status_code=400)  # type: ignore[return-value]
+        return _error_fragment(request, "Archivo vacío.", status_code=400)  # type: ignore[return-value]
     if len(data) > MAX_IMAGE_BYTES:
         return _error_fragment(  # type: ignore[return-value]
             request,
-            "Imagen demasiado grande (máx 10 MB).",
+            "Archivo demasiado grande (máx 10 MB).",
             status_code=400,
         )
 
-    # Step 2: magic-byte validation (never trust client Content-Type)
+    # Step 2: magic-byte classification (never trust client Content-Type)
     try:
-        ext = sniff_extension(data)
-    except ImageValidationError:
+        ext = classify_file(data)
+    except FileValidationError:
         return _error_fragment(  # type: ignore[return-value]
             request,
-            "Tipo de imagen no soportado. Formatos válidos: PNG, JPEG, WebP, GIF.",
+            "Tipo de archivo no soportado. Formatos válidos: PNG, JPEG, WebP, GIF.",
             status_code=400,
         )
 
@@ -783,8 +783,8 @@ async def post_instance_upload_image(
             status_code=409,
         )
 
-    # Step 6: write image file (off the event loop)
-    path = await asyncio.to_thread(write_image, project.path, data, ext)
+    # Step 6: write file (off the event loop)
+    path = await asyncio.to_thread(write_staged_file, project.path, data, ext)
 
     # Step 7: return opaque ref — no send_keys, no HX-Trigger, no call_later
     return JSONResponse(
@@ -799,7 +799,7 @@ async def post_instance_upload_image(
 
 
 @router.delete("/instances/{instance_id}/upload-image/{ref}", response_class=HTMLResponse)
-async def delete_instance_upload_image(
+async def delete_instance_upload_file(
     request: Request,
     instance_id: str,
     ref: str,

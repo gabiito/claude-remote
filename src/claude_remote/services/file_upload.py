@@ -1,12 +1,12 @@
-"""Image upload service — pure filesystem logic, no FastAPI imports.
+"""File upload service — pure filesystem logic, no FastAPI imports.
 
 Responsibilities:
-  - Magic-byte validation (stdlib only — no python-magic dependency)
+  - Magic-byte classification (stdlib only — no python-magic dependency)
   - UUID filename generation and directory creation under <project.path>/.claude/uploads/
   - Best-effort idempotent file deletion
   - Stale-file sweep with injectable clock for deterministic testing
 
-Constants defined here are the SINGLE source of truth for all image-upload
+Constants defined here are the SINGLE source of truth for all file-upload
 configuration consumed by routes/ui.py and app.py.
 """
 
@@ -22,14 +22,14 @@ from pathlib import Path
 # Constants — single source of truth (design §8)
 # ---------------------------------------------------------------------------
 
-MAX_IMAGE_BYTES: int = 10 * 1024 * 1024  # 10 MiB hard cap
+MAX_IMAGE_BYTES: int = 10 * 1024 * 1024  # image-class cap; route selects by class
 UPLOAD_TTL_SECONDS: int = 60  # deferred-delete window after send_keys
 STALE_SWEEP_SECONDS: float = 600  # startup sweep age (10 minutes)
 UPLOAD_SUBDIR: tuple[str, str] = (".claude", "uploads")  # under project.path
-IMAGE_PATH_TEMPLATE: str = "{path}"  # THE single on-device-swappable knob
+IMAGE_PATH_TEMPLATE: str = "{path}"  # kept: AST-pinned by 2 security tests; all file types
 #                                       flip to "@{path}" if Claude needs @ prefix
 
-# Magic-byte allowlist: (prefix_bytes, mime_type, file_extension)
+# Magic-byte table: (prefix_bytes, mime_type, file_extension)
 # WEBP is special-cased: RIFF at [0:4] + WEBP at [8:12]
 _MAGIC: tuple[tuple[bytes, str, str], ...] = (
     (b"\x89PNG\r\n\x1a\n", "image/png", ".png"),
@@ -45,20 +45,24 @@ _MAGIC: tuple[tuple[bytes, str, str], ...] = (
 # ---------------------------------------------------------------------------
 
 
-class ImageValidationError(Exception):
-    """Raised when magic-byte validation fails or the file is otherwise invalid."""
+class FileValidationError(Exception):
+    """Raised when file validation fails (e.g. empty body or over size cap)."""
 
 
 # ---------------------------------------------------------------------------
-# sniff_extension — magic-byte only; Content-Type ignored
+# classify_file — magic-byte only classifier; Content-Type ignored
 # ---------------------------------------------------------------------------
 
 
-def sniff_extension(data: bytes) -> str:
+def classify_file(data: bytes) -> str:
     """Return the validated file extension (.png/.jpg/.webp/.gif).
 
     Inspects the raw bytes only — the client-supplied Content-Type is never
     consulted (design ADR-7).
+
+    S1 NOTE: This function retains the same image-only behavior as the old
+    sniff_extension. S2 will replace the body with a pure classifier that
+    returns (file_class, ext|None) and never raises.
 
     Args:
         data: raw file bytes (must be non-empty and long enough for a magic prefix).
@@ -67,11 +71,11 @@ def sniff_extension(data: bytes) -> str:
         One of ``.png``, ``.jpg``, ``.webp``, ``.gif``.
 
     Raises:
-        ImageValidationError: if the bytes do not start with a known image magic
+        FileValidationError: if the bytes do not start with a known image magic
             sequence, or if data is empty.
     """
     if not data:
-        raise ImageValidationError("Empty file body — cannot determine image type.")
+        raise FileValidationError("Archivo vacío.")
 
     # WebP: RIFF at [0:4] AND WEBP at [8:12]
     if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
@@ -82,19 +86,19 @@ def sniff_extension(data: bytes) -> str:
         if data[: len(magic_prefix)] == magic_prefix:
             return ext
 
-    raise ImageValidationError(
-        f"Unsupported image format — magic bytes do not match any allowed type "
+    raise FileValidationError(
+        f"Unsupported file format — magic bytes do not match any allowed type "
         f"(PNG, JPEG, WebP, GIF). Got: {data[:16]!r}"
     )
 
 
 # ---------------------------------------------------------------------------
-# write_image — creates upload dir + writes file with UUID name
+# write_staged_file — creates upload dir + writes file with UUID name
 # ---------------------------------------------------------------------------
 
 
-def write_image(project_path: str, data: bytes, ext: str) -> Path:
-    """Write image bytes to <project_path>/.claude/uploads/<uuid4hex><ext>.
+def write_staged_file(project_path: str, data: bytes, ext: str) -> Path:
+    """Write file bytes to <project_path>/.claude/uploads/<uuid4hex><ext>.
 
     Creates the uploads directory (mode 0700) if it does not exist.
     The client-supplied filename is NEVER used — the name is always a
@@ -102,8 +106,8 @@ def write_image(project_path: str, data: bytes, ext: str) -> Path:
 
     Args:
         project_path: absolute path of the project root (``Project.path``).
-        data: validated image bytes.
-        ext: server-derived extension, e.g. ``.png`` (from ``sniff_extension``).
+        data: validated file bytes.
+        ext: server-derived extension, e.g. ``.png`` (from ``classify_file``).
 
     Returns:
         Absolute Path to the written file.

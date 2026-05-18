@@ -17,7 +17,7 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
 def _get_resolve() -> object:
     """Import resolve_staged_ref — fails until B-2 GREEN."""
-    from claude_remote.services.image_upload import resolve_staged_ref  # noqa: PLC0415
+    from claude_remote.services.file_upload import resolve_staged_ref  # noqa: PLC0415
     return resolve_staged_ref
 
 

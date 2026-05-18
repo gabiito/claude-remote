@@ -17,7 +17,7 @@ from claude_remote.db.connection import get_connection_for
 from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
-from claude_remote.services.image_upload import UPLOAD_SUBDIR
+from claude_remote.services.file_upload import UPLOAD_SUBDIR
 from claude_remote.services.tmux_adapter import FakeTmuxAdapter
 
 pytestmark = pytest.mark.anyio
@@ -338,7 +338,7 @@ async def test_combine_deferred_cleanup_scheduled_per_file_not_at_stage(
     """After combined send: call_later called once per resolved file (60s); invoke → file gone."""
     import asyncio as _asyncio
 
-    from claude_remote.services.image_upload import UPLOAD_TTL_SECONDS
+    from claude_remote.services.file_upload import UPLOAD_TTL_SECONDS
 
     captured: list[tuple] = []
 
@@ -453,7 +453,7 @@ async def test_combine_image_path_template_used(
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
     """Resolved path is formatted via IMAGE_PATH_TEMPLATE.format(path=...) — single point."""
-    from claude_remote.services.image_upload import IMAGE_PATH_TEMPLATE
+    from claude_remote.services.file_upload import IMAGE_PATH_TEMPLATE
 
     project, instance = await _setup_running_instance(
         comb_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "comb-tmpl"

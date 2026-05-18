@@ -3,7 +3,7 @@
 These tests verify:
   - Stage endpoint never calls send_keys under any format
   - Client can never supply a raw path; only refs are accepted
-  - IMAGE_PATH_TEMPLATE is a single module-level constant in image_upload.py
+  - IMAGE_PATH_TEMPLATE is a single module-level constant in file_upload.py
   - No literal bare path format string in routes/ui.py outside IMAGE_PATH_TEMPLATE usage
 """
 
@@ -173,9 +173,9 @@ async def test_security_ref_to_path_is_sole_server_authority(
 
 
 def test_security_image_path_template_single_source() -> None:
-    """IMAGE_PATH_TEMPLATE is defined exactly once in services/image_upload.py (AST check)."""
+    """IMAGE_PATH_TEMPLATE is defined exactly once in services/file_upload.py (AST check)."""
     service_src = Path(
-        sys.modules["claude_remote.services.image_upload"].__file__  # type: ignore[arg-type]
+        sys.modules["claude_remote.services.file_upload"].__file__  # type: ignore[arg-type]
     )
     source = service_src.read_text()
     tree = ast.parse(source)

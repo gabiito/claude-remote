@@ -19,7 +19,7 @@ from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectsRepository
 from claude_remote.db.vapid_keys import VapidKeysRepository
 from claude_remote.routes import health, hooks, instances, projects, projects_view
-from claude_remote.services.image_upload import sweep_stale_uploads
+from claude_remote.services.file_upload import sweep_stale_uploads
 
 PACKAGE_ROOT = Path(__file__).parent
 

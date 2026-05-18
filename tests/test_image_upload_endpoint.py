@@ -371,7 +371,7 @@ async def test_oversized_file_returns_400_no_file_written(
         img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "bigfile"
     )
     # PNG magic header + 10 MB + 1 byte of padding
-    from claude_remote.services.image_upload import MAX_IMAGE_BYTES
+    from claude_remote.services.file_upload import MAX_IMAGE_BYTES
     big_data = PNG_MAGIC + b"\x00" * (MAX_IMAGE_BYTES - len(PNG_MAGIC) + 1)
     response = await img_client.post(
         f"/ui/instances/{instance.id}/upload-image",
@@ -488,7 +488,7 @@ def test_image_path_template_single_definition() -> None:
 
     # Locate the service module source
     service_src = (
-        _Path(sys.modules["claude_remote.services.image_upload"].__file__)  # type: ignore[arg-type]
+        _Path(sys.modules["claude_remote.services.file_upload"].__file__)  # type: ignore[arg-type]
     )
     source = service_src.read_text()
     tree = ast.parse(source)
@@ -551,7 +551,7 @@ def test_sweep_stale_uploads_removes_stale_keeps_fresh(tmp_path: Path) -> None:
     """Direct unit test of sweep_stale_uploads used in lifespan."""
     import os
 
-    from claude_remote.services.image_upload import (
+    from claude_remote.services.file_upload import (
         STALE_SWEEP_SECONDS,
         UPLOAD_SUBDIR,
         sweep_stale_uploads,
@@ -598,7 +598,7 @@ async def test_lifespan_sweep_via_app_startup(
     """
     import os
 
-    from claude_remote.services.image_upload import (
+    from claude_remote.services.file_upload import (
         STALE_SWEEP_SECONDS,
         UPLOAD_SUBDIR,
         sweep_stale_uploads,
@@ -641,7 +641,7 @@ async def test_upload_at_limit_is_accepted(
     tmp_projects_root: Path,
 ) -> None:
     """A valid PNG padded to exactly MAX_IMAGE_BYTES must be accepted (> is strict)."""
-    from claude_remote.services.image_upload import MAX_IMAGE_BYTES
+    from claude_remote.services.file_upload import MAX_IMAGE_BYTES
 
     project, instance = await _setup_running_instance(
         img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "atlimit"

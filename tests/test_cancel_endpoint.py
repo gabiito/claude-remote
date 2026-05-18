@@ -17,7 +17,7 @@ from claude_remote.db.connection import get_connection_for
 from claude_remote.db.instances import InstancesRepository
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
 from claude_remote.db.projects import ProjectCreate, ProjectsRepository
-from claude_remote.services.image_upload import UPLOAD_SUBDIR
+from claude_remote.services.file_upload import UPLOAD_SUBDIR
 from claude_remote.services.tmux_adapter import FakeTmuxAdapter
 
 pytestmark = pytest.mark.anyio
