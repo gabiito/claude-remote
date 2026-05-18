@@ -34,8 +34,6 @@ from claude_remote.services.session_grouping import build_active_sessions
 
 router = APIRouter(tags=["projects-view"])
 
-QUICK_ACTIONS = ["/sdd-continue", "/sdd-verify", "/clear"]
-
 TERMINAL_STATUSES = {"stopped", "crashed"}
 
 
@@ -131,7 +129,6 @@ async def get_project_view(
             "instance_views": instance_views,
             "primary_instance": primary_instance,
             "recent_events": recent_events,
-            "quick_actions": QUICK_ACTIONS,
             "active_sessions": active_sessions,
         },
     )

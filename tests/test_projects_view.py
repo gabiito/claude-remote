@@ -107,7 +107,7 @@ async def test_get_project_view_happy_path(
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """GET /projects/{id} active instance → 200 with output panel + input form + quick actions."""
+    """GET /projects/{id} active instance → 200 with output panel + input form; no dev-only pills."""
     p_path = tmp_projects_root / "acme.com" / "myproj"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -130,10 +130,11 @@ async def test_get_project_view_happy_path(
     assert 'id="output-content"' in html
     # Input form
     assert 'id="input-form"' in html
-    # Quick action buttons
-    assert "/sdd-continue" in html
-    assert "/sdd-verify" in html
-    assert "/clear" in html
+    # Hardcoded dev-only quick-action pills must NOT be present (removed as dev-cruft)
+    assert "/sdd-continue" not in html, "Dev-only /sdd-continue pill must be removed"
+    assert "/sdd-verify" not in html, "Dev-only /sdd-verify pill must be removed"
+    assert "/clear" not in html, "Dev-only /clear pill must be removed"
+    assert "cr-chips" not in html, "Quick-action .cr-chips container must be removed"
 
 
 async def test_get_project_view_no_active_instance(

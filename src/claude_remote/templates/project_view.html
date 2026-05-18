@@ -225,21 +225,6 @@ No active session. Launch a new one to see output.</pre>
   </div>
   </div>{# /.cr-pv-body #}
 
-  {# ── Quick action chips ── #}
-  <div class="cr-chips cr-scroll">
-    {% for action in quick_actions %}
-    <button class="cr-chip"
-            {% if primary_instance %}
-            hx-post="/ui/instances/{{ primary_instance.instance.id }}/input"
-            hx-vals='{"text": "{{ action }}", "send_enter": "true"}'
-            {% else %}
-            disabled
-            {% endif %}>
-      {{ action }}
-    </button>
-    {% endfor %}
-  </div>
-
   {# ── Input dock ── #}
   {% if primary_instance %}
   <form id="input-form"

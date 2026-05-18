@@ -857,35 +857,6 @@ body {
 }
 .cr-ev-text { color: var(--fg-1); font-size: 11.5px; line-height: 1.45; }
 
-/* ── 17. Quick-action chips ── */
-.cr-chips {
-  display: flex;
-  gap: 6px;
-  padding: 8px 12px;
-  overflow-x: auto;
-  flex: 0 0 auto;
-  background: var(--bg-1);
-  border-top: 1px solid var(--line-0);
-}
-.cr-chips::-webkit-scrollbar { display: none; }
-.cr-chip {
-  flex: 0 0 auto;
-  height: 32px;
-  padding: 0 11px;
-  border-radius: 999px;
-  border: 1px solid var(--line-0);
-  background: var(--bg-2);
-  color: var(--fg-1);
-  font-family: var(--fnt-mono);
-  font-size: 11px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.cr-chip:hover { background: var(--bg-3); border-color: var(--line-1); }
-.cr-chip:disabled { opacity: 0.4; cursor: not-allowed; }
-
 /* ── 18. Input dock ── */
 .cr-input-dock {
   /* Android 3-button nav (~48dp) is not reported via env(safe-area-inset-bottom)
