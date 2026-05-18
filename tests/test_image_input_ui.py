@@ -292,13 +292,23 @@ async def test_no_image_type_guard_in_attach_file(
     only the attachFile guard is removed.
     """
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach2b")
-    # Extract just the attachFile function body (between 'attachFile' and its closing comma)
+    # Extract ONLY the attachFile method body via brace-matching, so sibling
+    # methods (e.g. handlePaste, which legitimately keeps startsWith('image/'))
+    # are never included in the assertion window.
     start = html.find("async attachFile(fileObj)")
     assert start != -1, "attachFile function not found in template"
-    # Find the end of the function by locating the next top-level async function definition
-    end = html.find("async removeAttachment(", start)
-    if end == -1:
-        end = start + 1000  # fallback: inspect first 1000 chars
+    brace = html.find("{", start)
+    assert brace != -1, "attachFile body opening brace not found"
+    depth = 0
+    end = brace
+    for i in range(brace, len(html)):
+        if html[i] == "{":
+            depth += 1
+        elif html[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
     attach_body = html[start:end]
     assert "startsWith('image/')" not in attach_body, (
         "attachFile contains startsWith('image/') type guard — must be removed (S3, REQ-14)"

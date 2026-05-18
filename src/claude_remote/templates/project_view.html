@@ -256,6 +256,14 @@ No active session. Launch a new one to see output.</pre>
             this.attachments.push({ ref, name, dataUrl, fileClass });
             try { new Audio('/static/audio/click.mp3').play(); } catch (_) {}
           },
+          handlePaste(ev) {
+            for (const it of (ev.clipboardData?.items || [])) {
+              if (it.type.startsWith('image/')) {
+                const f = it.getAsFile();
+                if (f) { ev.preventDefault(); this.attachFile(f); }
+              }
+            }
+          },
           async removeAttachment(ref) {
             try {
               await fetch('/ui/instances/' + this._instanceId + '/upload-image/' + ref,
@@ -310,7 +318,7 @@ No active session. Launch a new one to see output.</pre>
                 placeholder="Type a message…"
                 @keydown.ctrl.enter.prevent="$el.form.requestSubmit()"
                 @input="$el.style.height='auto'; $el.style.height=Math.min(120,$el.scrollHeight)+'px'"
-                @paste="for (const it of ($event.clipboardData?.items || [])) { if (it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) { $event.preventDefault(); attachFile(f); } } }"></textarea>
+                @paste="handlePaste($event)"></textarea>
       <span class="cr-input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send</span>
     </div>
     <input type="hidden" name="send_enter" value="true">
