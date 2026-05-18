@@ -653,3 +653,87 @@ async def test_no_attach_button_when_no_instance(
     html = resp.text
     assert "cr-disabled" in html, "Expected cr-disabled dock when no active instance"
     assert "cr-attach" not in html, "cr-attach must not render when no running instance"
+
+
+# ---------------------------------------------------------------------------
+# OOM-fix: chip must appear synchronously after server upload (no blocking
+# await before push), and FileReader/readAsDataURL must be gone entirely.
+# ---------------------------------------------------------------------------
+
+
+async def test_attach_push_not_gated_by_thumbnail_await(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """attachFile MUST push to this.attachments BEFORE any thumbnail work.
+
+    The old code did:
+        dataUrl = await new Promise(resolve => { fr.readAsDataURL(...) })
+        this.attachments.push(...)
+
+    That blocks the chip on a full-res FileReader decode — OOM on camera photos
+    and permanent skeleton hang if readAsDataURL errors (no onerror, no timeout).
+
+    Contract (structural, assertable without a browser):
+      - 'this.attachments.push' MUST appear in the attachFile body.
+      - 'readAsDataURL' MUST NOT appear anywhere in the template (regression guard).
+      - 'await new Promise' MUST NOT appear BEFORE 'this.attachments.push' inside attachFile.
+      - 'createImageBitmap' MUST appear in the template (new thumb path present).
+
+    Browser-only behaviors (ON-DEVICE-ONLY):
+      OD-OOM-1  Take a high-res camera photo; chip appears immediately,
+                thumbnail fills in within ~1-2 s or falls back to the
+                paperclip icon — no OOM crash, no stuck skeleton.
+      OD-OOM-2  Repeat 3-5 times with different lighting/sizes.
+      OD-OOM-3  Test on the weakest device available (most likely to OOM).
+    """
+    _, html = await _launch_and_get_html(
+        ui_client, projects_repo, tmp_projects_root, "oomfix1"
+    )
+
+    # --- brace-match attachFile body (same technique as test_no_image_type_guard_in_attach_file)
+    start = html.find("async attachFile(fileObj)")
+    assert start != -1, "attachFile function not found in template"
+    brace = html.find("{", start)
+    assert brace != -1, "attachFile body opening brace not found"
+    depth = 0
+    end = brace
+    for i in range(brace, len(html)):
+        if html[i] == "{":
+            depth += 1
+        elif html[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    attach_body = html[start:end]
+
+    # 1. chip push must exist
+    push_idx = attach_body.find("this.attachments.push")
+    assert push_idx != -1, (
+        "this.attachments.push not found in attachFile — chip staging is broken"
+    )
+
+    # 2. readAsDataURL must be gone everywhere (regression guard)
+    assert "readAsDataURL" not in html, (
+        "readAsDataURL still present in template — "
+        "this causes OOM on full-res camera photos and a permanent skeleton hang "
+        "when the FileReader errors (no onerror, no timeout). Replace with "
+        "createImageBitmap-based downscale after pushing the chip."
+    )
+
+    # 3. 'await new Promise' must NOT appear BEFORE the push in attachFile
+    await_promise_idx = attach_body.find("await new Promise")
+    assert await_promise_idx == -1 or await_promise_idx > push_idx, (
+        "'await new Promise' appears BEFORE 'this.attachments.push' in attachFile — "
+        "the chip is gated on a blocking thumbnail await. Push the chip first, "
+        "then do thumbnail work asynchronously."
+    )
+
+    # 4. createImageBitmap must be referenced (new downscale path present)
+    assert "createImageBitmap" in html, (
+        "createImageBitmap not found in template — "
+        "the CSP-safe thumbnail downscale path is missing. "
+        "Add makeThumb() using createImageBitmap + offscreen canvas."
+    )
