@@ -540,6 +540,7 @@ async def get_instance_output(
     request: Request,
     instance_id: str,
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    events_repo: EventsRepository = Depends(get_events_repo),  # noqa: B008
     adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
 ) -> Response:
     """Return the current tmux pane content as an HTML fragment.
@@ -575,6 +576,15 @@ async def get_instance_output(
             headers={"HX-Reswap": "innerHTML"},
         )
 
+    # Live status lets the deep-view client chime exactly when Claude
+    # finishes its turn (edge into needs_input/idle) — NOT on the user's
+    # own echoed input. Same derivation as the project cards.
+    live_status = derive_live_status(
+        instance,
+        events_repo.list_for_instance(instance_id, limit=20),
+        now=datetime.now(UTC),
+    )
+
     try:
         raw = await asyncio.to_thread(adapter.capture_pane, instance.tmux_session_name)
         from claude_remote.services.ansi_html import convert_ansi  # noqa: PLC0415
@@ -589,13 +599,20 @@ async def get_instance_output(
         # Content identical to what the client already rendered → tell HTMX
         # not to swap. 204 (not 304): HTMX skips the swap on 204 with no
         # ambiguity, so the DOM and the user's selection are left alone.
-        return Response(status_code=204, headers={"ETag": etag})
+        return Response(
+            status_code=204,
+            headers={"ETag": etag, "X-Live-Status": live_status},
+        )
 
     # Return ANSI-converted HTML fragment only — the <pre id="output-content"> wrapper is
     # owned by project_view.html and stays mounted (so Alpine smart-scroll
     # state survives the HTMX innerHTML swap). Returning the wrapper here
     # would nest <pre> inside <pre>, hiding the outer cr-terminal styles.
-    return HTMLResponse(content=escaped, status_code=200, headers={"ETag": etag})
+    return HTMLResponse(
+        content=escaped,
+        status_code=200,
+        headers={"ETag": etag, "X-Live-Status": live_status},
+    )
 
 
 # ---------------------------------------------------------------------------

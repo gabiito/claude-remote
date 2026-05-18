@@ -197,23 +197,29 @@
              smartScroll: true,
              etag: null,
              armed: false,
-             baseEtag: null,
+             sawWorking: false,
              onPoll(xhr) {
-               const ne = xhr.getResponseHeader('ETag') || this.etag;
-               // First /output change after a send → response started.
-               // Heuristic per design; multi-statement logic stays in a
-               // METHOD (not an inline Alpine expr — @paste bare-for lesson).
-               if (this.armed && ne && ne !== this.baseEtag) {
+               // Chime when Claude FINISHES its turn after a send: armed by
+               // input-sent, we must have seen a working state, then status
+               // lands on needs_input/idle. Edge-detected so the user's own
+               // echoed input never triggers it. (Logic in a METHOD, not an
+               // inline Alpine expr — @paste bare-for crash lesson.)
+               const st = xhr.getResponseHeader('X-Live-Status');
+               if (st === 'active' || st === 'running' || st === 'starting') {
+                 this.sawWorking = true;
+               }
+               if (this.armed && this.sawWorking && (st === 'needs_input' || st === 'idle')) {
                  this.armed = false;
+                 this.sawWorking = false;
                  try { new Audio('/static/audio/glump.mp3').play(); } catch (e) {}
                }
-               this.etag = ne;
+               this.etag = xhr.getResponseHeader('ETag') || this.etag;
              }
            }"
            @scroll="smartScroll = (Math.abs($el.scrollTop + $el.clientHeight - $el.scrollHeight) < 50)"
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"
            @htmx:config-request="if (etag) $event.detail.headers['If-None-Match'] = etag"
-           @input-sent.window="armed = true; baseEtag = etag"
+           @input-sent.window="armed = true; sawWorking = false"
            @htmx:after-request="onPoll($event.detail.xhr)"
            hx-get="/ui/instances/{{ primary_instance.instance.id }}/output"
            hx-trigger="load, every 2s [document.visibilityState === 'visible' && !(window.getSelection().toString() && document.getElementById('output-content').contains(window.getSelection().anchorNode))]"
