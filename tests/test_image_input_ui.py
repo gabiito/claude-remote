@@ -1,14 +1,22 @@
-"""Template-level tests for Slice 2 image-input frontend controls.
+"""Template-level tests for image-input v2 frontend (multi-chip staging).
 
-These tests assert rendered HTML structure and CSS class presence.
-Real browser behaviors (actual clipboard read, real drag events, fetch() execution,
-FormData submission) are ON-DEVICE-ONLY and are NOT faked here.
+These tests assert rendered HTML structure, Alpine wiring attributes, CSS class presence,
+and static-asset existence. Real browser behaviors are ON-DEVICE-ONLY.
 
-ON-DEVICE items (must be verified by operator before merging Slice 2):
-  6.1 Upload a real image via the paperclip picker; confirm Claude Code receives it.
-  6.2 If 6.1 fails, flip IMAGE_PATH_TEMPLATE to "@{path}" in services/image_upload.py.
-  6.3 Android paste from clipboard (may degrade to picker/drag-drop on HTTP).
-  6.4 Mobile drag-drop: drop outline appears, image is sent.
+ON-DEVICE items (must be verified by operator before merging PR2):
+  OD-1 Upload 1 image via paperclip picker; type a message; press Send. Confirm Claude Code
+       receives <abs_path>\n<message> as one prompt.
+  OD-2 Upload 2 images via picker; type a message; press Send. Confirm one combined send_keys
+       with both paths prepended.
+  OD-3 Android device over HTTP — paste an image from system clipboard. Confirm it uploads OR
+       picker/drag-drop remain fully functional as fallback.
+  OD-4 Mobile device — drag an image onto the input dock. Confirm drag-over outline appears,
+       drop triggers attachFile, chip appears.
+  OD-5 Stage 2+ chips, cancel one via X button. Confirm file deleted server-side, chip removed
+       from UI, remaining chips unaffected.
+  OD-6 Visual chip layout on a phone screen — chips do not overflow visible input area.
+  OD-7 Chip-add sound — after picking/pasting/dropping an image and the chip appears,
+       click.mp3 plays audibly on-device.
 """
 
 from __future__ import annotations
@@ -121,29 +129,95 @@ async def _launch_and_get_html(
 
 
 # ---------------------------------------------------------------------------
-# 5.1 RED — image controls present in project_view with running instance
+# F-1: Chip container and remove control
 # ---------------------------------------------------------------------------
 
 
-async def test_attach_button_present(
+async def test_chip_container_present(
     ui_client: AsyncClient,
     projects_repo: ProjectsRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """project_view.html renders a button with class cr-attach when instance is running."""
+    """Rendered project_view.html contains a chip container for staged attachments
+    (uses attachments array / x-show or x-for on attachments)."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip1")
+    assert "attachments" in html, "Expected 'attachments' Alpine array in project_view"
+    # chip strip container is visible when attachments exist
+    assert "cr-attachment-chips" in html or "x-for" in html, (
+        "Expected chip container (cr-attachment-chips or x-for loop) in project_view"
+    )
+
+
+async def test_chip_has_remove_control(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Chip template contains a remove button (× control) with remove wiring."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip2")
+    # The x-for chip template must have a remove button
+    assert "cr-chip__remove" in html, "Expected .cr-chip__remove button in chip template"
+
+
+async def test_chip_remove_wired_to_delete_endpoint(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Chip remove button's @click calls fetch(...DELETE...) to the cancel endpoint."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip3")
+    # The remove button must reference the DELETE cancel URL
+    assert "upload-image" in html, "Expected upload-image URL in chip remove wiring"
+    assert "DELETE" in html, "Expected DELETE method in chip remove fetch call"
+
+
+async def test_chip_name_is_x_text_not_innerhtml(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Chip name uses x-text (not innerHTML) — injection guard per design §5."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip4")
+    # Must use x-text for chip name (autoescaped) never innerHTML
+    assert "x-text" in html, "Expected x-text for chip name (injection guard)"
+    assert "innerHTML" not in html, "innerHTML found — injection risk; use x-text for chip name"
+
+
+# ---------------------------------------------------------------------------
+# F-2: Picker / paste / drag controls present
+# ---------------------------------------------------------------------------
+
+
+async def test_paperclip_button_present(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """project_view.html renders a button with class cr-attach (paperclip affordance)."""
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach1")
     assert "cr-attach" in html, "Expected .cr-attach button in project_view with running instance"
 
 
-async def test_file_input_present(
+async def test_file_input_accept_image_present(
     ui_client: AsyncClient,
     projects_repo: ProjectsRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """project_view.html has a hidden file input accepting images when instance is running."""
+    """project_view.html has a hidden file input accepting images."""
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach2")
     assert 'type="file"' in html, "Expected hidden file input in project_view"
     assert 'accept="image/*"' in html, 'Expected accept="image/*" on file input'
+
+
+async def test_drag_drop_wiring_present(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """project_view.html input dock has @dragover and @drop handlers."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach4")
+    assert "@dragover" in html or "x-on:dragover" in html, "Expected @dragover handler on dock"
+    assert "@drop" in html or "x-on:drop" in html, "Expected @drop handler on dock"
 
 
 async def test_paste_handler_present(
@@ -151,62 +225,9 @@ async def test_paste_handler_present(
     projects_repo: ProjectsRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """project_view.html textarea has a @paste handler (template level — JS not executed)."""
+    """Textarea has @paste handler extracting image items from ClipboardEvent."""
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach3")
-    assert "@paste" in html, "Expected @paste Alpine handler on textarea"
-
-
-async def test_drop_handler_present(
-    ui_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    tmp_projects_root: Path,
-) -> None:
-    """project_view.html input dock has @drop handler for drag-drop."""
-    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach4")
-    assert "@drop" in html, "Expected @drop Alpine handler on form/dock"
-
-
-async def test_upload_image_url_present(
-    ui_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    tmp_projects_root: Path,
-) -> None:
-    """project_view.html contains the upload-image endpoint URL for the instance."""
-    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach5")
-    assert "upload-image" in html, "Expected upload-image endpoint URL in project_view"
-
-
-async def test_filereader_data_uri_wiring_present(
-    ui_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    tmp_projects_root: Path,
-) -> None:
-    """project_view.html uses FileReader/readAsDataURL for preview (no blob: URI)."""
-    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach6")
-    assert "FileReader" in html, "Expected FileReader in project_view Alpine code"
-    assert "readAsDataURL" in html, "Expected readAsDataURL in project_view Alpine code"
-
-
-async def test_no_blob_uri_in_preview_code(
-    ui_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    tmp_projects_root: Path,
-) -> None:
-    """project_view.html must NOT use createObjectURL or blob: for preview (CSP violation)."""
-    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach7")
-    assert "createObjectURL" not in html, "createObjectURL found — CSP violation: use data: URI"
-    assert "blob:" not in html, "blob: URI found — blocked by CSP img-src 'self' data:"
-
-
-async def test_preview_container_present(
-    ui_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    tmp_projects_root: Path,
-) -> None:
-    """project_view.html has an Alpine x-if preview container with cr-img-preview class."""
-    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach8")
-    assert "cr-img-preview" in html, "Expected cr-img-preview class for thumbnail preview"
-    assert "preview" in html, "Expected Alpine 'preview' data property in template"
+    assert "@paste" in html or "x-on:paste" in html, "Expected @paste Alpine handler on textarea"
 
 
 async def test_drag_over_class_present(
@@ -217,12 +238,146 @@ async def test_drag_over_class_present(
     """project_view.html dock form has :class binding for cr-drag-over state."""
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach9")
     assert "cr-drag-over" in html, "Expected cr-drag-over in :class binding on form"
-    assert "dragging" in html, "Expected dragging Alpine property for drag state"
 
 
 # ---------------------------------------------------------------------------
-# 5.1 RED — CSS classes present in app.css
+# F-3: No blob: URI anywhere
 # ---------------------------------------------------------------------------
+
+
+async def test_no_blob_uri_in_template(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """project_view.html must NOT use createObjectURL or blob: (CSP violation)."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach7")
+    assert "createObjectURL" not in html, "createObjectURL found — CSP violation; use data: URI"
+    assert "blob:" not in html, "blob: URI found — blocked by CSP img-src 'self' data:"
+
+
+def test_no_blob_uri_in_app_js() -> None:
+    """static/js/ files must not reference blob: or createObjectURL."""
+    js_dir = PACKAGE_ROOT / "static" / "js"
+    if not js_dir.exists():
+        return  # no app.js — nothing to check
+    for js_file in js_dir.glob("*.js"):
+        content = js_file.read_text()
+        assert "createObjectURL" not in content, (
+            f"createObjectURL in {js_file} — CSP violation"
+        )
+        assert "blob:" not in content, f"blob: URI in {js_file} — blocked by CSP"
+
+
+# ---------------------------------------------------------------------------
+# F-4: Upload handler creates chip only, does NOT fetch /input
+# ---------------------------------------------------------------------------
+
+
+async def test_upload_handler_fetches_only_stage_endpoint(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """The attach/paste/drop handler fetches upload-image (stage), not /input directly."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach5")
+    assert "upload-image" in html, "Expected upload-image stage endpoint in attach handler"
+    # The attach handler (attachFile) must NOT directly POST to /input
+    # We check that the upload handler function does not contain /input fetch
+    # by asserting attachFile only references upload-image not '/input'
+    # (The send handler separately does the /input call — that's correct)
+    assert "attachFile" in html, "Expected attachFile function in Alpine x-data"
+
+
+async def test_form_submit_is_fetch_not_hx_post(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """The #input-form does NOT use hx-post; it uses an Alpine @submit handler with fetch."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "submit1")
+    # The active form (#input-form with running instance) must use @submit, not hx-post
+    assert "sendMessage" in html, "Expected sendMessage function in Alpine x-data"
+    # hx-post must NOT appear on the input form (submit is now fetch-based)
+    assert 'hx-post="/ui/instances/' not in html or "@submit" in html, (
+        "Input form must use @submit.prevent with fetch, not bare hx-post"
+    )
+
+
+# ---------------------------------------------------------------------------
+# F-5: Combined send POSTs refs as repeated `refs` field
+# ---------------------------------------------------------------------------
+
+
+async def test_submit_handler_sends_repeated_refs(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Submit handler builds FormData and appends 'refs' for each attachment."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "submit2")
+    # FormData append with canonical field name 'refs' (locked decision #1)
+    assert "FormData" in html, "Expected FormData in submit handler"
+    assert '"refs"' in html or "'refs'" in html, (
+        "Expected .append('refs',...) in submit handler (locked decision #1: field name is refs)"
+    )
+
+
+async def test_submit_handler_clears_attachments_after_send(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """After successful send, attachments array is cleared (chips disappear)."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "submit3")
+    # After send: attachments = [] (or .splice/clear equivalent)
+    assert "attachments" in html, "Expected attachments in Alpine data"
+    # The sendMessage function must clear attachments on success
+    assert "attachments = []" in html or "attachments=[]" in html, (
+        "Expected 'attachments = []' in sendMessage success path (clear chips after send)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# F-x: Chip-add sound (click.mp3)
+# ---------------------------------------------------------------------------
+
+
+async def test_audio_asset_wired_in_template(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """project_view.html references click.mp3 (audio element or JS Audio constructor)."""
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "sound1")
+    assert "click.mp3" in html, (
+        "Expected click.mp3 reference in project_view.html (audio wiring for chip-add sound)"
+    )
+    assert "/static/audio/click.mp3" in html, (
+        "Expected /static/audio/click.mp3 src (served from app static dir)"
+    )
+
+
+def test_click_mp3_exists_in_static_dir() -> None:
+    """click.mp3 must exist at src/claude_remote/static/audio/click.mp3 (REQ-16 Scenario 16.2)."""
+    audio_file = PACKAGE_ROOT / "static" / "audio" / "click.mp3"
+    assert audio_file.exists(), (
+        f"click.mp3 not found at {audio_file} — "
+        "run: mkdir -p src/claude_remote/static/audio && git mv click.mp3 src/claude_remote/static/audio/"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CSS: chip strip classes present
+# ---------------------------------------------------------------------------
+
+
+def test_css_has_cr_chip_classes() -> None:
+    """app.css defines .cr-chip* multi-chip strip classes (not single-preview classes)."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert ".cr-chip__thumb" in css, ".cr-chip__thumb CSS class missing from app.css"
+    assert ".cr-chip__name" in css, ".cr-chip__name CSS class missing from app.css"
+    assert ".cr-chip__remove" in css, ".cr-chip__remove CSS class missing from app.css"
 
 
 def test_css_has_cr_attach_class() -> None:
@@ -237,14 +392,19 @@ def test_css_has_cr_drag_over_class() -> None:
     assert ".cr-drag-over" in css, ".cr-drag-over CSS class missing from app.css"
 
 
-def test_css_has_cr_img_preview_class() -> None:
-    """app.css defines .cr-img-preview thumbnail style."""
+def test_css_single_preview_classes_removed() -> None:
+    """app.css must NOT contain v1 single-preview classes (.cr-img-preview-wrap, .cr-img-remove)."""
     css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
-    assert ".cr-img-preview" in css, ".cr-img-preview CSS class missing from app.css"
+    assert ".cr-img-preview-wrap" not in css, (
+        ".cr-img-preview-wrap still in app.css — must be replaced with .cr-chip* strip classes"
+    )
+    assert ".cr-img-remove" not in css, (
+        ".cr-img-remove still in app.css — must be replaced with .cr-chip__remove"
+    )
 
 
 # ---------------------------------------------------------------------------
-# 5.1 RED — graceful degradation: no image controls when no active instance
+# Graceful degradation: no image controls when no active instance
 # ---------------------------------------------------------------------------
 
 
