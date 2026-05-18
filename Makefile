@@ -1,11 +1,17 @@
 .PHONY: setup test test-unit test-integration lint format typecheck run check \
-        service-install service-uninstall service-status service-logs
+        set-password service-install service-uninstall service-status service-logs
 
 PYTHON := .venv/bin/python
 UV := uv
 CLAUDIO := .venv/bin/claudio
 
 SERVICE_NAME := claude-remote.service
+
+# Dev server isolation: own port + own DB so `make run` coexists with the
+# installed systemd service (which is hardcoded to port 8000 + ./claude-remote.db).
+# Both are overridable: `make run PORT=9000 DEV_DB=./scratch.db`.
+PORT ?= 8001
+DEV_DB ?= ./claude-remote.dev.db
 
 # Install all deps (runtime + dev) into .venv
 setup:
@@ -35,9 +41,13 @@ format:
 typecheck:
 	$(PYTHON) -m pyright src/
 
-# Start dev server (blocks)
+# Start dev server (blocks) — isolated port + DB, coexists with installed service
 run:
-	$(PYTHON) -m uvicorn claude_remote.app:app --reload --host 0.0.0.0 --port 8000
+	CLAUDE_REMOTE_DB_PATH=$(DEV_DB) $(PYTHON) -m uvicorn claude_remote.app:app --reload --host 0.0.0.0 --port $(PORT)
+
+# Set the login password on the DEV DB (same DEV_DB as `make run`, never the installed one)
+set-password:
+	CLAUDE_REMOTE_DB_PATH=$(DEV_DB) $(CLAUDIO) set-password
 
 # Composite gate: lint + typecheck + test (local CI equivalent)
 check: lint typecheck test
