@@ -9,6 +9,8 @@ Covers:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from httpx import AsyncClient
 
@@ -627,6 +629,44 @@ async def test_fit_cols_has_right_edge_safety_margin(
     html = resp.text
     assert "Math.floor((pre.clientWidth - padX) / cw) - 1" in html, (
         "_measure cols must apply a -1 right-edge safety margin"
+    )
+
+
+async def test_glump_sound_on_first_output_after_send(
+    pv_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """glump.mp3 plays on the first /output change after a message is sent.
+
+    Armed by the input-sent event; the output-content poll handler plays
+    glump once when the ETag first differs from the send-time baseline,
+    then disarms. Logic lives in an x-data method (not an inline Alpine
+    statement — see the @paste bare-for crash lesson).
+    """
+    audio = (
+        Path(__file__).parent.parent
+        / "src" / "claude_remote" / "static" / "audio" / "glump.mp3"
+    )
+    assert audio.is_file(), "glump.mp3 must live in static/audio/ to be served"
+
+    (tmp_projects_root / "wooli" / "glmp").mkdir(parents=True)
+    proj = projects_repo.create(
+        project_create=ProjectCreate(
+            name="glmp", slug="glmp",
+            path=tmp_projects_root / "wooli" / "glmp", domain="wooli",
+        )
+    )
+    await pv_client.post(f"/ui/projects/{proj.id}/launch")
+    resp = await pv_client.get(
+        f"/projects/{proj.id}", headers={"Accept": "text/html"}
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "/static/audio/glump.mp3" in html, "Expected glump.mp3 wiring"
+    assert "@input-sent.window" in html or "x-on:input-sent" in html, (
+        "output-content must arm on the input-sent event"
     )
 
 
