@@ -166,6 +166,10 @@ async def test_output_emits_live_status_header(
     assert r200.headers.get("X-Live-Status") in valid, (
         "200 /output must emit a valid X-Live-Status header"
     )
+    assert "X-Last-Stop" in r200.headers, (
+        "200 /output must emit X-Last-Stop (id of most recent Stop event, "
+        "or empty) — the chime keys off a NEW Stop after send"
+    )
 
     etag = r200.headers["ETag"]
     r304 = await out_client.get(
@@ -175,6 +179,9 @@ async def test_output_emits_live_status_header(
     assert r304.status_code == 204
     assert r304.headers.get("X-Live-Status") in valid, (
         "unchanged (204) /output must ALSO emit X-Live-Status"
+    )
+    assert "X-Last-Stop" in r304.headers, (
+        "unchanged (204) /output must ALSO emit X-Last-Stop"
     )
 
 

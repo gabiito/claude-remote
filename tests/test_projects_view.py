@@ -668,14 +668,12 @@ async def test_glump_sound_on_first_output_after_send(
     assert "@input-sent.window" in html or "x-on:input-sent" in html, (
         "output-content must arm on the input-sent event"
     )
-    # Turn-complete trigger: chime on the live-status edge into
-    # needs_input/idle (Claude finished), NOT on the raw first ETag change
-    # (that was the user's own echoed input).
-    assert "X-Live-Status" in html, (
-        "output poll must read the X-Live-Status header for the chime trigger"
-    )
-    assert "needs_input" in html and "idle" in html, (
-        "chime must fire on the transition into needs_input/idle"
+    # Turn-complete trigger: chime when a NEW Stop event arrives after the
+    # send (Claude fires Stop every turn — text or tool — reliably). NOT a
+    # status-edge (status sits on idle for quick text replies → never fired
+    # again), NOT the raw first ETag change (that was the echoed input).
+    assert "X-Last-Stop" in html, (
+        "output poll must read X-Last-Stop; chime fires on a new Stop after send"
     )
 
 
