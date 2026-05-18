@@ -608,7 +608,7 @@ async def post_instance_input(
     instance_id: str,
     text: str | None = Form(default=None),
     send_enter: bool = Form(default=True),
-    refs: list[str] = Form(default=[]),  # noqa: B006
+    refs: list[str] = Form(default=[]),  # noqa: B006,B008
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
     projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
     adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008

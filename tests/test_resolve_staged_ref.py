@@ -5,7 +5,6 @@ All tests must FAIL until resolve_staged_ref is implemented (B-2 GREEN).
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest

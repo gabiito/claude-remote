@@ -5,7 +5,6 @@ All tests must FAIL until post_instance_input is extended with refs support (B-6
 
 from __future__ import annotations
 
-import asyncio
 import uuid
 from pathlib import Path
 
@@ -182,7 +181,7 @@ async def test_combine_attachments_only_empty_text(
     tmp_projects_root: Path,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """One staged file + empty text → one sent_keys call, payload = path only (no trailing newline from empty text)."""
+    """One staged file + empty text → one sent_keys call, payload = path only."""
     project, instance = await _setup_running_instance(
         comb_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "comb-notext"
     )
@@ -280,7 +279,7 @@ async def test_combine_cross_instance_ref_rejected(
     tmp_projects_root: Path,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Ref valid under instance B sent to instance A → dropped, sent_keys not injected with B's path."""
+    """Ref valid under instance B sent to instance A → dropped, B's path not injected."""
     project_a, instance_a = await _setup_running_instance(
         comb_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "comb-xa"
     )
@@ -336,7 +335,7 @@ async def test_combine_deferred_cleanup_scheduled_per_file_not_at_stage(
     fake_adapter: FakeTmuxAdapter,
     monkeypatch,
 ) -> None:
-    """After combined send: call_later called once per resolved file with delay 60s; invoke → file gone."""
+    """After combined send: call_later called once per resolved file (60s); invoke → file gone."""
     import asyncio as _asyncio
 
     from claude_remote.services.image_upload import UPLOAD_TTL_SECONDS
@@ -366,16 +365,18 @@ async def test_combine_deferred_cleanup_scheduled_per_file_not_at_stage(
     assert len(captured) == 2, (
         f"Expected 2 call_later calls (one per file), got {len(captured)}"
     )
-    for delay, fn, args in captured:
-        assert delay == UPLOAD_TTL_SECONDS, f"Expected delay={UPLOAD_TTL_SECONDS}, got {delay}"
+    for entry in captured:
+        assert entry[0] == UPLOAD_TTL_SECONDS, (
+            f"Expected delay={UPLOAD_TTL_SECONDS}, got {entry[0]}"
+        )
 
     # Files must still exist before callbacks are invoked
     assert staged_a.exists()
     assert staged_b.exists()
 
     # Invoke callbacks directly — files must be gone
-    for _, fn, args in captured:
-        fn(*args)
+    for entry in captured:
+        entry[1](*entry[2])
 
     assert not staged_a.exists()
     assert not staged_b.exists()
@@ -424,7 +425,7 @@ async def test_combine_tmux_error_returns_4xx(
     tmp_projects_root: Path,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """FakeTmuxAdapter raises TmuxOperationError → 4xx, HTML fragment (spec REQ-10 Scenario 10.1)."""
+    """FakeTmuxAdapter raises TmuxOperationError → 4xx, HTML fragment (REQ-10 Scenario 10.1)."""
     project, instance = await _setup_running_instance(
         comb_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "comb-tmuxerr"
     )
@@ -451,7 +452,7 @@ async def test_combine_image_path_template_used(
     tmp_projects_root: Path,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Resolved path is formatted via IMAGE_PATH_TEMPLATE.format(path=...) — single formatting point."""
+    """Resolved path is formatted via IMAGE_PATH_TEMPLATE.format(path=...) — single point."""
     from claude_remote.services.image_upload import IMAGE_PATH_TEMPLATE
 
     project, instance = await _setup_running_instance(

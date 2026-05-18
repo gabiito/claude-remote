@@ -133,7 +133,7 @@ async def test_stage_does_not_call_send_keys(
     tmp_projects_root: Path,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Stage endpoint must NOT call send_keys under any circumstances (REQ-1 v2, CRITICAL invariant)."""
+    """Stage endpoint must NOT call send_keys under any circumstances (REQ-1 v2 CRITICAL)."""
     project, instance = await _setup_running_instance(
         img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "no-send-keys"
     )

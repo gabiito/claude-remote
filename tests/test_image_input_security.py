@@ -92,7 +92,9 @@ def instances_repo(sec_settings, tmp_db):
     return InstancesRepository(connection_factory=lambda: get_connection_for(tmp_db))
 
 
-async def _setup_running_instance(client, projects_repo, instances_repo, projects_root, domain, slug):
+async def _setup_running_instance(
+    client, projects_repo, instances_repo, projects_root, domain, slug
+):
     p_path = projects_root / domain / slug
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -198,20 +200,20 @@ def test_security_image_path_template_single_source() -> None:
     )
 
     # Verify the value is still the bare path (obs #762 — do not change)
-    node = definitions[0]
-    if isinstance(node, ast.Assign):
-        val_node = node.value
-    else:
-        val_node = node.value  # type: ignore[assignment]
+    val_node = definitions[0].value  # same attribute for both Assign and AnnAssign
 
     assert isinstance(val_node, ast.Constant), "IMAGE_PATH_TEMPLATE value must be a string literal"
     assert val_node.value == "{path}", (
-        f"IMAGE_PATH_TEMPLATE must remain '{{path}}' (bare, obs #762), got: {val_node.value!r}"
+        f"IMAGE_PATH_TEMPLATE must remain '{{path}}' (bare, obs #762), "
+        f"got: {val_node.value!r}"
     )
 
 
 def test_security_template_constant_not_overridden_in_ui() -> None:
-    """routes/ui.py must not contain a bare '{path}' or '@{path}' literal outside IMAGE_PATH_TEMPLATE usage."""
+    """routes/ui.py must not contain a bare path format literal outside IMAGE_PATH_TEMPLATE."""
+    import os
+    import re
+
     route_src = Path(
         sys.modules.get(
             "claude_remote.routes.ui",
@@ -219,20 +221,17 @@ def test_security_template_constant_not_overridden_in_ui() -> None:
         ).__file__  # type: ignore[attr-defined]
     )
     if not route_src.is_absolute():
-        import os
         route_src = Path(os.getcwd()) / route_src
 
     source = route_src.read_text()
 
-    # There must be no bare '{path}' string literal in routes/ui.py
-    # (it must come from IMAGE_PATH_TEMPLATE, never hardcoded)
-    # Strip out comments and check
-    lines = source.splitlines()
-    non_comment_lines = [l for l in lines if not l.lstrip().startswith("#")]
+    # Strip comment lines; check no bare '{path}' or '@{path}' string literals remain
+    non_comment_lines = [
+        line for line in source.splitlines()
+        if not line.lstrip().startswith("#")
+    ]
     non_comment_source = "\n".join(non_comment_lines)
 
-    # Check for hardcoded bare format strings that bypass IMAGE_PATH_TEMPLATE
-    import re
     bare_path_matches = re.findall(r'["\'](\{path\}|@\{path\})["\']', non_comment_source)
     assert len(bare_path_matches) == 0, (
         f"routes/ui.py contains hardcoded path format literal(s): {bare_path_matches} "

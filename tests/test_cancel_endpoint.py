@@ -5,7 +5,6 @@ All tests must FAIL until the cancel endpoint is implemented (B-4 GREEN).
 
 from __future__ import annotations
 
-import io
 import uuid
 from pathlib import Path
 
@@ -90,7 +89,9 @@ def instances_repo(cancel_settings, tmp_db):
 # ---------------------------------------------------------------------------
 
 
-async def _setup_running_instance(client, projects_repo, instances_repo, projects_root, domain, slug):
+async def _setup_running_instance(
+    client, projects_repo, instances_repo, projects_root, domain, slug
+):
     p_path = projects_root / domain / slug
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -190,7 +191,8 @@ async def test_cancel_traversal_ref_rejected(
 ) -> None:
     """ref '../../../../etc/passwd' → 404, no FS outside uploads touched."""
     project, instance = await _setup_running_instance(
-        cancel_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "cancel-traversal"
+        cancel_client, projects_repo, instances_repo, tmp_projects_root,
+        "acme.com", "cancel-traversal"
     )
     # URL-encode the traversal ref so FastAPI doesn't reject it as a path separator
     import urllib.parse
@@ -241,7 +243,8 @@ async def test_cancel_never_5xx(
 ) -> None:
     """Cancel must never return 5xx regardless of error condition."""
     project, instance = await _setup_running_instance(
-        cancel_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "cancel-never5xx"
+        cancel_client, projects_repo, instances_repo, tmp_projects_root,
+        "acme.com", "cancel-never5xx"
     )
 
     error_cases = [
