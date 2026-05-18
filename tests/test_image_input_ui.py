@@ -176,11 +176,16 @@ async def test_chip_name_is_x_text_not_innerhtml(
     projects_repo: ProjectsRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """Chip name uses x-text (not innerHTML) — injection guard per design §5."""
+    """Chip name uses x-text (not .innerHTML =) — injection guard per design §5.
+    Note: hx-swap='innerHTML' is a valid HTMX attribute and is not a JS injection risk."""
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip4")
-    # Must use x-text for chip name (autoescaped) never innerHTML
+    # Must use x-text for chip name (autoescaped)
     assert "x-text" in html, "Expected x-text for chip name (injection guard)"
-    assert "innerHTML" not in html, "innerHTML found — injection risk; use x-text for chip name"
+    # Must not set innerHTML via JS assignment (e.g. el.innerHTML = or .innerHTML=)
+    # hx-swap="innerHTML" is fine — it's an HTMX attribute, not a JS assignment
+    assert ".innerHTML" not in html, (
+        ".innerHTML assignment found — injection risk; use x-text for chip name"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +368,8 @@ def test_click_mp3_exists_in_static_dir() -> None:
     audio_file = PACKAGE_ROOT / "static" / "audio" / "click.mp3"
     assert audio_file.exists(), (
         f"click.mp3 not found at {audio_file} — "
-        "run: mkdir -p src/claude_remote/static/audio && git mv click.mp3 src/claude_remote/static/audio/"
+        "run: mkdir -p src/claude_remote/static/audio "
+        "&& git mv click.mp3 src/claude_remote/static/audio/"
     )
 
 

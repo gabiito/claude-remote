@@ -244,32 +244,52 @@ No active session. Launch a new one to see output.</pre>
   {% if primary_instance %}
   <form id="input-form"
         class="cr-input-dock"
-        hx-post="/ui/instances/{{ primary_instance.instance.id }}/input"
-        hx-swap="none"
         x-data="{
           text: '',
-          preview: null,
+          attachments: [],
           dragging: false,
-          async sendImage(fileObj) {
+          _instanceId: '{{ primary_instance.instance.id }}',
+          async attachFile(fileObj) {
             if (!fileObj || !fileObj.type.startsWith('image/')) return;
             const fd = new FormData();
             fd.append('file', fileObj);
-            fd.append('send_enter', 'true');
-            const r = await fetch('/ui/instances/{{ primary_instance.instance.id }}/upload-image',
+            const r = await fetch('/ui/instances/' + this._instanceId + '/upload-image',
                                   { method: 'POST', body: fd });
-            this.preview = null;
-            if (r.ok && window.htmx) { htmx.trigger(document.body, 'input-sent'); }
+            if (!r.ok) return;
+            const data = await r.json();
+            const ref = data.ref;
+            const name = data.name;
+            const dataUrl = await new Promise(resolve => {
+              const fr = new FileReader();
+              fr.onload = e => resolve(e.target.result);
+              fr.readAsDataURL(fileObj);
+            });
+            this.attachments.push({ ref, name, dataUrl });
+            try { new Audio('/static/audio/click.mp3').play(); } catch (_) {}
           },
-          showPreview(fileObj) {
-            const fr = new FileReader();
-            fr.onload = e => { this.preview = e.target.result; };
-            fr.readAsDataURL(fileObj);
+          async removeAttachment(ref) {
+            try {
+              await fetch('/ui/instances/' + this._instanceId + '/upload-image/' + ref,
+                          { method: 'DELETE' });
+            } catch (_) {}
+            this.attachments = this.attachments.filter(a => a.ref !== ref);
+          },
+          async sendMessage(e) {
+            const fd = new FormData(e.target);
+            for (const att of this.attachments) { fd.append('refs', att.ref); }
+            const r = await fetch('/ui/instances/' + this._instanceId + '/input',
+                                  { method: 'POST', body: fd });
+            if (r.ok) {
+              this.text = '';
+              this.attachments = [];
+              if (window.htmx) { htmx.trigger(document.body, 'input-sent'); }
+            }
           }
         }"
-        @htmx:after-request="if ($event.detail.successful) { text = ''; }"
+        @submit.prevent="sendMessage($event)"
         @dragover.prevent="dragging = true"
         @dragleave="dragging = false"
-        @drop.prevent="dragging = false; const f = $event.dataTransfer.files[0]; if (f) { showPreview(f); sendImage(f); }"
+        @drop.prevent="dragging = false; const f = $event.dataTransfer.files[0]; if (f) attachFile(f)"
         :class="{ 'cr-drag-over': dragging }">
     {# Hidden file picker — triggered by paperclip button below #}
     <input type="file"
@@ -277,22 +297,27 @@ No active session. Launch a new one to see output.</pre>
            capture="environment"
            x-ref="imgInput"
            style="display:none"
-           @change="const f = $event.target.files[0]; if (f) { showPreview(f); sendImage(f); } $event.target.value = ''">
+           @change="const f = $event.target.files[0]; if (f) attachFile(f); $event.target.value = ''">
     <div class="cr-input-wrap">
-      {# Image preview thumbnail — cleared on send/error #}
-      <template x-if="preview">
-        <div class="cr-img-preview-wrap">
-          <img :src="preview" class="cr-img-preview" alt="">
-          <button type="button" class="cr-img-remove" @click="preview = null" aria-label="Remove image">&times;</button>
-        </div>
-      </template>
+      {# Multi-chip attachment strip — one chip per staged image #}
+      <div class="cr-attachment-chips" x-show="attachments.length">
+        <template x-for="(att, idx) in attachments" :key="att.ref">
+          <div class="cr-chip__item">
+            <img :src="att.dataUrl" class="cr-chip__thumb" alt="">
+            <span class="cr-chip__name" x-text="att.name"></span>
+            <button type="button" class="cr-chip__remove"
+                    @click="removeAttachment(att.ref)"
+                    aria-label="Remove attachment">&times;</button>
+          </div>
+        </template>
+      </div>
       <textarea name="text"
                 x-model="text"
                 rows="1"
                 placeholder="Type a message…"
                 @keydown.ctrl.enter.prevent="$el.form.requestSubmit()"
                 @input="$el.style.height='auto'; $el.style.height=Math.min(120,$el.scrollHeight)+'px'"
-                @paste="for (const it of ($event.clipboardData?.items || [])) { if (it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) { $event.preventDefault(); showPreview(f); sendImage(f); } } }"></textarea>
+                @paste="for (const it of ($event.clipboardData?.items || [])) { if (it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) { $event.preventDefault(); attachFile(f); } } }"></textarea>
       <span class="cr-input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send</span>
     </div>
     <input type="hidden" name="send_enter" value="true">
@@ -305,7 +330,7 @@ No active session. Launch a new one to see output.</pre>
     <button type="submit" class="cr-send" aria-label="Send"
             x-data="{ flash: false }"
             :class="{ 'cr-send-flash': flash }"
-            x-on:htmx:before-request="flash = true; setTimeout(() => flash = false, 280)">{{ send_icon(cls='cr-icon') }}</button>
+            @click="flash = true; setTimeout(() => flash = false, 280)">{{ send_icon(cls='cr-icon') }}</button>
   </form>
   {% else %}
   <div id="input-form" class="cr-input-dock cr-disabled">
