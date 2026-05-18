@@ -236,25 +236,56 @@ No active session. Launch a new one to see output.</pre>
           _instanceId: '{{ primary_instance.instance.id }}',
           async attachFile(fileObj) {
             if (!fileObj) return;
-            const fd = new FormData();
-            fd.append('file', fileObj);
-            const r = await fetch('/ui/instances/' + this._instanceId + '/upload-image',
-                                  { method: 'POST', body: fd });
-            if (!r.ok) return;
-            const data = await r.json();
-            const ref = data.ref;
-            const name = data.name;
-            const fileClass = data.class;
-            let dataUrl = null;
-            if (fileClass === 'image') {
-              dataUrl = await new Promise(resolve => {
-                const fr = new FileReader();
-                fr.onload = e => resolve(e.target.result);
-                fr.readAsDataURL(fileObj);
-              });
+            try {
+              const fd = new FormData();
+              fd.append('file', fileObj);
+              const r = await fetch('/ui/instances/' + this._instanceId + '/upload-image',
+                                    { method: 'POST', body: fd });
+              if (!r.ok) return;
+              const data = await r.json();
+              // Push chip immediately — chip MUST appear before any thumbnail work.
+              this.attachments.push({ ref: data.ref, name: data.name, fileClass: data.class, dataUrl: null });
+              try { new Audio('/static/audio/click.mp3').play(); } catch (_) {}
+              // Progressive thumbnail: non-blocking, best-effort, never delays chip.
+              if (data.class === 'image') {
+                this.makeThumb(fileObj).then(url => {
+                  if (!url) return;
+                  const a = this.attachments.find(x => x.ref === data.ref);
+                  if (a) a.dataUrl = url;
+                });
+              }
+            } catch (_) {}
+          },
+          async makeThumb(fileObj) {
+            if (typeof createImageBitmap === 'undefined') return null;
+            try {
+              const MAX = 128;
+              let bmp;
+              try {
+                const ratio = Math.min(MAX / fileObj.size, 1);
+                const longSide = MAX;
+                bmp = await Promise.race([
+                  createImageBitmap(fileObj, { resizeWidth: longSide, resizeQuality: 'low' }),
+                  new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))
+                ]);
+              } catch (_) {
+                bmp = await Promise.race([
+                  createImageBitmap(fileObj),
+                  new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))
+                ]);
+              }
+              const scale = Math.min(MAX / bmp.width, MAX / bmp.height, 1);
+              const w = Math.round(bmp.width * scale);
+              const h = Math.round(bmp.height * scale);
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+              bmp.close?.();
+              return canvas.toDataURL('image/jpeg', 0.6);
+            } catch (_) {
+              return null;
             }
-            this.attachments.push({ ref, name, dataUrl, fileClass });
-            try { new Audio('/static/audio/click.mp3').play(); } catch (_) {}
           },
           handlePaste(ev) {
             for (const it of (ev.clipboardData?.items || [])) {
@@ -292,8 +323,8 @@ No active session. Launch a new one to see output.</pre>
     <div class="cr-attachment-chips" x-show="attachments.length">
       <template x-for="(att, idx) in attachments" :key="att.ref">
         <div class="cr-chip__item">
-          <img x-show="att.fileClass === 'image'" :src="att.dataUrl" class="cr-chip__thumb" alt="">
-          <span x-show="att.fileClass !== 'image'" class="cr-chip__icon" aria-hidden="true">📎</span>
+          <img x-show="att.fileClass === 'image' && att.dataUrl" :src="att.dataUrl" class="cr-chip__thumb" alt="">
+          <span x-show="att.fileClass !== 'image' || !att.dataUrl" class="cr-chip__icon" aria-hidden="true">📎</span>
           <span class="cr-chip__name" x-text="att.name"></span>
           <button type="button" class="cr-chip__remove"
                   @click="removeAttachment(att.ref)"
