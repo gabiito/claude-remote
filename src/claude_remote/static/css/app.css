@@ -938,6 +938,53 @@ body {
   font-size: 16px;
 }
 .cr-send:disabled { background: var(--bg-3); color: var(--fg-3); cursor: not-allowed; }
+/* image-input: attach button (same sizing / shape as .cr-send) */
+.cr-attach {
+  flex: 0 0 auto;
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  color: var(--fg-1);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.cr-attach:hover { background: var(--bg-3); border-color: var(--accent-dim); color: var(--accent); }
+/* image-input: drag-over outline on the dock */
+.cr-drag-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+/* image-input: thumbnail preview above textarea */
+.cr-img-preview-wrap {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+.cr-img-preview {
+  display: block;
+  max-height: 80px;
+  max-width: 120px;
+  border-radius: 6px;
+  border: 1px solid var(--line-1);
+  object-fit: cover;
+}
+.cr-img-remove {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 18px; height: 18px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  border: 1px solid var(--line-1);
+  color: var(--fg-2);
+  font-size: 12px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.cr-img-remove:hover { background: var(--st-needs); color: var(--accent-fg); }
 .cr-input-hint {
   position: absolute;
   right: 8px;
