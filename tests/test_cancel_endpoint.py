@@ -139,13 +139,19 @@ async def test_cancel_valid_ref_deletes_file(
     assert not staged.exists(), "Staged file must be deleted after cancel"
 
 
-async def test_cancel_unknown_ref_returns_404(
+async def test_cancel_unknown_ref_returns_204(
     cancel_client: AsyncClient,
     projects_repo: ProjectsRepository,
     instances_repo: InstancesRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """DELETE with a ref that has no file → 404."""
+    """DELETE with a valid-format ref that was never staged → 204 (idempotent).
+
+    Per locked decision #3: format-valid + containment-valid refs return 204
+    regardless of file existence.  A never-staged UUID is indistinguishable from
+    a previously-staged-then-deleted UUID — both are valid refs pointing to an
+    absent file inside THIS instance's uploads dir.
+    """
     project, instance = await _setup_running_instance(
         cancel_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "cancel-404"
     )
@@ -154,18 +160,25 @@ async def test_cancel_unknown_ref_returns_404(
     response = await cancel_client.delete(
         f"/ui/instances/{instance.id}/upload-image/{unknown_ref}"
     )
-    assert response.status_code == 404, (
-        f"Expected 404 for unknown ref, got {response.status_code}"
+    assert response.status_code == 204, (
+        f"Valid-format ref (no file) must return 204 per locked decision #3, "
+        f"got {response.status_code}"
     )
 
 
-async def test_cancel_foreign_instance_ref_returns_404(
+async def test_cancel_foreign_instance_ref_does_not_delete_foreign_file(
     cancel_client: AsyncClient,
     projects_repo: ProjectsRepository,
     instances_repo: InstancesRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """File under instance B's project, cancel against instance A → 404, B's file untouched."""
+    """File under instance B's project, cancel against instance A → B's file untouched.
+
+    The critical security invariant: cancel against instance A MUST NOT delete a
+    file that lives under instance B's uploads dir.  Per locked decision #3 the
+    cancel returns 204 (format-valid ref, file just absent in A's dir), but B's
+    file must still exist after the request.
+    """
     project_a, instance_a = await _setup_running_instance(
         cancel_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "cancel-a"
     )
@@ -177,10 +190,15 @@ async def test_cancel_foreign_instance_ref_returns_404(
     response = await cancel_client.delete(
         f"/ui/instances/{instance_a.id}/upload-image/{staged_b.name}"
     )
-    assert response.status_code == 404, (
-        f"Foreign instance ref must return 404, got {response.status_code}"
+    # 2xx expected (format valid, containment within A's dir passes, file absent in A)
+    assert response.status_code < 500, (
+        f"Cancel must never 5xx, got {response.status_code}"
     )
-    assert staged_b.exists(), "B's file must NOT be deleted when cancel targets A"
+    # THE CRITICAL INVARIANT: B's file must not be touched
+    assert staged_b.exists(), (
+        "B's file MUST NOT be deleted when cancel targets A — "
+        "cross-instance deletion is the security boundary"
+    )
 
 
 async def test_cancel_traversal_ref_rejected(

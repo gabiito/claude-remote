@@ -139,6 +139,37 @@ def unlink_best_effort(path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def resolve_staged_ref_path(project_path: str, ref: str) -> Path | None:
+    """Validate ref format + containment and return the target Path WITHOUT checking existence.
+
+    This is the security-only half of ref resolution.  It rejects malformed refs,
+    path traversal, symlink escape, absolute paths, and foreign-instance refs by
+    comparing the resolved candidate against the instance's uploads dir — but it
+    does NOT require the file to exist on disk.
+
+    Use this function when existence is irrelevant to correctness (e.g. the cancel
+    endpoint: a valid ref whose file is already gone should still return 204, not 404).
+
+    Args:
+        project_path: absolute path of the project root (``Project.path``).
+        ref: opaque attachment ref, expected to be a UUID basename (e.g. ``abc.png``).
+
+    Returns:
+        Containment-validated absolute ``Path`` (may or may not exist) if the ref
+        passes all format and containment checks; ``None`` if any security check fails.
+    """
+    if not ref or "/" in ref or "\\" in ref or ref in (".", ".."):
+        return None  # cheap reject of obvious traversal shapes
+    uploads = Path(project_path).joinpath(*UPLOAD_SUBDIR).resolve()
+    # resolve() the *parent* (uploads dir, which must exist on stage) then
+    # join the basename — avoids resolving a non-existent file through symlinks
+    # while still catching any escapes baked into the ref basename itself.
+    candidate = (uploads / ref).resolve()  # collapses .. and follows symlinks
+    if not candidate.is_relative_to(uploads):  # containment by RESOLUTION (py3.9+)
+        return None
+    return candidate
+
+
 def resolve_staged_ref(project_path: str, ref: str) -> Path | None:
     """Resolve an opaque attachment ref to an absolute Path inside the uploads dir.
 
@@ -150,6 +181,10 @@ def resolve_staged_ref(project_path: str, ref: str) -> Path | None:
     ``<project_path>/.claude/uploads/`` after ``Path.resolve()`` (which collapses
     ``..`` and follows symlinks). Any attempt to escape via traversal, symlink, absolute
     path, or foreign-instance ref returns ``None`` — never raises.
+
+    For the cancel endpoint where idempotency matters more than existence,
+    use ``resolve_staged_ref_path`` instead — it performs the same security checks
+    but does NOT require the file to exist.
 
     Args:
         project_path: absolute path of the project root (``Project.path``).

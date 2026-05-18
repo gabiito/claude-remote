@@ -50,6 +50,7 @@ from claude_remote.services.image_upload import (
     UPLOAD_TTL_SECONDS,
     ImageValidationError,
     resolve_staged_ref,
+    resolve_staged_ref_path,
     sniff_extension,
     unlink_best_effort,
     write_image,
@@ -807,13 +808,19 @@ async def delete_instance_upload_image(
 ) -> Response:
     """Cancel a staged attachment by deleting the file.
 
-    Containment-checked via resolve_staged_ref — never touches anything outside
-    the instance's project uploads dir. Idempotent: returns 204 even if the file
-    is already gone (best-effort). Never 5xx.
+    Separates two concerns deliberately:
+      (a) Ref format + containment validation (security) — uses resolve_staged_ref_path,
+          which rejects traversal, symlink-escape, absolute paths, and foreign-instance
+          refs WITHOUT requiring the file to exist.  Rejection → 4xx.
+      (b) File existence (idempotency) — a valid ref whose file is already gone still
+          returns 204 after a best-effort unlink (locked decision #3).
+
+    This distinction makes the cancel endpoint idempotent: a mobile double-tap or a
+    retry after a chip-cancel no longer produces a spurious 404.
 
     Returns:
-        204 on successful deletion or file already gone.
-        404 if instance/project not found or ref does not resolve inside uploads dir.
+        204 on successful deletion or file already gone (idempotent).
+        404 if instance/project not found or ref fails containment/format check.
     """
     # Instance lookup
     instance = instances_repo.get(instance_id)
@@ -825,12 +832,14 @@ async def delete_instance_upload_image(
     if project is None:
         return _error_fragment(request, "Project not found.", status_code=404)
 
-    # Containment-checked resolution — rejects traversal, symlinks, foreign refs
-    path = resolve_staged_ref(project.path, ref)
+    # (a) Security: containment-only resolution — rejects traversal, symlinks, foreign refs.
+    # Does NOT require file to exist (existence is irrelevant to the security check).
+    path = resolve_staged_ref_path(project.path, ref)
     if path is None:
         return _error_fragment(request, "Attachment ref not found.", status_code=404)
 
-    # Best-effort delete (idempotent — swallows FileNotFoundError)
+    # (b) Idempotency: best-effort delete swallows FileNotFoundError.
+    # Whether the file existed or not, return 204 (locked decision #3).
     unlink_best_effort(path)
 
     return Response(status_code=204)
