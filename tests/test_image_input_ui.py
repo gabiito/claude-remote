@@ -273,6 +273,24 @@ async def test_file_input_accept_image_present(
     assert 'accept="image/*"' in html, 'Expected accept="image/*" on file input'
 
 
+async def test_file_input_does_not_force_camera(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """File input must NOT carry capture=environment.
+
+    On mobile, capture="environment" is a directive (not a hint): the
+    browser jumps straight to the rear camera and never offers the
+    gallery/files chooser — breaking the picker, which is our documented
+    reliable path. Absence of capture lets mobile show the full chooser.
+    """
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "nocap")
+    assert "capture=" not in html, (
+        'File input must not use capture= (forces camera-only on mobile)'
+    )
+
+
 async def test_drag_drop_wiring_present(
     ui_client: AsyncClient,
     projects_repo: ProjectsRepository,
