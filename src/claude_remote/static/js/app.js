@@ -20,7 +20,9 @@ window.crEstimateTermSize = function () {
   } catch (_) { /* fallback cw */ }
   // ~40px: deep-view rail + terminal side padding. ~210px: header + tabs +
   // chips + input dock chrome. lineHeight 11.5*1.55 ≈ 18.
-  const cols = Math.max(20, Math.floor((window.innerWidth - 40) / cw));
+  // -1 right-edge safety margin: same off-by-one rationale as _measure()
+  // in project_view.html; keeps launch sizing consistent with resize.
+  const cols = Math.max(20, Math.floor((window.innerWidth - 40) / cw) - 1);
   const rows = Math.max(5, Math.floor((window.innerHeight - 210) / 18));
   return { cols, rows };
 };

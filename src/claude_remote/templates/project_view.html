@@ -130,7 +130,11 @@
            const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
            const lh = parseFloat(cs.lineHeight) || 18;
            return {
-             cols: Math.max(20, Math.floor((pre.clientWidth - padX) / cw)),
+             // -1: terminals have a universal right-edge off-by-one (auto-
+             // margin) and cw is a sub-pixel average, so floor(w/cw) can
+             // render ~1 col past the visible grid → Claude's TUI box border
+             // draws ragged/off-screen. Margin is browser/scrollbar-agnostic.
+             cols: Math.max(20, Math.floor((pre.clientWidth - padX) / cw) - 1),
              rows: Math.max(5, Math.floor((pre.clientHeight - padY) / lh)),
            };
          },
