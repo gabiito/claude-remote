@@ -185,7 +185,8 @@ def create_app() -> FastAPI:
     _CSP = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-eval' https://unpkg.com; "
-        "style-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data:; "
         "connect-src 'self'; "
         "base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
