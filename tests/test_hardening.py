@@ -51,6 +51,15 @@ async def test_security_headers_present(settings) -> None:
     assert r.headers.get("X-Content-Type-Options") == "nosniff"
     assert "Referrer-Policy" in r.headers
     assert "Content-Security-Policy" in r.headers
+    # Google Fonts must not be CSP-blocked: the stylesheet origin in
+    # style-src and the font-file origin via an explicit font-src.
+    csp = r.headers["Content-Security-Policy"]
+    assert "https://fonts.googleapis.com" in csp, (
+        "style-src must allow the Google Fonts stylesheet origin"
+    )
+    assert "font-src" in csp and "https://fonts.gstatic.com" in csp, (
+        "font-src must allow the Google Fonts file origin (fonts.gstatic.com)"
+    )
 
 
 async def test_cross_origin_post_blocked(settings) -> None:
