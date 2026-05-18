@@ -608,24 +608,35 @@ async def post_instance_input(
     instance_id: str,
     text: str | None = Form(default=None),
     send_enter: bool = Form(default=True),
+    refs: list[str] = Form(default=[]),  # noqa: B006
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
     adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
 ) -> HTMLResponse:
-    """Deliver text to the active tmux pane via send_keys.
+    """Deliver text (and optional staged image refs) to the active tmux pane via send_keys.
 
     Form fields:
-      text: str        — keystroke text (REQUIRED, non-empty after strip)
-      send_enter: bool — append Enter after text (default True)
+      text: str            — keystroke text (may be empty when refs are present)
+      send_enter: bool     — append Enter after text (default True)
+      refs: list[str]      — opaque attachment refs returned by the stage endpoint;
+                             each is containment-checked and resolved to an absolute path.
+
+    Combined payload (locked decision #2):
+      - Paths first (one per line), user text last.
+      - ``\\n.join(paths + [stripped])`` when text is present.
+      - ``\\n.join(paths)`` when text is empty but refs are present.
+      - Plain ``stripped`` when no refs (byte-identical to pre-amendment — regression safe).
 
     Returns:
         200 + empty body + ``HX-Trigger: input-sent`` on success.
-        400 + error fragment when text is empty/whitespace-only.
+        400 + error fragment when text is empty/whitespace-only AND no refs.
         404 + error fragment when instance not found.
         409 + error fragment on adapter error (never 5xx — spec: Never 5xx).
     """
-    # Validate text
     stripped = (text or "").strip()
-    if not stripped:
+
+    # Guard: 400 only when BOTH text and refs are absent (locked decision #4)
+    if not stripped and not refs:
         return _error_fragment(request, "El texto no puede estar vacío.", status_code=400)
 
     # Validate instance exists
@@ -637,10 +648,28 @@ async def post_instance_input(
             status_code=404,
         )
 
-    # Send to tmux
+    # Resolve refs to paths — silently drop unresolvable (never inject untrusted path)
+    resolved: list[Path] = []
+    if refs:
+        project = projects_repo.get(instance.project_id)
+        if project is not None:
+            resolved = [
+                p
+                for ref in refs
+                if (p := resolve_staged_ref(project.path, ref)) is not None
+            ]
+
+    # Build combined payload (locked decision #2)
+    # IMAGE_PATH_TEMPLATE is the sole path-formatting point (REQ-9 Scenario 9.7)
+    parts = [IMAGE_PATH_TEMPLATE.format(path=str(p)) for p in resolved]
+    if stripped:
+        parts.append(stripped)
+    payload = "\n".join(parts)
+
+    # Single send_keys call
     try:
         await asyncio.to_thread(
-            adapter.send_keys, instance.tmux_session_name, stripped, send_enter=send_enter
+            adapter.send_keys, instance.tmux_session_name, payload, send_enter=send_enter
         )
     except TmuxOperationError as exc:
         return _error_fragment(
@@ -648,6 +677,12 @@ async def post_instance_input(
             f"Error de tmux: {exc}",
             status_code=409,
         )
+
+    # Deferred per-file cleanup: 60s after send (not at stage time)
+    if resolved:
+        loop = asyncio.get_running_loop()
+        for p in resolved:
+            loop.call_later(UPLOAD_TTL_SECONDS, unlink_best_effort, p)
 
     return HTMLResponse(
         content="",
