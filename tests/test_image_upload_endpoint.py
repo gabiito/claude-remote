@@ -588,3 +588,152 @@ async def test_lifespan_sweep_via_app_startup(
 
     assert removed == 1
     assert not stale_file.exists(), "Lifespan sweep data wiring: stale upload should be removed"
+
+
+# ---------------------------------------------------------------------------
+# W2 — at-limit boundary: exactly MAX_IMAGE_BYTES is accepted
+# ---------------------------------------------------------------------------
+
+
+async def test_upload_at_limit_is_accepted(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """A valid PNG padded to exactly MAX_IMAGE_BYTES must be accepted (> is strict)."""
+    from claude_remote.services.image_upload import MAX_IMAGE_BYTES
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "atlimit"
+    )
+    # Real PNG magic bytes padded to exactly MAX_IMAGE_BYTES
+    at_limit_data = PNG_MAGIC + b"\x00" * (MAX_IMAGE_BYTES - len(PNG_MAGIC))
+    assert len(at_limit_data) == MAX_IMAGE_BYTES
+
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("at_limit.png", io.BytesIO(at_limit_data), "image/png")},
+    )
+    assert response.status_code == 200, (
+        f"File exactly at MAX_IMAGE_BYTES must be accepted; got {response.status_code}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# S1 — send_enter=True forwarded: assert sent_keys[0][2] is True
+# ---------------------------------------------------------------------------
+
+
+async def test_upload_send_enter_forwarded(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Happy path: send_enter=True must be forwarded as the third tuple element."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "enterproj"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+        data={"send_enter": "true"},
+    )
+    assert response.status_code == 200
+    assert len(fake_adapter.sent_keys) == 1
+    # sent_keys entries are (session_name, text, send_enter)
+    assert fake_adapter.sent_keys[0][2] is True, (
+        "send_enter must be forwarded as True to adapter.send_keys"
+    )
+
+
+# ---------------------------------------------------------------------------
+# S2 — path-traversal runtime test: client filename ../../etc/passwd.png
+# ---------------------------------------------------------------------------
+
+
+async def test_path_traversal_filename_ignored(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Client filename '../../etc/passwd.png' must be discarded; saved file is UUID-named."""
+    import re
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "traversal"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={
+            "file": (
+                "../../etc/passwd.png",
+                io.BytesIO(PNG_MAGIC),
+                "image/png",
+            )
+        },
+    )
+    assert response.status_code == 200
+
+    # Exactly one file written under <project.path>/.claude/uploads/
+    upload_dir = Path(project.path) / ".claude" / "uploads"
+    files = list(upload_dir.iterdir())
+    assert len(files) == 1, "Exactly one file must be written"
+
+    saved_name = files[0].name
+    # Must be UUID hex + extension — not derived from client path
+    assert re.match(r"^[0-9a-f]{32}\.png$", saved_name), (
+        f"Saved filename '{saved_name}' must be UUID hex, not derived from client filename"
+    )
+
+    # Nothing written outside the upload dir
+    etc_passwd = Path("/etc/passwd")
+    assert not etc_passwd.exists() or etc_passwd.stat().st_size > 0, (
+        "/etc/passwd must not have been overwritten"
+    )
+    assert files[0].parent == upload_dir, (
+        "Saved file must live under <project.path>/.claude/uploads/"
+    )
+
+
+# ---------------------------------------------------------------------------
+# S3 — orphaned-instance branch: project is None → 404 fragment, never 5xx
+# ---------------------------------------------------------------------------
+
+
+async def test_orphaned_instance_returns_404_fragment(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    tmp_db,
+) -> None:
+    """Instance exists but its project row is gone → 404 HTML fragment, never 5xx."""
+    import sqlite3
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "orphan"
+    )
+
+    # Delete the project row directly in SQLite — bypasses ORM constraints
+    conn = sqlite3.connect(str(tmp_db))
+    try:
+        conn.execute("DELETE FROM projects WHERE id = ?", (project.id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+    )
+
+    assert response.status_code == 404, (
+        f"Orphaned instance (project deleted) must return 404, got {response.status_code}"
+    )
+    assert response.status_code < 500, "Must never be 5xx"
+    content_type = response.headers.get("content-type", "")
+    assert "html" in content_type, "Response must be an HTML fragment"
