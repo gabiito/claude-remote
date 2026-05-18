@@ -240,7 +240,7 @@ async def test_stage_no_call_later_scheduled(
 
 
 # ---------------------------------------------------------------------------
-# 2.1 Happy path — PNG
+# 2.1 Happy path — PNG (v2: file staged, ref returned, NO send_keys)
 # ---------------------------------------------------------------------------
 
 
@@ -251,7 +251,9 @@ async def test_upload_png_happy_path(
     tmp_projects_root: Path,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Valid PNG → 200, HX-Trigger: input-sent, file on disk, send_keys called."""
+    """Valid PNG → 200, JSON ref returned, file on disk, NO send_keys (v2 stage-only)."""
+    import re
+
     project, instance = await _setup_running_instance(
         img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "imgproj"
     )
@@ -259,22 +261,21 @@ async def test_upload_png_happy_path(
     response = await img_client.post(
         f"/ui/instances/{instance.id}/upload-image",
         files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
-        data={"send_enter": "true"},
     )
     assert response.status_code == 200
-    assert "input-sent" in response.headers.get("HX-Trigger", "")
+
+    body = response.json()
+    assert "ref" in body
+    assert re.match(r"^[0-9a-f]{32}\.png$", body["ref"])
 
     # File written under project.path/.claude/uploads/
     upload_dir = Path(project.path) / ".claude" / "uploads"
     files = list(upload_dir.iterdir())
     assert len(files) == 1
-    assert files[0].name.endswith(".png")
-    import re
-    assert re.match(r"^[0-9a-f]{32}\.png$", files[0].name)
+    assert files[0].name == body["ref"]
 
-    # send_keys called with the absolute path
-    assert len(fake_adapter.sent_keys) == 1
-    assert fake_adapter.sent_keys[0][1] == str(files[0])
+    # v2 invariant: stage must NOT call send_keys
+    assert fake_adapter.sent_keys == []
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +298,10 @@ async def test_upload_jpeg_accepted(
         files={"file": ("photo.jpg", io.BytesIO(JPEG_MAGIC), "image/jpeg")},
     )
     assert response.status_code == 200
-    assert "input-sent" in response.headers.get("HX-Trigger", "")
+    # v2: no HX-Trigger; check JSON ref is returned
+    body = response.json()
+    assert "ref" in body
+    assert fake_adapter.sent_keys == []
 
 
 async def test_upload_webp_accepted(
@@ -434,93 +438,6 @@ async def test_non_running_instance_returns_409(
     assert response.status_code == 409
 
 
-async def test_tmux_error_returns_409_file_unlinked(
-    img_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    instances_repo: InstancesRepository,
-    tmp_projects_root: Path,
-    fake_adapter: FakeTmuxAdapter,
-) -> None:
-    """TmuxOperationError on send_keys → 409, file cleaned up, never 5xx."""
-    project, instance = await _setup_running_instance(
-        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "tmuxerr"
-    )
-    # Kill session so send_keys raises TmuxOperationError
-    fake_adapter._sessions.pop(instance.tmux_session_name, None)
-
-    response = await img_client.post(
-        f"/ui/instances/{instance.id}/upload-image",
-        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
-    )
-    assert response.status_code < 500
-    assert response.status_code == 409
-    # File must have been cleaned up
-    upload_dir = Path(project.path) / ".claude" / "uploads"
-    if upload_dir.exists():
-        assert len(list(upload_dir.iterdir())) == 0
-
-
-# ---------------------------------------------------------------------------
-# 2.4 Deferred TTL delete (call_later captured and invokable — no sleep)
-# ---------------------------------------------------------------------------
-
-
-async def test_deferred_ttl_delete_captured_and_invokable(
-    img_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    instances_repo: InstancesRepository,
-    tmp_projects_root: Path,
-    fake_adapter: FakeTmuxAdapter,
-    monkeypatch,
-) -> None:
-    """call_later is captured; invoking the callback deletes the file.
-
-    Patches only call_later on the real running event loop — keeping all other
-    loop methods intact so anyio internals continue to work correctly.
-    """
-    import asyncio as _asyncio
-
-    from claude_remote.services.image_upload import UPLOAD_TTL_SECONDS
-
-    captured: list[tuple] = []
-
-    # First set up the project/instance (uses the real loop unpatched)
-    project, instance = await _setup_running_instance(
-        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "ttlproj"
-    )
-
-    # Patch call_later on the REAL loop object — only intercepts our specific call
-    real_loop = _asyncio.get_event_loop()
-
-    def _capturing_call_later(delay, fn, *args, **kwargs):
-        captured.append((delay, fn, args))
-        # Do NOT forward to real timer — deterministic, no-sleep test
-
-    monkeypatch.setattr(real_loop, "call_later", _capturing_call_later)
-
-    response = await img_client.post(
-        f"/ui/instances/{instance.id}/upload-image",
-        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
-        data={"send_enter": "true"},
-    )
-    assert response.status_code == 200
-
-    # call_later must have been invoked exactly once
-    assert len(captured) == 1
-    delay, fn, args = captured[0]
-    assert delay == UPLOAD_TTL_SECONDS
-
-    # The file must exist now
-    upload_dir = Path(project.path) / ".claude" / "uploads"
-    files = list(upload_dir.iterdir())
-    assert len(files) == 1
-    assert files[0].exists()
-
-    # Invoke callback directly — no sleep
-    fn(*args)
-
-    # File must be gone
-    assert not files[0].exists()
 
 
 # ---------------------------------------------------------------------------
@@ -598,8 +515,12 @@ def test_image_path_template_single_definition() -> None:
     )
 
 
-def test_image_path_template_used_in_upload_handler() -> None:
-    """The upload handler uses IMAGE_PATH_TEMPLATE — no bare format string."""
+def test_image_path_template_used_in_input_handler() -> None:
+    """IMAGE_PATH_TEMPLATE must be used in routes/ui.py (in the combine-on-send /input path).
+
+    In v2: the upload handler is a pure stage — it does NOT format paths.
+    IMAGE_PATH_TEMPLATE is used in post_instance_input when combining paths+text.
+    """
     import sys
     from pathlib import Path as _Path
 
@@ -615,9 +536,9 @@ def test_image_path_template_used_in_upload_handler() -> None:
         route_src = _Path(os.getcwd()) / route_src
 
     source = route_src.read_text()
-    # Handler must reference IMAGE_PATH_TEMPLATE (imported and used)
+    # routes/ui.py must import and use IMAGE_PATH_TEMPLATE (in /input combine path)
     assert "IMAGE_PATH_TEMPLATE" in source, (
-        "routes/ui.py must use IMAGE_PATH_TEMPLATE to build the injected path string"
+        "routes/ui.py must use IMAGE_PATH_TEMPLATE to build the combined path+text payload"
     )
 
 
@@ -735,35 +656,6 @@ async def test_upload_at_limit_is_accepted(
     )
     assert response.status_code == 200, (
         f"File exactly at MAX_IMAGE_BYTES must be accepted; got {response.status_code}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# S1 — send_enter=True forwarded: assert sent_keys[0][2] is True
-# ---------------------------------------------------------------------------
-
-
-async def test_upload_send_enter_forwarded(
-    img_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    instances_repo: InstancesRepository,
-    tmp_projects_root: Path,
-    fake_adapter: FakeTmuxAdapter,
-) -> None:
-    """Happy path: send_enter=True must be forwarded as the third tuple element."""
-    project, instance = await _setup_running_instance(
-        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "enterproj"
-    )
-    response = await img_client.post(
-        f"/ui/instances/{instance.id}/upload-image",
-        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
-        data={"send_enter": "true"},
-    )
-    assert response.status_code == 200
-    assert len(fake_adapter.sent_keys) == 1
-    # sent_keys entries are (session_name, text, send_enter)
-    assert fake_adapter.sent_keys[0][2] is True, (
-        "send_enter must be forwarded as True to adapter.send_keys"
     )
 
 
