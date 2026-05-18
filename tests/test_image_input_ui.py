@@ -284,17 +284,27 @@ async def test_no_image_type_guard_in_attach_file(
     projects_repo: ProjectsRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """attachFile must NOT contain a fileObj.type.startsWith('image/') guard (REQ-14).
+    """attachFile function body must NOT contain a fileObj.type.startsWith('image/') guard (REQ-14).
 
-    The guard was removed so any file type is accepted by the frontend.
+    The early-return type guard was removed so any file type reaches the stage endpoint.
     Classification is server-authoritative (based on magic bytes, not Content-Type).
+    NOTE: the paste handler legitimately keeps startsWith('image/') for clipboard items;
+    only the attachFile guard is removed.
     """
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach2b")
-    assert "startsWith('image/')" not in html, (
-        "attachFile contains startsWith('image/') guard — must be removed (S3, REQ-14)"
+    # Extract just the attachFile function body (between 'attachFile' and its closing comma)
+    start = html.find("async attachFile(fileObj)")
+    assert start != -1, "attachFile function not found in template"
+    # Find the end of the function by locating the next top-level async function definition
+    end = html.find("async removeAttachment(", start)
+    if end == -1:
+        end = start + 1000  # fallback: inspect first 1000 chars
+    attach_body = html[start:end]
+    assert "startsWith('image/')" not in attach_body, (
+        "attachFile contains startsWith('image/') type guard — must be removed (S3, REQ-14)"
     )
-    assert 'startsWith("image/")' not in html, (
-        'attachFile contains startsWith("image/") guard — must be removed (S3, REQ-14)'
+    assert 'startsWith("image/")' not in attach_body, (
+        'attachFile contains startsWith("image/") type guard — must be removed (S3, REQ-14)'
     )
 
 

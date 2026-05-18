@@ -235,7 +235,7 @@ No active session. Launch a new one to see output.</pre>
           dragging: false,
           _instanceId: '{{ primary_instance.instance.id }}',
           async attachFile(fileObj) {
-            if (!fileObj || !fileObj.type.startsWith('image/')) return;
+            if (!fileObj) return;
             const fd = new FormData();
             fd.append('file', fileObj);
             const r = await fetch('/ui/instances/' + this._instanceId + '/upload-image',
@@ -244,12 +244,16 @@ No active session. Launch a new one to see output.</pre>
             const data = await r.json();
             const ref = data.ref;
             const name = data.name;
-            const dataUrl = await new Promise(resolve => {
-              const fr = new FileReader();
-              fr.onload = e => resolve(e.target.result);
-              fr.readAsDataURL(fileObj);
-            });
-            this.attachments.push({ ref, name, dataUrl });
+            const fileClass = data.class;
+            let dataUrl = null;
+            if (fileClass === 'image') {
+              dataUrl = await new Promise(resolve => {
+                const fr = new FileReader();
+                fr.onload = e => resolve(e.target.result);
+                fr.readAsDataURL(fileObj);
+              });
+            }
+            this.attachments.push({ ref, name, dataUrl, fileClass });
             try { new Audio('/static/audio/click.mp3').play(); } catch (_) {}
           },
           async removeAttachment(ref) {
@@ -280,7 +284,8 @@ No active session. Launch a new one to see output.</pre>
     <div class="cr-attachment-chips" x-show="attachments.length">
       <template x-for="(att, idx) in attachments" :key="att.ref">
         <div class="cr-chip__item">
-          <img :src="att.dataUrl" class="cr-chip__thumb" alt="">
+          <img x-show="att.fileClass === 'image'" :src="att.dataUrl" class="cr-chip__thumb" alt="">
+          <span x-show="att.fileClass !== 'image'" class="cr-chip__icon" aria-hidden="true">📎</span>
           <span class="cr-chip__name" x-text="att.name"></span>
           <button type="button" class="cr-chip__remove"
                   @click="removeAttachment(att.ref)"
@@ -295,7 +300,6 @@ No active session. Launch a new one to see output.</pre>
        gallery/files chooser. Plain accept lets the user pick from
        library, files, or camera. #}
     <input type="file"
-           accept="image/*"
            x-ref="imgInput"
            style="display:none"
            @change="const f = $event.target.files[0]; if (f) attachFile(f); $event.target.value = ''">
