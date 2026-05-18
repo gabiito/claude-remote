@@ -151,6 +151,95 @@ async def test_stage_does_not_call_send_keys(
 
 
 # ---------------------------------------------------------------------------
+# R-2/R-3 RED — stage returns ref JSON, no HX-Trigger header, no call_later
+# ---------------------------------------------------------------------------
+
+
+async def test_stage_returns_ref_json(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Stage endpoint returns JSON with 'ref' and 'name' keys (v2 — not HX-Trigger)."""
+    import re
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "ref-json"
+    )
+
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+    )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert "ref" in body, f"Response JSON must have 'ref' key, got: {body}"
+    assert "name" in body, f"Response JSON must have 'name' key, got: {body}"
+    assert re.match(r"^[0-9a-f]{32}\.(png|jpg|webp|gif)$", body["ref"]), (
+        f"ref must match UUID pattern, got: {body['ref']!r}"
+    )
+
+
+async def test_stage_response_has_no_hx_trigger(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Stage endpoint must NOT return HX-Trigger header (nothing was sent)."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "no-hx-trig"
+    )
+
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+    )
+    assert response.status_code == 200
+    assert "HX-Trigger" not in response.headers, (
+        "Stage endpoint must NOT include HX-Trigger header — no send_keys was called"
+    )
+
+
+async def test_stage_no_call_later_scheduled(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    monkeypatch,
+) -> None:
+    """Stage endpoint must NOT schedule any loop.call_later (cleanup moved to post-send)."""
+    import asyncio as _asyncio
+
+    captured: list[tuple] = []
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "no-call-later"
+    )
+
+    real_loop = _asyncio.get_event_loop()
+
+    def _capture_call_later(delay, fn, *args, **kwargs):
+        captured.append((delay, fn, args))
+
+    monkeypatch.setattr(real_loop, "call_later", _capture_call_later)
+
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+    )
+    assert response.status_code == 200
+
+    assert len(captured) == 0, (
+        f"Stage endpoint scheduled {len(captured)} call_later(s) — "
+        "deferred cleanup must NOT be scheduled at upload time (v2: moves to post-send)"
+    )
+
+
+# ---------------------------------------------------------------------------
 # 2.1 Happy path — PNG
 # ---------------------------------------------------------------------------
 
