@@ -262,15 +262,40 @@ async def test_paperclip_button_present(
     assert "cr-attach" in html, "Expected .cr-attach button in project_view with running instance"
 
 
-async def test_file_input_accept_image_present(
+async def test_file_input_has_no_accept_filter(
     ui_client: AsyncClient,
     projects_repo: ProjectsRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """project_view.html has a hidden file input accepting images."""
+    """File input must NOT restrict to image/* — picker must show ALL file types (REQ-13).
+
+    ON-DEVICE-ONLY: Visual confirmation that the native file picker shows all
+    file types (PDF, text, images, etc.) without filtering.
+    """
     _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach2")
     assert 'type="file"' in html, "Expected hidden file input in project_view"
-    assert 'accept="image/*"' in html, 'Expected accept="image/*" on file input'
+    assert 'accept="image/*"' not in html, (
+        'File input must NOT have accept="image/*" — picker must show all file types (S3, REQ-13)'
+    )
+
+
+async def test_no_image_type_guard_in_attach_file(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """attachFile must NOT contain a fileObj.type.startsWith('image/') guard (REQ-14).
+
+    The guard was removed so any file type is accepted by the frontend.
+    Classification is server-authoritative (based on magic bytes, not Content-Type).
+    """
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "attach2b")
+    assert "startsWith('image/')" not in html, (
+        "attachFile contains startsWith('image/') guard — must be removed (S3, REQ-14)"
+    )
+    assert 'startsWith("image/")' not in html, (
+        'attachFile contains startsWith("image/") guard — must be removed (S3, REQ-14)'
+    )
 
 
 async def test_file_input_does_not_force_camera(
