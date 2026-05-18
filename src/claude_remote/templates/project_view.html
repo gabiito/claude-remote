@@ -193,11 +193,28 @@
     <div class="cr-tab-panel" x-show="tab === 'terminal'">
       {% if primary_instance %}
       <pre class="cr-terminal cr-scroll" id="output-content"
-           x-data="{ smartScroll: true, etag: null }"
+           x-data="{
+             smartScroll: true,
+             etag: null,
+             armed: false,
+             baseEtag: null,
+             onPoll(xhr) {
+               const ne = xhr.getResponseHeader('ETag') || this.etag;
+               // First /output change after a send → response started.
+               // Heuristic per design; multi-statement logic stays in a
+               // METHOD (not an inline Alpine expr — @paste bare-for lesson).
+               if (this.armed && ne && ne !== this.baseEtag) {
+                 this.armed = false;
+                 try { new Audio('/static/audio/glump.mp3').play(); } catch (e) {}
+               }
+               this.etag = ne;
+             }
+           }"
            @scroll="smartScroll = (Math.abs($el.scrollTop + $el.clientHeight - $el.scrollHeight) < 50)"
            @htmx:after-swap.window="if (smartScroll) $el.scrollTop = $el.scrollHeight"
            @htmx:config-request="if (etag) $event.detail.headers['If-None-Match'] = etag"
-           @htmx:after-request="etag = $event.detail.xhr.getResponseHeader('ETag') || etag"
+           @input-sent.window="armed = true; baseEtag = etag"
+           @htmx:after-request="onPoll($event.detail.xhr)"
            hx-get="/ui/instances/{{ primary_instance.instance.id }}/output"
            hx-trigger="load, every 2s [document.visibilityState === 'visible' && !(window.getSelection().toString() && document.getElementById('output-content').contains(window.getSelection().anchorNode))]"
            hx-swap="innerHTML"><div class="cr-skel" aria-busy="true" aria-label="Loading output"><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div><div class="cr-skel-bar"></div></div></pre>
