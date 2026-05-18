@@ -512,6 +512,85 @@ def test_css_single_preview_classes_removed() -> None:
 
 
 # ---------------------------------------------------------------------------
+# S3: file_class chip branching + CSS (REQ-15, REQ-16)
+# ---------------------------------------------------------------------------
+
+
+async def test_file_class_in_chip_struct(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """attachFile success handler pushes an object with fileClass (or file_class) key (REQ-15.2).
+
+    The server's `class` field must be mapped onto the chip struct so the
+    template can branch on it — never re-sniff from fileObj.type.
+    """
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip5")
+    assert "fileClass" in html or "file_class" in html, (
+        "Expected fileClass (or file_class) key in chip struct pushed to attachments (S3, REQ-15.2)"
+    )
+
+
+async def test_chip_has_image_thumb_branch(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Chip template has an <img> element conditioned on fileClass === 'image' (REQ-15.3).
+
+    The thumbnail branch must be guarded by x-show or x-if so it only renders
+    for image-class attachments.
+    """
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip6")
+    # Must have an img with x-show or x-if conditioned on 'image'
+    assert "<img" in html, "Expected <img> element in chip template (thumbnail branch)"
+    # The image branch condition must reference 'image' and fileClass
+    assert "fileClass" in html and "'image'" in html, (
+        "Expected x-show/x-if conditioned on fileClass === 'image' in chip template (S3, REQ-15.3)"
+    )
+
+
+async def test_chip_has_generic_icon_branch(
+    ui_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Chip template has a generic icon element conditioned on fileClass !== 'image' (REQ-15.3).
+
+    A <span class="cr-chip__icon"> (or equivalent) must appear when the
+    attachment is not an image — CSP-safe (no blob:, no data: from binary).
+    ON-DEVICE-ONLY: Visual rendering of the generic icon for PDF/text uploads.
+    """
+    _, html = await _launch_and_get_html(ui_client, projects_repo, tmp_projects_root, "chip7")
+    assert "cr-chip__icon" in html, (
+        "Expected .cr-chip__icon element in chip template (generic icon branch, S3, REQ-15.3)"
+    )
+
+
+def test_cr_chip_icon_rule_in_css() -> None:
+    """app.css must contain a .cr-chip__icon rule block (REQ-16.1)."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    assert ".cr-chip__icon" in css, (
+        ".cr-chip__icon CSS rule missing from app.css (S3, REQ-16.1)"
+    )
+
+
+def test_existing_chip_css_rules_present() -> None:
+    """app.css must still contain all existing chip rules — no structural chip changes (REQ-16.2)."""
+    css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
+    for rule in (".cr-chip__thumb", ".cr-chip__item", ".cr-chip__name", ".cr-chip__remove"):
+        assert rule in css, f"{rule} CSS rule missing from app.css (S3, REQ-16.2)"
+
+
+# Reaffirm: no blob: URI (REQ-15.4 — green before S3, must stay green)
+# test_no_blob_uri_in_template is already defined above and covers this.
+
+# Reaffirm: audio asset wired + click.mp3 exists — already covered by
+# test_audio_asset_wired_in_template and test_click_mp3_exists_in_static_dir.
+
+
+# ---------------------------------------------------------------------------
 # Graceful degradation: no image controls when no active instance
 # ---------------------------------------------------------------------------
 
