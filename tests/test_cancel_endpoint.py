@@ -190,9 +190,10 @@ async def test_cancel_foreign_instance_ref_does_not_delete_foreign_file(
     response = await cancel_client.delete(
         f"/ui/instances/{instance_a.id}/upload-image/{staged_b.name}"
     )
-    # 2xx expected (format valid, containment within A's dir passes, file absent in A)
-    assert response.status_code < 500, (
-        f"Cancel must never 5xx, got {response.status_code}"
+    # 204 expected (format valid, containment within A's dir passes, file absent in A —
+    # idempotent cancel per locked decision #3)
+    assert response.status_code == 204, (
+        f"Cancel of foreign-instance ref must return 204 (idempotent), got {response.status_code}"
     )
     # THE CRITICAL INVARIANT: B's file must not be touched
     assert staged_b.exists(), (
