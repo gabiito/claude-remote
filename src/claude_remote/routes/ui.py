@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from claude_remote.config import Settings, get_settings
 from claude_remote.db.events import Event, EventsRepository
@@ -660,42 +660,51 @@ async def post_instance_input(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/instances/{instance_id}/upload-image", response_class=HTMLResponse)
+def _safe_display_name(raw: str | None) -> str:
+    """Return a display-safe filename for the chip label.
+
+    Strips path components and truncates to 64 chars.
+    This is cosmetic only — never used for path resolution.
+    """
+    if not raw:
+        return "image"
+    # Strip directory components from client-supplied name
+    name = Path(raw).name or raw.split("/")[-1] or raw.split("\\")[-1] or "image"
+    # Truncate for display
+    return name[:64]
+
+
+@router.post("/instances/{instance_id}/upload-image")
 async def post_instance_upload_image(
     request: Request,
     instance_id: str,
     file: UploadFile = File(...),  # noqa: B008
-    send_enter: bool = Form(default=True),
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
     projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
-    adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
-) -> HTMLResponse:
-    """Accept a multipart image upload and inject its path into the active tmux pane.
+) -> JSONResponse:
+    """STAGE only — writes file, returns ref JSON. NO send_keys. NO HX-Trigger.
 
-    Flow (design §2, never-5xx contract):
+    Flow (v2 design, never-5xx contract):
       1. Bounded read — reject if > MAX_IMAGE_BYTES or empty.
       2. sniff_extension — magic-byte validation; Content-Type is ignored.
       3. Instance lookup — 404 fragment on miss.
       4. Project join — 404 fragment on miss (resolves Project.path).
       5. Running guard — 409 if instance is not running.
       6. write_image (asyncio.to_thread) — writes UUID-named file.
-      7. Build injection text via IMAGE_PATH_TEMPLATE.
-      8. send_keys (asyncio.to_thread) — on TmuxOperationError, unlink + 409.
-      9. Schedule deferred cleanup via loop.call_later(UPLOAD_TTL_SECONDS, …).
-      10. Return 200 + HX-Trigger: input-sent.
+      7. Return 200 JSON {ref: <uuid>.<ext>, name: <display_name>}.
 
     Returns:
-        200 + empty body + ``HX-Trigger: input-sent`` on success.
+        200 + JSON {"ref": "<uuid>.<ext>", "name": "<display_name>"} on success.
         400 + error fragment for size/validation errors.
         404 + error fragment when instance or project not found.
-        409 + error fragment when instance not running or tmux error.
+        409 + error fragment when instance not running.
     """
     # Step 1: bounded read
     data = await file.read(MAX_IMAGE_BYTES + 1)
     if len(data) == 0:
-        return _error_fragment(request, "Imagen vacía.", status_code=400)
+        return _error_fragment(request, "Imagen vacía.", status_code=400)  # type: ignore[return-value]
     if len(data) > MAX_IMAGE_BYTES:
-        return _error_fragment(
+        return _error_fragment(  # type: ignore[return-value]
             request,
             "Imagen demasiado grande (máx 10 MB).",
             status_code=400,
@@ -705,7 +714,7 @@ async def post_instance_upload_image(
     try:
         ext = sniff_extension(data)
     except ImageValidationError:
-        return _error_fragment(
+        return _error_fragment(  # type: ignore[return-value]
             request,
             "Tipo de imagen no soportado. Formatos válidos: PNG, JPEG, WebP, GIF.",
             status_code=400,
@@ -714,7 +723,7 @@ async def post_instance_upload_image(
     # Step 3: instance lookup
     instance = instances_repo.get(instance_id)
     if instance is None:
-        return _error_fragment(
+        return _error_fragment(  # type: ignore[return-value]
             request,
             f"Instance '{instance_id}' not found.",
             status_code=404,
@@ -723,7 +732,7 @@ async def post_instance_upload_image(
     # Step 4: project join (resolves project.path for filesystem write)
     project = projects_repo.get(instance.project_id)
     if project is None:
-        return _error_fragment(
+        return _error_fragment(  # type: ignore[return-value]
             request,
             "Project not found.",
             status_code=404,
@@ -731,7 +740,7 @@ async def post_instance_upload_image(
 
     # Step 5: running guard
     if instance.status != "running":
-        return _error_fragment(
+        return _error_fragment(  # type: ignore[return-value]
             request,
             "La instancia no está activa.",
             status_code=409,
@@ -740,30 +749,10 @@ async def post_instance_upload_image(
     # Step 6: write image file (off the event loop)
     path = await asyncio.to_thread(write_image, project.path, data, ext)
 
-    # Step 7: build injection text via the single IMAGE_PATH_TEMPLATE constant
-    injected = IMAGE_PATH_TEMPLATE.format(path=str(path))
-
-    # Step 8: send path to tmux pane — on error, clean up the file first
-    try:
-        await asyncio.to_thread(
-            adapter.send_keys, instance.tmux_session_name, injected, send_enter=send_enter
-        )
-    except TmuxOperationError as exc:
-        unlink_best_effort(path)
-        return _error_fragment(
-            request,
-            f"Error de tmux: {exc}",
-            status_code=409,
-        )
-
-    # Step 9: schedule deferred cleanup (fire-and-forget; never awaited)
-    asyncio.get_running_loop().call_later(UPLOAD_TTL_SECONDS, unlink_best_effort, path)
-
-    # Step 10: signal HTMX (same trigger as the text input endpoint)
-    return HTMLResponse(
-        content="",
+    # Step 7: return opaque ref — no send_keys, no HX-Trigger, no call_later
+    return JSONResponse(
+        {"ref": path.name, "name": _safe_display_name(file.filename)},
         status_code=200,
-        headers={"HX-Trigger": "input-sent"},
     )
 
 
