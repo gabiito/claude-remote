@@ -539,7 +539,7 @@ async def get_instance_output(
     instance_id: str,
     instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
     adapter: TmuxAdapter = Depends(get_tmux_adapter),  # noqa: B008
-) -> HTMLResponse:
+) -> Response:
     """Return the current tmux pane content as an HTML fragment.
 
     Polled every 2s by HTMX via ``hx-swap="innerHTML"`` on the stable
