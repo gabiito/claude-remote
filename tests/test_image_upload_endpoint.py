@@ -122,6 +122,35 @@ async def _setup_running_instance(
 
 
 # ---------------------------------------------------------------------------
+# R-1 RED — stage endpoint MUST NOT call send_keys (v2 invariant)
+# ---------------------------------------------------------------------------
+
+
+async def test_stage_does_not_call_send_keys(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Stage endpoint must NOT call send_keys under any circumstances (REQ-1 v2, CRITICAL invariant)."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "no-send-keys"
+    )
+
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+    )
+    assert response.status_code == 200
+    # CRITICAL: stage must NEVER call send_keys — sent_keys must be empty
+    assert fake_adapter.sent_keys == [], (
+        f"Stage endpoint called send_keys {len(fake_adapter.sent_keys)} time(s) — "
+        "upload-image must be pure storage, it must NOT call send_keys (v2 invariant)"
+    )
+
+
+# ---------------------------------------------------------------------------
 # 2.1 Happy path — PNG
 # ---------------------------------------------------------------------------
 
