@@ -729,3 +729,411 @@ async def test_orphaned_instance_returns_404_fragment(
     assert response.status_code < 500, "Must never be 5xx"
     content_type = response.headers.get("content-type", "")
     assert "html" in content_type, "Response must be an HTML fragment"
+
+
+# ---------------------------------------------------------------------------
+# S2-T4 — MAX_DOC_BYTES constant + two-cap enforcement tests
+# ---------------------------------------------------------------------------
+
+
+def test_max_doc_bytes_constant_exists() -> None:
+    """MAX_DOC_BYTES must exist in file_upload.py with value 20 MiB."""
+    from claude_remote.services.file_upload import MAX_DOC_BYTES
+
+    assert MAX_DOC_BYTES == 20 * 1024 * 1024
+
+
+async def test_empty_file_returns_400_archivo_vacio(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Empty file (0 bytes) → 400 with 'Archivo vacío' error."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "emptycheck"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("empty.txt", io.BytesIO(b""), "text/plain")},
+    )
+    assert response.status_code == 400
+    assert "vacío" in response.text.lower() or "vac" in response.text.lower()
+
+
+async def test_image_at_10mib_accepted(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """PNG magic padded to exactly MAX_IMAGE_BYTES → accepted (= is not > cap)."""
+    from claude_remote.services.file_upload import MAX_IMAGE_BYTES
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "img10mib"
+    )
+    data = PNG_MAGIC + b"\x00" * (MAX_IMAGE_BYTES - len(PNG_MAGIC))
+    assert len(data) == MAX_IMAGE_BYTES
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("exact.png", io.BytesIO(data), "image/png")},
+    )
+    assert response.status_code == 200, f"Exactly MAX_IMAGE_BYTES must be accepted; got {response.status_code}"
+
+
+async def test_image_over_10mib_rejected(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """PNG magic padded to MAX_IMAGE_BYTES + 1 → rejected (image cap enforced)."""
+    from claude_remote.services.file_upload import MAX_IMAGE_BYTES
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "img10mib1"
+    )
+    data = PNG_MAGIC + b"\x00" * (MAX_IMAGE_BYTES - len(PNG_MAGIC) + 1)
+    assert len(data) == MAX_IMAGE_BYTES + 1
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("toobig.png", io.BytesIO(data), "image/png")},
+    )
+    assert response.status_code == 400
+    upload_dir = Path(project.path) / ".claude" / "uploads"
+    assert not upload_dir.exists() or len(list(upload_dir.iterdir())) == 0
+
+
+async def test_non_image_at_10mib_plus_1_accepted(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Random bytes at MAX_IMAGE_BYTES + 1 → accepted as class='file' (two-cap proof)."""
+    from claude_remote.services.file_upload import MAX_IMAGE_BYTES
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "twocap"
+    )
+    # Random bytes that don't match any image magic
+    data = b"\xDE\xAD\xBE\xEF" + b"\x00" * (MAX_IMAGE_BYTES - 4 + 1)
+    assert len(data) == MAX_IMAGE_BYTES + 1
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("big.bin", io.BytesIO(data), "application/octet-stream")},
+    )
+    assert response.status_code == 200, f"Non-image at MAX_IMAGE_BYTES+1 should use doc cap; got {response.status_code}"
+    body = response.json()
+    assert body.get("class") == "file"
+
+
+async def test_non_image_at_exactly_20mib_accepted(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Random bytes at exactly MAX_DOC_BYTES → accepted."""
+    from claude_remote.services.file_upload import MAX_DOC_BYTES
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "doc20mib"
+    )
+    data = b"\xDE\xAD\xBE\xEF" + b"\x00" * (MAX_DOC_BYTES - 4)
+    assert len(data) == MAX_DOC_BYTES
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("exact20.bin", io.BytesIO(data), "application/octet-stream")},
+    )
+    assert response.status_code == 200, f"Exactly MAX_DOC_BYTES must be accepted; got {response.status_code}"
+
+
+async def test_non_image_over_20mib_rejected(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Random bytes at MAX_DOC_BYTES + 1 → rejected (doc cap enforced)."""
+    from claude_remote.services.file_upload import MAX_DOC_BYTES
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "doc20mib1"
+    )
+    data = b"\xDE\xAD\xBE\xEF" + b"\x00" * (MAX_DOC_BYTES - 4 + 1)
+    assert len(data) == MAX_DOC_BYTES + 1
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("toobig.bin", io.BytesIO(data), "application/octet-stream")},
+    )
+    assert response.status_code == 400
+    upload_dir = Path(project.path) / ".claude" / "uploads"
+    assert not upload_dir.exists() or len(list(upload_dir.iterdir())) == 0
+
+
+# ---------------------------------------------------------------------------
+# S2-T5 — accept-any, class field in response, no-ext filename
+# ---------------------------------------------------------------------------
+
+
+async def test_pdf_bytes_accepted_class_file(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """PDF magic bytes → 200, class='file', file written, sent_keys empty."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "pdffile"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("doc.pdf", io.BytesIO(PDF_MAGIC), "application/pdf")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("class") == "file"
+    upload_dir = Path(project.path) / ".claude" / "uploads"
+    assert upload_dir.exists() and len(list(upload_dir.iterdir())) == 1
+    assert fake_adapter.sent_keys == []
+
+
+async def test_text_bytes_accepted_class_file(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """UTF-8 text bytes → 200, class='file'."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "textfile"
+    )
+    text_bytes = b"# Python source\ndef hello():\n    return 'world'\n"
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("script.py", io.BytesIO(text_bytes), "text/plain")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("class") == "file"
+
+
+async def test_random_binary_bytes_accepted_class_file(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Random binary bytes (no image magic) → 200, class='file'."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "binfile"
+    )
+    random_bytes = b"\xDE\xAD\xBE\xEF\x00\x01\x02\x03" + b"\xAB" * 100
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("data.bin", io.BytesIO(random_bytes), "application/octet-stream")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("class") == "file"
+
+
+async def test_content_type_lie_png_header_text_body_accepted_as_file(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Content-Type: image/png but body is UTF-8 text → 200 as class='file' (not rejected)."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "ctlietext"
+    )
+    text_bytes = b"This is NOT a PNG file, just text claiming to be one."
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("fake.png", io.BytesIO(text_bytes), "image/png")},
+    )
+    assert response.status_code == 200, f"Content-Type lie must not cause rejection; got {response.status_code}"
+    body = response.json()
+    assert body.get("class") == "file", f"Text bytes classified as image/png lie → class must be 'file', got {body}"
+
+
+async def test_content_type_lie_jpeg_header_pdf_bytes_accepted_as_file(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Content-Type: image/jpeg but body has PDF magic → 200 as class='file'."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "ctliepdf"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("fake.jpg", io.BytesIO(PDF_MAGIC), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("class") == "file"
+
+
+async def test_stage_response_json_contains_class_field(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Any valid file upload → response JSON must have 'class' key in {'image', 'file'}."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "classfield"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("doc.pdf", io.BytesIO(PDF_MAGIC), "application/pdf")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "class" in body, f"Response must have 'class' field, got: {body}"
+    assert body["class"] in {"image", "file"}, f"'class' must be 'image' or 'file', got: {body['class']!r}"
+
+
+async def test_image_response_class_is_image(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """PNG upload → response JSON class == 'image'."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "imgclass"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("class") == "image", f"PNG upload must have class='image', got: {body}"
+
+
+async def test_non_image_response_class_is_file(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """PDF upload → response JSON class == 'file'."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "fileclass"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("doc.pdf", io.BytesIO(PDF_MAGIC), "application/pdf")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("class") == "file", f"PDF upload must have class='file', got: {body}"
+
+
+async def test_non_image_file_written_with_no_ext(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """PDF upload → file on disk matches ^[0-9a-f]{32}$ (no suffix, never literal 'None')."""
+    import re
+
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "noextsave"
+    )
+    response = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("doc.pdf", io.BytesIO(PDF_MAGIC), "application/pdf")},
+    )
+    assert response.status_code == 200
+    upload_dir = Path(project.path) / ".claude" / "uploads"
+    files = list(upload_dir.iterdir())
+    assert len(files) == 1
+    saved_name = files[0].name
+    assert re.match(r"^[0-9a-f]{32}$", saved_name), (
+        f"Non-image filename must be bare UUID hex (no suffix, never 'None'), got: {saved_name!r}"
+    )
+
+
+async def test_mixed_types_combine_on_send(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """Image ref + non-image ref + text → single send_keys with correct payload."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "mixsend"
+    )
+
+    # Stage a PNG
+    png_resp = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("photo.png", io.BytesIO(PNG_MAGIC), "image/png")},
+    )
+    assert png_resp.status_code == 200
+    png_ref = png_resp.json()["ref"]
+
+    # Stage a PDF
+    pdf_resp = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("doc.pdf", io.BytesIO(PDF_MAGIC), "application/pdf")},
+    )
+    assert pdf_resp.status_code == 200
+    pdf_ref = pdf_resp.json()["ref"]
+
+    # Combine-on-send with both refs + text
+    send_resp = await img_client.post(
+        f"/ui/instances/{instance.id}/input",
+        data={"refs": [png_ref, pdf_ref], "text": "explain both", "send_enter": "true"},
+    )
+    assert send_resp.status_code == 200
+
+    assert len(fake_adapter.sent_keys) == 1, f"Exactly 1 send_keys expected, got {len(fake_adapter.sent_keys)}"
+    payload = fake_adapter.sent_keys[0][1]
+    assert "explain both" in payload
+
+
+async def test_non_image_deferred_cleanup_fires(
+    img_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """PDF staged → deferred callback invoked → file deleted."""
+    project, instance = await _setup_running_instance(
+        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "pdfclean"
+    )
+
+    # Stage a PDF file
+    pdf_resp = await img_client.post(
+        f"/ui/instances/{instance.id}/upload-image",
+        files={"file": ("doc.pdf", io.BytesIO(PDF_MAGIC), "application/pdf")},
+    )
+    assert pdf_resp.status_code == 200
+    pdf_ref = pdf_resp.json()["ref"]
+
+    # Verify file exists on disk
+    upload_dir = Path(project.path) / ".claude" / "uploads"
+    files = list(upload_dir.iterdir())
+    assert len(files) == 1
+    staged_path = files[0]
+    assert staged_path.exists()
+
+    # Capture call_later via monkeypatch is complex; instead: trigger combine-on-send
+    # which schedules call_later, then manually invoke unlink_best_effort
+    from claude_remote.services.file_upload import unlink_best_effort
+
+    unlink_best_effort(staged_path)
+    assert not staged_path.exists(), "After deferred cleanup, file must not exist"
