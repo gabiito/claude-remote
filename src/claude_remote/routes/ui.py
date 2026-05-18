@@ -46,9 +46,9 @@ from claude_remote.services.exceptions import (
 )
 from claude_remote.services.file_upload import (
     IMAGE_PATH_TEMPLATE,
+    MAX_DOC_BYTES,
     MAX_IMAGE_BYTES,
     UPLOAD_TTL_SECONDS,
-    FileValidationError,
     classify_file,
     resolve_staged_ref,
     resolve_staged_ref_path,
@@ -721,43 +721,43 @@ async def post_instance_upload_file(
 ) -> JSONResponse:
     """STAGE only — writes file, returns ref JSON. NO send_keys. NO HX-Trigger.
 
-    Flow (v2 design, never-5xx contract):
-      1. Bounded read — reject if > MAX_IMAGE_BYTES or empty.
-      2. classify_file — magic-byte classification; Content-Type is ignored.
-      3. Instance lookup — 404 fragment on miss.
-      4. Project join — 404 fragment on miss (resolves Project.path).
-      5. Running guard — 409 if instance is not running.
-      6. write_staged_file (asyncio.to_thread) — writes UUID-named file.
-      7. Return 200 JSON {ref: <uuid>.<ext>, name: <display_name>}.
+    Flow (v2 design, accept-any, never-5xx contract):
+      1. Bounded read up to MAX_DOC_BYTES + 1.
+      2. Empty check → 400.
+      3. classify_file — PURE magic-byte classifier; Content-Type IGNORED.
+      4. Per-class size cap: image→MAX_IMAGE_BYTES, file→MAX_DOC_BYTES → 400 if exceeded.
+      5. Instance lookup → 404 on miss.
+      6. Project join → 404 on miss.
+      7. Running guard → 409 if not running.
+      8. write_staged_file (asyncio.to_thread) — UUID-named file; ext=None → bare UUID.
+      9. Return 200 JSON {ref, name, class}.
 
     Returns:
-        200 + JSON {"ref": "<uuid>.<ext>", "name": "<display_name>"} on success.
-        400 + error fragment for size/validation errors.
+        200 + JSON {"ref": "<uuid>[.<ext>]", "name": "<display_name>", "class": "image"|"file"}.
+        400 + error fragment for empty/oversized.
         404 + error fragment when instance or project not found.
         409 + error fragment when instance not running.
     """
-    # Step 1: bounded read
-    data = await file.read(MAX_IMAGE_BYTES + 1)
+    # Step 1: bounded read — read up to the larger (doc) cap + 1 to detect oversize
+    data = await file.read(MAX_DOC_BYTES + 1)
+
+    # Step 2: empty check (before classification — empty is always invalid)
     if len(data) == 0:
         return _error_fragment(request, "Archivo vacío.", status_code=400)  # type: ignore[return-value]
-    if len(data) > MAX_IMAGE_BYTES:
+
+    # Step 3: magic-byte classification — PURE, never raises; Content-Type ignored
+    cls, ext = classify_file(data)
+
+    # Step 4: per-class size cap
+    cap = MAX_IMAGE_BYTES if cls == "image" else MAX_DOC_BYTES
+    if len(data) > cap:
         return _error_fragment(  # type: ignore[return-value]
             request,
-            "Archivo demasiado grande (máx 10 MB).",
+            "Archivo demasiado grande.",
             status_code=400,
         )
 
-    # Step 2: magic-byte classification (never trust client Content-Type)
-    try:
-        ext = classify_file(data)
-    except FileValidationError:
-        return _error_fragment(  # type: ignore[return-value]
-            request,
-            "Tipo de archivo no soportado. Formatos válidos: PNG, JPEG, WebP, GIF.",
-            status_code=400,
-        )
-
-    # Step 3: instance lookup
+    # Step 5: instance lookup
     instance = instances_repo.get(instance_id)
     if instance is None:
         return _error_fragment(  # type: ignore[return-value]
@@ -766,7 +766,7 @@ async def post_instance_upload_file(
             status_code=404,
         )
 
-    # Step 4: project join (resolves project.path for filesystem write)
+    # Step 6: project join (resolves project.path for filesystem write)
     project = projects_repo.get(instance.project_id)
     if project is None:
         return _error_fragment(  # type: ignore[return-value]
@@ -775,7 +775,7 @@ async def post_instance_upload_file(
             status_code=404,
         )
 
-    # Step 5: running guard
+    # Step 7: running guard
     if instance.status != "running":
         return _error_fragment(  # type: ignore[return-value]
             request,
@@ -783,12 +783,12 @@ async def post_instance_upload_file(
             status_code=409,
         )
 
-    # Step 6: write file (off the event loop)
+    # Step 8: write file (off the event loop); ext=None → bare UUID filename for non-image
     path = await asyncio.to_thread(write_staged_file, project.path, data, ext)
 
-    # Step 7: return opaque ref — no send_keys, no HX-Trigger, no call_later
+    # Step 9: return opaque ref + class — no send_keys, no HX-Trigger, no call_later
     return JSONResponse(
-        {"ref": path.name, "name": _safe_display_name(file.filename)},
+        {"ref": path.name, "name": _safe_display_name(file.filename), "class": cls},
         status_code=200,
     )
 

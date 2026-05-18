@@ -22,7 +22,8 @@ from pathlib import Path
 # Constants — single source of truth (design §8)
 # ---------------------------------------------------------------------------
 
-MAX_IMAGE_BYTES: int = 10 * 1024 * 1024  # image-class cap; route selects by class
+MAX_IMAGE_BYTES: int = 10 * 1024 * 1024  # applies to image-class files; used in route for class-based cap selection
+MAX_DOC_BYTES: int = 20 * 1024 * 1024  # applies to file-class (non-image); route selects cap by class
 UPLOAD_TTL_SECONDS: int = 60  # deferred-delete window after send_keys
 STALE_SWEEP_SECONDS: float = 600  # startup sweep age (10 minutes)
 UPLOAD_SUBDIR: tuple[str, str] = (".claude", "uploads")  # under project.path
@@ -54,42 +55,32 @@ class FileValidationError(Exception):
 # ---------------------------------------------------------------------------
 
 
-def classify_file(data: bytes) -> str:
-    """Return the validated file extension (.png/.jpg/.webp/.gif).
+def classify_file(data: bytes) -> tuple[str, str | None]:
+    """Classify file bytes as image or generic file. PURE — never raises.
 
-    Inspects the raw bytes only — the client-supplied Content-Type is never
-    consulted (design ADR-7).
-
-    S1 NOTE: This function retains the same image-only behavior as the old
-    sniff_extension. S2 will replace the body with a pure classifier that
-    returns (file_class, ext|None) and never raises.
+    Inspects raw bytes only — the client-supplied Content-Type is never
+    consulted (design ADR-7). Empty/size enforcement is the ROUTE's job.
 
     Args:
-        data: raw file bytes (must be non-empty and long enough for a magic prefix).
+        data: raw file bytes (any length, including empty).
 
     Returns:
-        One of ``.png``, ``.jpg``, ``.webp``, ``.gif``.
-
-    Raises:
-        FileValidationError: if the bytes do not start with a known image magic
-            sequence, or if data is empty.
+        ``("image", ext)`` where ext ∈ {".png", ".jpg", ".webp", ".gif"} when
+        data starts with a known image magic sequence.
+        ``("file", None)`` for all other input (PDF, ZIP, text, random bytes,
+        empty bytes — everything not matching an image signature).
     """
-    if not data:
-        raise FileValidationError("Archivo vacío.")
-
     # WebP: RIFF at [0:4] AND WEBP at [8:12]
     if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return ".webp"
+        return ("image", ".webp")
 
-    # All other formats: simple prefix match
+    # PNG / JPEG / GIF87a / GIF89a — simple prefix match
     for magic_prefix, _mime, ext in _MAGIC:
         if data[: len(magic_prefix)] == magic_prefix:
-            return ext
+            return ("image", ext)
 
-    raise FileValidationError(
-        f"Unsupported file format — magic bytes do not match any allowed type "
-        f"(PNG, JPEG, WebP, GIF). Got: {data[:16]!r}"
-    )
+    # Everything else — accepted, classified as generic file
+    return ("file", None)
 
 
 # ---------------------------------------------------------------------------
@@ -97,8 +88,8 @@ def classify_file(data: bytes) -> str:
 # ---------------------------------------------------------------------------
 
 
-def write_staged_file(project_path: str, data: bytes, ext: str) -> Path:
-    """Write file bytes to <project_path>/.claude/uploads/<uuid4hex><ext>.
+def write_staged_file(project_path: str, data: bytes, ext: str | None) -> Path:
+    """Write file bytes to <project_path>/.claude/uploads/<uuid4hex>[<ext>].
 
     Creates the uploads directory (mode 0700) if it does not exist.
     The client-supplied filename is NEVER used — the name is always a
@@ -107,7 +98,9 @@ def write_staged_file(project_path: str, data: bytes, ext: str) -> Path:
     Args:
         project_path: absolute path of the project root (``Project.path``).
         data: validated file bytes.
-        ext: server-derived extension, e.g. ``.png`` (from ``classify_file``).
+        ext: server-derived extension (e.g. ``.png``) or ``None`` for non-image
+            files. When ``None``, the file is stored as bare ``<uuid>`` with NO
+            suffix — never appends the literal string ``"None"``.
 
     Returns:
         Absolute Path to the written file.
@@ -116,7 +109,7 @@ def write_staged_file(project_path: str, data: bytes, ext: str) -> Path:
     upload_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(upload_dir, 0o700)
 
-    filename = f"{uuid.uuid4().hex}{ext}"
+    filename = uuid.uuid4().hex if ext is None else f"{uuid.uuid4().hex}{ext}"
     dest = upload_dir / filename
     dest.write_bytes(data)
     return dest
