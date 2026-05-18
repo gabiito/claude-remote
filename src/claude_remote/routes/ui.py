@@ -44,8 +44,6 @@ from claude_remote.services.exceptions import (
     ProjectNotFoundError,
     TmuxOperationError,
 )
-from claude_remote.services.live_status import derive_live_status
-from claude_remote.services.path_validation import PathValidationError, validate_project_path
 from claude_remote.services.image_upload import (
     IMAGE_PATH_TEMPLATE,
     MAX_IMAGE_BYTES,
@@ -55,6 +53,8 @@ from claude_remote.services.image_upload import (
     unlink_best_effort,
     write_image,
 )
+from claude_remote.services.live_status import derive_live_status
+from claude_remote.services.path_validation import PathValidationError, validate_project_path
 from claude_remote.services.project_filesystem import (
     DirectoryAlreadyExistsError,
     InvalidIdentifierError,

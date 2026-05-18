@@ -224,11 +224,9 @@ class TestSweepStaleUploads:
         """Even if unlink raises unexpectedly, sweep continues and does not propagate."""
         now = time.time()
         project_path = self._make_project(tmp_path, "proj4")
-        stale_file = self._seed_file(project_path, "stale_err.png", now - STALE_SWEEP_SECONDS - 1)
+        self._seed_file(project_path, "stale_err.png", now - STALE_SWEEP_SECONDS - 1)
 
         from claude_remote.services import image_upload
-
-        original_unlink = image_upload.unlink_best_effort
 
         call_count = {"n": 0}
 

@@ -12,6 +12,7 @@ configuration consumed by routes/ui.py and app.py.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import uuid
 from collections.abc import Iterable
@@ -129,10 +130,8 @@ def unlink_best_effort(path: Path) -> None:
     the deferred TTL cleanup (``loop.call_later``) and for rollback after a
     failed ``send_keys``.
     """
-    try:
+    with contextlib.suppress(FileNotFoundError, OSError):
         path.unlink()
-    except (FileNotFoundError, OSError):
-        pass
 
 
 # ---------------------------------------------------------------------------

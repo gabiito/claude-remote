@@ -412,8 +412,8 @@ async def test_deferred_ttl_delete_captured_and_invokable(
 
 def test_upload_dir_not_statically_served(img_app) -> None:
     """No StaticFiles mount resolves to or contains .claude/uploads."""
-    from starlette.staticfiles import StaticFiles
     from starlette.routing import Mount
+    from starlette.staticfiles import StaticFiles
 
     def _get_all_routes(app):
         routes = []
@@ -510,12 +510,13 @@ def test_image_path_template_used_in_upload_handler() -> None:
 
 def test_sweep_stale_uploads_removes_stale_keeps_fresh(tmp_path: Path) -> None:
     """Direct unit test of sweep_stale_uploads used in lifespan."""
+    import os
+
     from claude_remote.services.image_upload import (
         STALE_SWEEP_SECONDS,
         UPLOAD_SUBDIR,
         sweep_stale_uploads,
     )
-    import os
 
     # Create a registered project with upload dir
     project_path = tmp_path / "proj"
@@ -557,13 +558,18 @@ async def test_lifespan_sweep_via_app_startup(
     that sweep_stale_uploads is called with paths from ProjectsRepository.list_all().
     """
     import os
-    from claude_remote.services.image_upload import STALE_SWEEP_SECONDS, UPLOAD_SUBDIR, sweep_stale_uploads
+
+    from claude_remote.services.image_upload import (
+        STALE_SWEEP_SECONDS,
+        UPLOAD_SUBDIR,
+        sweep_stale_uploads,
+    )
 
     # Register a project with a stale upload
     project_path = tmp_projects_root / "dom" / "sweeptest"
     project_path.mkdir(parents=True)
     proj_repo = ProjectsRepository(connection_factory=lambda: get_connection_for(tmp_db))
-    project = proj_repo.create(
+    proj_repo.create(
         project_create=ProjectCreate(
             name="sweeptest", slug="sweeptest", path=project_path, domain="dom"
         )
