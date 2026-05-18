@@ -49,6 +49,7 @@ from claude_remote.services.image_upload import (
     MAX_IMAGE_BYTES,
     UPLOAD_TTL_SECONDS,
     ImageValidationError,
+    resolve_staged_ref,
     sniff_extension,
     unlink_best_effort,
     write_image,
@@ -754,6 +755,50 @@ async def post_instance_upload_image(
         {"ref": path.name, "name": _safe_display_name(file.filename)},
         status_code=200,
     )
+
+
+# ---------------------------------------------------------------------------
+# DELETE /ui/instances/{id}/upload-image/{ref} — Cancel a staged attachment
+# ---------------------------------------------------------------------------
+
+
+@router.delete("/instances/{instance_id}/upload-image/{ref}", response_class=HTMLResponse)
+async def delete_instance_upload_image(
+    request: Request,
+    instance_id: str,
+    ref: str,
+    instances_repo: InstancesRepository = Depends(get_instances_repo),  # noqa: B008
+    projects_repo: ProjectsRepository = Depends(get_projects_repo),  # noqa: B008
+) -> Response:
+    """Cancel a staged attachment by deleting the file.
+
+    Containment-checked via resolve_staged_ref — never touches anything outside
+    the instance's project uploads dir. Idempotent: returns 204 even if the file
+    is already gone (best-effort). Never 5xx.
+
+    Returns:
+        204 on successful deletion or file already gone.
+        404 if instance/project not found or ref does not resolve inside uploads dir.
+    """
+    # Instance lookup
+    instance = instances_repo.get(instance_id)
+    if instance is None:
+        return _error_fragment(request, f"Instance '{instance_id}' not found.", status_code=404)
+
+    # Project lookup
+    project = projects_repo.get(instance.project_id)
+    if project is None:
+        return _error_fragment(request, "Project not found.", status_code=404)
+
+    # Containment-checked resolution — rejects traversal, symlinks, foreign refs
+    path = resolve_staged_ref(project.path, ref)
+    if path is None:
+        return _error_fragment(request, "Attachment ref not found.", status_code=404)
+
+    # Best-effort delete (idempotent — swallows FileNotFoundError)
+    unlink_best_effort(path)
+
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
