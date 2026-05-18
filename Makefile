@@ -9,7 +9,11 @@ SERVICE_NAME := claude-remote.service
 
 # Dev server isolation: own port + own DB so `make run` coexists with the
 # installed systemd service (which is hardcoded to port 8000 + ./claude-remote.db).
-# Both are overridable: `make run PORT=9000 DEV_DB=./scratch.db`.
+# Hooks MUST also point back at the dev port — instances bake the hook
+# callback URL into .claude/settings.json at launch; if it stayed the
+# default :8000 the events would land in the INSTALLED db, invisible to
+# the dev UI (→ EVENTS 0, live_status stuck on "running", no chime/push).
+# All overridable: `make run PORT=9000 DEV_DB=./scratch.db`.
 PORT ?= 8001
 DEV_DB ?= ./claude-remote.dev.db
 
@@ -43,7 +47,7 @@ typecheck:
 
 # Start dev server (blocks) — isolated port + DB, coexists with installed service
 run:
-	CLAUDE_REMOTE_DB_PATH=$(DEV_DB) $(PYTHON) -m uvicorn claude_remote.app:app --reload --host 0.0.0.0 --port $(PORT)
+	CLAUDE_REMOTE_DB_PATH=$(DEV_DB) CLAUDE_REMOTE_HOOKS_BASE_URL=http://localhost:$(PORT) $(PYTHON) -m uvicorn claude_remote.app:app --reload --host 0.0.0.0 --port $(PORT)
 
 # Set the login password on the DEV DB (same DEV_DB as `make run`, never the installed one)
 set-password:
