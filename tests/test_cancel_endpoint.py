@@ -214,7 +214,14 @@ async def test_cancel_already_deleted_is_204_not_5xx(
     instances_repo: InstancesRepository,
     tmp_projects_root: Path,
 ) -> None:
-    """Delete file manually, then cancel → 204 (idempotent), never raises."""
+    """Delete file manually, then cancel → 204 (idempotent), never 404 or 5xx.
+
+    Per locked decision #3: a cancel for a ref whose FORMAT is valid AND that
+    resolves (by containment rules) to within THIS instance's uploads dir MUST
+    return 204 whether or not the file currently exists.  Returning 404 for a
+    "valid ref, file already gone" case breaks idempotency (mobile double-tap /
+    retry on chip-cancel → spurious 404).
+    """
     project, instance = await _setup_running_instance(
         cancel_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "cancel-idem"
     )
@@ -228,11 +235,48 @@ async def test_cancel_already_deleted_is_204_not_5xx(
     response = await cancel_client.delete(
         f"/ui/instances/{instance.id}/upload-image/{ref}"
     )
-    # Per locked decision #3: 204 even if file already gone, never 5xx
-    assert response.status_code in (204, 404), (
-        f"Idempotent cancel must return 204 or 404, got {response.status_code}"
+    # Strictly 204 — not 404 — per locked decision #3 (idempotent best-effort)
+    assert response.status_code == 204, (
+        f"Idempotent cancel must return 204 (not 404) when file already gone, "
+        f"got {response.status_code}"
     )
-    assert response.status_code < 500, "Cancel must never return 5xx"
+
+
+async def test_cancel_double_cancel_both_204(
+    cancel_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+) -> None:
+    """Cancel the same ref twice — both requests must return 204 (idempotency sentinel).
+
+    First cancel: file exists, deleted, 204.
+    Second cancel: file already gone, 204 (not 404).
+    """
+    project, instance = await _setup_running_instance(
+        cancel_client, projects_repo, instances_repo, tmp_projects_root,
+        "acme.com", "cancel-double"
+    )
+    staged = _stage_file(project)
+    ref = staged.name
+
+    # First cancel — file exists
+    resp1 = await cancel_client.delete(
+        f"/ui/instances/{instance.id}/upload-image/{ref}"
+    )
+    assert resp1.status_code == 204, (
+        f"First cancel must return 204, got {resp1.status_code}"
+    )
+    assert not staged.exists(), "File must be deleted after first cancel"
+
+    # Second cancel — file already gone
+    resp2 = await cancel_client.delete(
+        f"/ui/instances/{instance.id}/upload-image/{ref}"
+    )
+    assert resp2.status_code == 204, (
+        f"Second (idempotent) cancel must return 204, got {resp2.status_code}: "
+        "double-tap / retry must not return 404"
+    )
 
 
 async def test_cancel_never_5xx(
