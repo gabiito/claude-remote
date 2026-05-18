@@ -13,11 +13,14 @@ generated at install time.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 
-def render_unit(repo_root: Path, venv_dir: Path) -> str:
+def render_unit(
+    repo_root: Path, venv_dir: Path, *, path_env: str | None = None
+) -> str:
     """Return the systemd --user unit text for the given checkout.
 
     - ExecStart uses the venv's uvicorn WITHOUT --reload (dev-only flag).
@@ -25,8 +28,13 @@ def render_unit(repo_root: Path, venv_dir: Path) -> str:
     - StartLimitIntervalSec=0 disables the start-rate lockout so a transient
       crash loop self-heals instead of getting stuck in `failed`.
     - WantedBy=default.target → starts on user login.
+    - Environment=PATH: systemd --user does NOT inherit the interactive
+      shell PATH, so without this the service can't find `claude` (npm /
+      ~/.local/bin / nvm / linuxbrew) and launched tmux panes die instantly
+      → "[Session unavailable]". We bake the installing user's PATH.
     """
     uvicorn = venv_dir / "bin" / "uvicorn"
+    env_line = f"Environment=PATH={path_env}\n" if path_env else ""
     return f"""[Unit]
 Description=claude-remote — manage Claude Code CLI instances from your phone
 StartLimitIntervalSec=0
@@ -34,7 +42,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 WorkingDirectory={repo_root}
-ExecStart={uvicorn} claude_remote.app:app --host 0.0.0.0 --port 8000
+{env_line}ExecStart={uvicorn} claude_remote.app:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
 
@@ -46,7 +54,9 @@ WantedBy=default.target
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     venv_dir = repo_root / ".venv"
-    sys.stdout.write(render_unit(repo_root, venv_dir))
+    sys.stdout.write(
+        render_unit(repo_root, venv_dir, path_env=os.environ.get("PATH"))
+    )
     return 0
 
 

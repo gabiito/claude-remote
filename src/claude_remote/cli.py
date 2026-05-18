@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
@@ -42,7 +43,11 @@ def _default_render() -> str:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     root = _repo_root()
-    return mod.render_unit(root, root / ".venv")  # type: ignore[no-any-return]
+    # Bake the PATH `claudio install` is invoked with (the user's shell,
+    # where `claude`/`tmux` resolve) — systemd --user won't have it.
+    return mod.render_unit(  # type: ignore[no-any-return]
+        root, root / ".venv", path_env=os.environ.get("PATH")
+    )
 
 
 def _systemd_dir() -> Path:
