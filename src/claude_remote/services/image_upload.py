@@ -135,6 +135,42 @@ def unlink_best_effort(path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# resolve_staged_ref — containment-secure ref→Path mapping (design ADR-4)
+# ---------------------------------------------------------------------------
+
+
+def resolve_staged_ref(project_path: str, ref: str) -> Path | None:
+    """Resolve an opaque attachment ref to an absolute Path inside the uploads dir.
+
+    The ref is the UUID basename returned by the stage endpoint (e.g. ``abc123.png``).
+    This function is the SINGLE authority that maps ref → path. The client never
+    holds or sends server paths; it only holds opaque refs.
+
+    Security invariant: the resolved *real* path must be inside
+    ``<project_path>/.claude/uploads/`` after ``Path.resolve()`` (which collapses
+    ``..`` and follows symlinks). Any attempt to escape via traversal, symlink, absolute
+    path, or foreign-instance ref returns ``None`` — never raises.
+
+    Args:
+        project_path: absolute path of the project root (``Project.path``).
+        ref: opaque attachment ref, expected to be a UUID basename (e.g. ``abc.png``).
+
+    Returns:
+        Resolved absolute ``Path`` if the ref is valid and the file exists inside
+        the uploads dir; ``None`` otherwise.
+    """
+    if not ref or "/" in ref or "\\" in ref or ref in (".", ".."):
+        return None  # cheap reject of obvious traversal shapes
+    uploads = Path(project_path).joinpath(*UPLOAD_SUBDIR).resolve()
+    candidate = (uploads / ref).resolve()  # collapses .. and follows symlinks
+    if not candidate.is_relative_to(uploads):  # containment by RESOLUTION (py3.9+)
+        return None
+    if not candidate.is_file():
+        return None
+    return candidate
+
+
+# ---------------------------------------------------------------------------
 # sweep_stale_uploads — startup sweep with injectable clock
 # ---------------------------------------------------------------------------
 
