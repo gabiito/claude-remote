@@ -587,7 +587,7 @@ def test_cr_chip_icon_rule_in_css() -> None:
 
 
 def test_existing_chip_css_rules_present() -> None:
-    """app.css must still contain all existing chip rules — no structural chip changes (REQ-16.2)."""
+    """app.css must still contain all existing chip rules — no structural changes (REQ-16.2)."""
     css = (PACKAGE_ROOT / "static" / "css" / "app.css").read_text()
     for rule in (".cr-chip__thumb", ".cr-chip__item", ".cr-chip__name", ".cr-chip__remove"):
         assert rule in css, f"{rule} CSS rule missing from app.css (S3, REQ-16.2)"
