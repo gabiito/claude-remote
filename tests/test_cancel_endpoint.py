@@ -297,6 +297,65 @@ async def test_cancel_double_cancel_both_204(
     )
 
 
+async def test_cancel_symlink_escape_rejected(
+    cancel_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root: Path,
+    tmp_path: Path,
+) -> None:
+    """Symlink inside uploads dir pointing outside → outside target NOT deleted, safe 4xx.
+
+    Spec 8.5: a symlink that resolves to outside the uploads dir MUST be rejected.
+    The cancel endpoint uses resolve_staged_ref_path (containment-only, no existence
+    check). resolve() on the symlink name expands to the real target path, which is
+    outside the uploads dir → is_relative_to fails → 404 is returned.
+
+    Assertions:
+    (a) The outside target file is NOT deleted.
+    (b) Response is a safe 4xx (never 5xx).
+    (c) Nothing outside the uploads dir is touched.
+    """
+    project, instance = await _setup_running_instance(
+        cancel_client, projects_repo, instances_repo, tmp_projects_root,
+        "acme.com", "cancel-symlink"
+    )
+
+    # Create a real file outside the uploads dir (the "outside target")
+    outside_target = tmp_path / "outside_secret.txt"
+    outside_target.write_text("sensitive data — must never be deleted")
+
+    # Create a symlink inside the uploads dir pointing to the outside file
+    uploads_dir = Path(project.path).joinpath(*UPLOAD_SUBDIR)
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    symlink_name = f"{uuid.uuid4().hex}.png"
+    symlink_path = uploads_dir / symlink_name
+    symlink_path.symlink_to(outside_target)
+
+    # Issue a DELETE using the symlink's basename as the ref
+    response = await cancel_client.delete(
+        f"/ui/instances/{instance.id}/upload-image/{symlink_name}"
+    )
+
+    # (b) Response must be a safe 4xx — the symlink escape must be rejected
+    assert response.status_code < 500, (
+        f"Cancel must never 5xx for symlink-escape ref, got {response.status_code}"
+    )
+    assert 400 <= response.status_code < 500, (
+        f"Symlink-escape ref must be rejected with 4xx, got {response.status_code}. "
+        "The resolved realpath escapes the uploads dir → must be treated as forbidden."
+    )
+
+    # (a) The outside target file MUST NOT be deleted
+    assert outside_target.exists(), (
+        "Outside target file was deleted! Symlink-escape cancel must NEVER unlink "
+        "files outside the uploads dir — this is a security invariant (spec 8.5)."
+    )
+
+    # (c) The symlink itself may or may not remain (implementation detail), but
+    #     nothing outside uploads was touched — already proven by (a).
+
+
 async def test_cancel_never_5xx(
     cancel_client: AsyncClient,
     projects_repo: ProjectsRepository,
