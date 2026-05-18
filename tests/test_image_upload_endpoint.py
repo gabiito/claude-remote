@@ -779,7 +779,9 @@ async def test_image_at_10mib_accepted(
         f"/ui/instances/{instance.id}/upload-image",
         files={"file": ("exact.png", io.BytesIO(data), "image/png")},
     )
-    assert response.status_code == 200, f"Exactly MAX_IMAGE_BYTES must be accepted; got {response.status_code}"
+    assert response.status_code == 200, (
+        f"Exactly MAX_IMAGE_BYTES must be accepted; got {response.status_code}"
+    )
 
 
 async def test_image_over_10mib_rejected(
@@ -824,7 +826,9 @@ async def test_non_image_at_10mib_plus_1_accepted(
         f"/ui/instances/{instance.id}/upload-image",
         files={"file": ("big.bin", io.BytesIO(data), "application/octet-stream")},
     )
-    assert response.status_code == 200, f"Non-image at MAX_IMAGE_BYTES+1 should use doc cap; got {response.status_code}"
+    assert response.status_code == 200, (
+        f"Non-image at MAX_IMAGE_BYTES+1 should use doc cap; got {response.status_code}"
+    )
     body = response.json()
     assert body.get("class") == "file"
 
@@ -847,7 +851,9 @@ async def test_non_image_at_exactly_20mib_accepted(
         f"/ui/instances/{instance.id}/upload-image",
         files={"file": ("exact20.bin", io.BytesIO(data), "application/octet-stream")},
     )
-    assert response.status_code == 200, f"Exactly MAX_DOC_BYTES must be accepted; got {response.status_code}"
+    assert response.status_code == 200, (
+        f"Exactly MAX_DOC_BYTES must be accepted; got {response.status_code}"
+    )
 
 
 async def test_non_image_over_20mib_rejected(
@@ -956,9 +962,13 @@ async def test_content_type_lie_png_header_text_body_accepted_as_file(
         f"/ui/instances/{instance.id}/upload-image",
         files={"file": ("fake.png", io.BytesIO(text_bytes), "image/png")},
     )
-    assert response.status_code == 200, f"Content-Type lie must not cause rejection; got {response.status_code}"
+    assert response.status_code == 200, (
+        f"Content-Type lie must not cause rejection; got {response.status_code}"
+    )
     body = response.json()
-    assert body.get("class") == "file", f"Text bytes classified as image/png lie → class must be 'file', got {body}"
+    assert body.get("class") == "file", (
+        f"Text bytes classified as image/png lie → class must be 'file', got {body}"
+    )
 
 
 async def test_content_type_lie_jpeg_header_pdf_bytes_accepted_as_file(
@@ -997,7 +1007,9 @@ async def test_stage_response_json_contains_class_field(
     assert response.status_code == 200
     body = response.json()
     assert "class" in body, f"Response must have 'class' field, got: {body}"
-    assert body["class"] in {"image", "file"}, f"'class' must be 'image' or 'file', got: {body['class']!r}"
+    assert body["class"] in {"image", "file"}, (
+        f"'class' must be 'image' or 'file', got: {body['class']!r}"
+    )
 
 
 async def test_image_response_class_is_image(
@@ -1099,7 +1111,9 @@ async def test_mixed_types_combine_on_send(
     )
     assert send_resp.status_code == 200
 
-    assert len(fake_adapter.sent_keys) == 1, f"Exactly 1 send_keys expected, got {len(fake_adapter.sent_keys)}"
+    assert len(fake_adapter.sent_keys) == 1, (
+        f"Exactly 1 send_keys expected, got {len(fake_adapter.sent_keys)}"
+    )
     payload = fake_adapter.sent_keys[0][1]
     assert "explain both" in payload
 
@@ -1122,7 +1136,6 @@ async def test_non_image_deferred_cleanup_fires(
         files={"file": ("doc.pdf", io.BytesIO(PDF_MAGIC), "application/pdf")},
     )
     assert pdf_resp.status_code == 200
-    pdf_ref = pdf_resp.json()["ref"]
 
     # Verify file exists on disk
     upload_dir = Path(project.path) / ".claude" / "uploads"

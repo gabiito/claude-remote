@@ -15,12 +15,9 @@ import re
 import time
 from pathlib import Path
 
-import pytest
-
 from claude_remote.services.file_upload import (
     STALE_SWEEP_SECONDS,
     UPLOAD_SUBDIR,
-    FileValidationError,
     classify_file,
     sweep_stale_uploads,
     unlink_best_effort,

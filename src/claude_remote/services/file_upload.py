@@ -22,8 +22,8 @@ from pathlib import Path
 # Constants — single source of truth (design §8)
 # ---------------------------------------------------------------------------
 
-MAX_IMAGE_BYTES: int = 10 * 1024 * 1024  # applies to image-class files; used in route for class-based cap selection
-MAX_DOC_BYTES: int = 20 * 1024 * 1024  # applies to file-class (non-image); route selects cap by class
+MAX_IMAGE_BYTES: int = 10 * 1024 * 1024  # image-class cap; route selects by class
+MAX_DOC_BYTES: int = 20 * 1024 * 1024  # file-class (non-image) cap; route selects by class
 UPLOAD_TTL_SECONDS: int = 60  # deferred-delete window after send_keys
 STALE_SWEEP_SECONDS: float = 600  # startup sweep age (10 minutes)
 UPLOAD_SUBDIR: tuple[str, str] = (".claude", "uploads")  # under project.path
