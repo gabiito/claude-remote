@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,8 +16,10 @@ from claude_remote.api.errors import error_response
 from claude_remote.config import get_settings
 from claude_remote.db.connection import get_connection_for
 from claude_remote.db.migrations import MIGRATIONS_DIR, apply_migrations
+from claude_remote.db.projects import ProjectsRepository
 from claude_remote.db.vapid_keys import VapidKeysRepository
 from claude_remote.routes import health, hooks, instances, projects, projects_view
+from claude_remote.services.image_upload import sweep_stale_uploads
 
 PACKAGE_ROOT = Path(__file__).parent
 
@@ -41,6 +44,19 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         vapid_repo.get_or_create()
     except Exception as exc:  # noqa: BLE001
         logger.warning("VAPID keygen failed at startup: %s", exc)
+
+    # Sweep stale upload files from all registered projects.
+    # Best-effort: lifespan startup must not crash even if sweep fails.
+    try:
+        projects_repo = ProjectsRepository(
+            connection_factory=lambda: get_connection_for(settings.db_path)
+        )
+        project_paths = [p.path for p in projects_repo.list_all()]
+        removed = sweep_stale_uploads(project_paths, now=time.time())
+        if removed:
+            logger.info("Swept %d stale upload(s) at startup", removed)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Upload sweep failed at startup: %s", exc)
 
     yield
 
