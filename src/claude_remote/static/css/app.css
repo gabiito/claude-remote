@@ -909,7 +909,10 @@ body {
   padding: 9px 12px;
   min-height: 42px;
   display: flex;
-  align-items: center;
+  /* Column so the attachment-chip strip is its own full-width row ABOVE
+     the textarea instead of sharing the row and squeezing it. */
+  flex-direction: column;
+  align-items: stretch;
   transition: border-color 140ms;
 }
 .cr-input-wrap:focus-within { border-color: var(--accent-dim); }
