@@ -936,8 +936,14 @@ body {
 .cr-attachment-chips {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 6px;
   margin-bottom: 6px;
+  /* Cap at 2 chip rows (32px item + 6px gap), then scroll — many
+     attachments must not eat the screen or push the input off. */
+  max-height: 70px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .cr-chip__item {
   display: inline-flex;
