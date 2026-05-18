@@ -45,48 +45,38 @@ SVG_MAGIC = b"<svg xmlns" + b"\x00" * 16
 # ---------------------------------------------------------------------------
 
 
-class TestSniffExtension:
-    def test_png_accepted(self):
-        assert classify_file(PNG_MAGIC) == ".png"
+class TestClassifyFile:
+    def test_png_bytes_return_image_ext(self):
+        assert classify_file(PNG_MAGIC) == ("image", ".png")
 
-    def test_jpeg_accepted(self):
-        assert classify_file(JPEG_MAGIC) == ".jpg"
+    def test_jpeg_bytes_return_image_ext(self):
+        assert classify_file(JPEG_MAGIC) == ("image", ".jpg")
 
-    def test_webp_accepted(self):
-        assert classify_file(WEBP_MAGIC) == ".webp"
+    def test_webp_bytes_return_image_ext(self):
+        assert classify_file(WEBP_MAGIC) == ("image", ".webp")
 
-    def test_gif87_accepted(self):
-        assert classify_file(GIF87_MAGIC) == ".gif"
+    def test_gif87_bytes_return_image_ext(self):
+        assert classify_file(GIF87_MAGIC) == ("image", ".gif")
 
-    def test_gif89_accepted(self):
-        assert classify_file(GIF89_MAGIC) == ".gif"
+    def test_gif89_bytes_return_image_ext(self):
+        assert classify_file(GIF89_MAGIC) == ("image", ".gif")
 
-    def test_spoofed_content_type_pdf_magic_rejected(self):
-        """PDF magic bytes with an image/png Content-Type header — rejected by magic only."""
-        with pytest.raises(FileValidationError):
-            classify_file(PDF_MAGIC)
+    def test_pdf_bytes_return_file_none(self):
+        assert classify_file(PDF_MAGIC) == ("file", None)
 
-    def test_svg_bytes_rejected(self):
-        with pytest.raises(FileValidationError):
-            classify_file(SVG_MAGIC)
+    def test_zip_office_bytes_return_file_none(self):
+        assert classify_file(b"PK\x03\x04" + b"\x00" * 100) == ("file", None)
 
-    def test_empty_bytes_rejected(self):
-        with pytest.raises(FileValidationError):
-            classify_file(b"")
+    def test_random_bytes_return_file_none(self):
+        assert classify_file(b"\xDE\xAD\xBE\xEF\x00\x01\x02\x03" + b"\x00" * 100) == ("file", None)
 
-    def test_random_bytes_rejected(self):
-        with pytest.raises(FileValidationError):
-            classify_file(b"\x00\x01\x02\x03" * 4)
+    def test_text_bytes_return_file_none(self):
+        assert classify_file(b"Hello world, this is plain text") == ("file", None)
 
-    def test_webp_riff_only_no_webp_marker_rejected(self):
-        """RIFF container without WEBP at offset 8 is NOT a WebP."""
+    def test_riff_no_webp_marker_returns_file_none(self):
+        """RIFF container without WEBP at offset 8 — not an image, accepted as file."""
         bad_riff = b"RIFF\x00\x00\x00\x00MPEG" + b"\x00" * 8
-        with pytest.raises(FileValidationError):
-            classify_file(bad_riff)
-
-    def test_too_short_for_png_rejected(self):
-        with pytest.raises(FileValidationError):
-            classify_file(b"\x89PN")
+        assert classify_file(bad_riff) == ("file", None)
 
 
 # ---------------------------------------------------------------------------

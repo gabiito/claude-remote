@@ -341,24 +341,6 @@ async def test_upload_gif_accepted(
 # ---------------------------------------------------------------------------
 
 
-async def test_magic_mismatch_returns_400_no_file_written(
-    img_client: AsyncClient,
-    projects_repo: ProjectsRepository,
-    instances_repo: InstancesRepository,
-    tmp_projects_root: Path,
-) -> None:
-    """PDF magic with image/png Content-Type → 400, no file on disk."""
-    project, instance = await _setup_running_instance(
-        img_client, projects_repo, instances_repo, tmp_projects_root, "acme.com", "badmagic"
-    )
-    response = await img_client.post(
-        f"/ui/instances/{instance.id}/upload-image",
-        files={"file": ("photo.png", io.BytesIO(PDF_MAGIC), "image/png")},
-    )
-    assert response.status_code == 400
-    upload_dir = Path(project.path) / ".claude" / "uploads"
-    assert not upload_dir.exists() or len(list(upload_dir.iterdir())) == 0
-
 
 async def test_oversized_file_returns_400_no_file_written(
     img_client: AsyncClient,
