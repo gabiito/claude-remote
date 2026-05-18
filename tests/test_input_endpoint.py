@@ -194,14 +194,18 @@ async def test_input_instance_not_found(
     assert response.status_code == 404
 
 
-async def test_input_adapter_error_returns_500(
+async def test_input_adapter_error_returns_non_5xx(
     inp_client: AsyncClient,
     projects_repo: ProjectsRepository,
     instances_repo: InstancesRepository,
     tmp_projects_root,
     fake_adapter: FakeTmuxAdapter,
 ) -> None:
-    """Adapter error (session gone) → 500 error fragment."""
+    """Adapter TmuxOperationError → 4xx (non-5xx) HTML fragment per spec Never-5xx.
+
+    RED: post_instance_input currently returns 500. This test asserts it must
+    return a 4xx so the HTMX poll loop is never broken.
+    """
     p_path = tmp_projects_root / "acme.com" / "adapterr"
     p_path.mkdir(parents=True)
     project = projects_repo.create(
@@ -221,4 +225,11 @@ async def test_input_adapter_error_returns_500(
         f"/ui/instances/{instance.id}/input",
         data={"text": "hello", "send_enter": "true"},
     )
-    assert response.status_code == 500
+    assert response.status_code < 500, (
+        f"Expected 4xx but got {response.status_code} — "
+        "TmuxOperationError must never cause a 5xx (spec: Never 5xx)"
+    )
+    assert response.status_code >= 400
+    # Response must be an HTML fragment (not a bare 5xx stacktrace)
+    content_type = response.headers.get("content-type", "")
+    assert "html" in content_type
