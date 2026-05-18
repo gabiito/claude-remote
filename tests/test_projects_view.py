@@ -668,6 +668,15 @@ async def test_glump_sound_on_first_output_after_send(
     assert "@input-sent.window" in html or "x-on:input-sent" in html, (
         "output-content must arm on the input-sent event"
     )
+    # Turn-complete trigger: chime on the live-status edge into
+    # needs_input/idle (Claude finished), NOT on the raw first ETag change
+    # (that was the user's own echoed input).
+    assert "X-Live-Status" in html, (
+        "output poll must read the X-Live-Status header for the chime trigger"
+    )
+    assert "needs_input" in html and "idle" in html, (
+        "chime must fire on the transition into needs_input/idle"
+    )
 
 
 async def test_deep_view_rail_collapsible(

@@ -132,6 +132,52 @@ async def test_output_happy_path(
     assert "Claude output text" in html
 
 
+async def test_output_emits_live_status_header(
+    out_client: AsyncClient,
+    projects_repo: ProjectsRepository,
+    instances_repo: InstancesRepository,
+    tmp_projects_root,
+    fake_adapter: FakeTmuxAdapter,
+) -> None:
+    """GET /output carries X-Live-Status so the deep-view client can chime
+    when Claude finishes its turn (transition into needs_input/idle).
+
+    The header must be present on the 200 (changed) response AND on the
+    304/204-style unchanged response, so the client always knows status.
+    """
+    p_path = tmp_projects_root / "acme.com" / "lsproj"
+    p_path.mkdir(parents=True)
+    project = projects_repo.create(
+        project_create=ProjectCreate(
+            name="LsProj", slug="lsproj", path=p_path, domain="acme.com"
+        )
+    )
+    launch_resp = await out_client.post(f"/ui/projects/{project.id}/launch")
+    assert launch_resp.status_code == 200
+    instance = instances_repo.list_by_project(project.id)[0]
+    fake_adapter.set_pane_content(instance.tmux_session_name, "hello")
+
+    r200 = await out_client.get(f"/ui/instances/{instance.id}/output")
+    assert r200.status_code == 200
+    valid = {
+        "running", "active", "needs_input", "idle",
+        "stopped", "crashed", "starting",
+    }
+    assert r200.headers.get("X-Live-Status") in valid, (
+        "200 /output must emit a valid X-Live-Status header"
+    )
+
+    etag = r200.headers["ETag"]
+    r304 = await out_client.get(
+        f"/ui/instances/{instance.id}/output",
+        headers={"If-None-Match": etag},
+    )
+    assert r304.status_code == 204
+    assert r304.headers.get("X-Live-Status") in valid, (
+        "unchanged (204) /output must ALSO emit X-Live-Status"
+    )
+
+
 async def test_output_instance_not_found(
     out_client: AsyncClient,
 ) -> None:
