@@ -902,6 +902,15 @@ body {
   max-height: 120px;
 }
 .cr-input-wrap textarea::placeholder { color: var(--fg-3); }
+/* Action buttons cluster: row by default, column once the textarea is tall
+   (~3 rows) so the stacked 42px column hands width back to the text box. */
+.cr-input-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.cr-input-actions--stacked { flex-direction: column; }
 .cr-send {
   flex: 0 0 auto;
   width: 42px; height: 42px;
